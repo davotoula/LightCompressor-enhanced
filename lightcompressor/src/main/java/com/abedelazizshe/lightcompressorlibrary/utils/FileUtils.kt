@@ -2,6 +2,7 @@ package com.abedelazizshe.lightcompressorlibrary.utils
 
 import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import java.io.File
@@ -29,7 +30,11 @@ fun saveVideoInExternal(
         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
     if (saveLocation == Environment.DIRECTORY_DOWNLOADS) {
-        collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        } else {
+            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        }
     }
 
     val fileUri = context.contentResolver.insert(collection, values)
