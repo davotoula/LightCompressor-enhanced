@@ -26,6 +26,10 @@ android {
         jvmTarget = "11"
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     publishing {
         singleVariant("release") {
             withSourcesJar()
