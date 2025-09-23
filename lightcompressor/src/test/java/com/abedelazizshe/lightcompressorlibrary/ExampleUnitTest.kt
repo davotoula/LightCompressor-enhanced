@@ -1,5 +1,6 @@
 package com.abedelazizshe.lightcompressorlibrary
 
+import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import org.junit.Test
 import org.junit.Assert.*
