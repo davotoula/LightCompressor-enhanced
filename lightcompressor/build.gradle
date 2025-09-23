@@ -1,12 +1,14 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
-apply plugin: 'maven-publish'
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+}
 
 android {
-    compileSdkVersion 36
+    compileSdkVersion libs.versions.compileSdk.get().toInteger()
     defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 33
+        minSdkVersion libs.versions.minSdk.get().toInteger()
+        targetSdkVersion libs.versions.targetSdk.get().toInteger()
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,16 +42,21 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
-    implementation "androidx.annotation:annotation:1.8.2"
-    implementation "androidx.core:core-ktx:1.17.0"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
-    implementation "com.googlecode.mp4parser:isoparser:1.1.22"
 
-    testImplementation "junit:junit:4.13.2"
-    androidTestImplementation "androidx.test.ext:junit:1.3.0"
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
+    // Kotlin
+    implementation libs.kotlin.stdlib
+    implementation libs.bundles.kotlinx.coroutines
+
+    // AndroidX
+    implementation libs.androidx.annotation
+    implementation libs.androidx.core.ktx
+
+    // Parsing
+    implementation libs.mp4parser
+
+    // Testing
+    testImplementation libs.junit
+    androidTestImplementation libs.bundles.androidx.testing
 }
 
 afterEvaluate {
