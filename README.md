@@ -1,4 +1,4 @@
-[![JitPack](https://jitpack.io/v/AbedElazizShe/LightCompressor.svg)](https://jitpack.io/#AbedElazizShe/LightCompressor)
+[![JitPack](https://jitpack.io/v/davotoula/LightCompressor-enhanced.svg)](https://jitpack.io/#davotoula/LightCompressor-enhanced)
 # Purpose of fork
 Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allow for finer bitrates than increments of 1Mbps
 
@@ -278,7 +278,7 @@ Include this in your Module-level build.gradle file:
 ### Groovy
 
 ```groovy
-implementation 'com.github.AbedElazizShe:LightCompressor:1.3.3'
+implementation 'com.github.davotoula:LightCompressor-enhanced:1.4.0'
 ```
 
 If you're facing problems with the setup, edit settings.gradle by adding this at the beginning of the file:
