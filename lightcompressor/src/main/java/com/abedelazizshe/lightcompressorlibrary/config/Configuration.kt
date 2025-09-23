@@ -44,16 +44,26 @@ data class Configuration(
      * for better clarity, though both can be specified with bps taking precedence.
      */
     internal fun getEffectiveBitrateInBps(): Long? {
+        android.util.Log.i("Configuration", "getEffectiveBitrateInBps called")
+        android.util.Log.i("Configuration", "videoBitrateInBps: $videoBitrateInBps")
+        android.util.Log.i("Configuration", "videoBitrateInMbps: $videoBitrateInMbps")
+
         return when {
             videoBitrateInBps != null -> {
                 require(videoBitrateInBps!! > 0) { "videoBitrateInBps must be positive" }
+                android.util.Log.i("Configuration", "Using videoBitrateInBps: $videoBitrateInBps")
                 videoBitrateInBps
             }
             videoBitrateInMbps != null -> {
                 require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
-                videoBitrateInMbps!! * 1000000L
+                val result = videoBitrateInMbps!! * 1000000L
+                android.util.Log.i("Configuration", "Using videoBitrateInMbps: $videoBitrateInMbps, converted to: $result")
+                result
             }
-            else -> null
+            else -> {
+                android.util.Log.i("Configuration", "No bitrate specified, returning null")
+                null
+            }
         }
     }
 

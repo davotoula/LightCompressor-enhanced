@@ -110,8 +110,14 @@ object Compressor {
             return@withContext Result(index, success = false, failureMessage = INVALID_BITRATE)
 
         //Handle new bitrate value
-        val newBitrate: Long = configuration.getEffectiveBitrateInBps()
-            ?: getBitrate(bitrate, configuration.quality).toLong()
+        val effectiveBitrateFromConfig = configuration.getEffectiveBitrateInBps()
+        val qualityBasedBitrate = getBitrate(bitrate, configuration.quality).toLong()
+        val newBitrate: Long = effectiveBitrateFromConfig ?: qualityBasedBitrate
+
+        Log.i("Compressor", "Original bitrate: $bitrate bps")
+        Log.i("Compressor", "Effective bitrate from config: $effectiveBitrateFromConfig")
+        Log.i("Compressor", "Quality-based bitrate: $qualityBasedBitrate")
+        Log.i("Compressor", "Final bitrate used: $newBitrate bps")
 
         //Handle new width and height values
         val resizer = configuration.resizer

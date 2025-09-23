@@ -3,4 +3,6 @@
     <string name="home_title">Video Compressor Sample</string>
     <string name="pick_video">Pick Video</string>
     <string name="record_video">Record Video</string>
+    <string name="bitrate_label">Bitrate (bps):</string>
+    <string name="bitrate_hint">Enter bitrate in bits per second (e.g., 1500000)</string>
 </resources>

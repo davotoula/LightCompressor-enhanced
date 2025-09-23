@@ -21,7 +21,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.abedelazizshe.lightcompressor.databinding.ActivityMainBinding
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
-import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
@@ -175,6 +174,21 @@ class MainActivity : AppCompatActivity() {
     private fun processVideo() {
         binding.mainContents.visibility = View.VISIBLE
 
+        // Get the user-entered bitrate value
+        val bitrateText = binding.bitrateInput.text.toString()
+        val videoBitrateInBps = if (bitrateText.isNotEmpty()) {
+            try {
+                bitrateText.toLong()
+            } catch (e: NumberFormatException) {
+                Log.w("MainActivity", "Invalid bitrate input: $bitrateText, using default 1500000")
+                1500000L // Default fallback value
+            }
+        } else {
+            1500000L // Default fallback value
+        }
+
+        Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
+
         lifecycleScope.launch {
             VideoCompressor.start(
                 context = applicationContext,
@@ -184,20 +198,13 @@ class MainActivity : AppCompatActivity() {
                     saveAt = SaveLocation.movies,
                     subFolderName = "my-demo-videos"
                 ),
-                configureWith = Configuration(
-                    quality = VideoQuality.LOW,
+                configureWith = Configuration.withBitrateInBps(
+                    // Quality is ignored when videoBitrateInBps is provided, but required by API
+                    videoBitrateInBps = videoBitrateInBps,
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
                     isMinBitrateCheckEnabled = false,
                     resizer = VideoResizer.limitSize(1280.0)
                 ),
-                // Alternative: Use the new bps API for more granular bitrate control
-                // configureWith = Configuration.withBitrateInBps(
-                //     quality = VideoQuality.MEDIUM,
-                //     videoBitrateInBps = 1500000L, // 1.5 Mbps for better quality control
-                //     videoNames = uris.map { uri -> uri.pathSegments.last() },
-                //     isMinBitrateCheckEnabled = false,
-                //     resizer = VideoResizer.limitSize(1280.0)
-                // ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
                         //Update UI
