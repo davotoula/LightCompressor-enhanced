@@ -13,6 +13,7 @@ import com.google.android.exoplayer2.source.ProgressiveMediaSource
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import com.google.android.exoplayer2.util.Util
+import com.google.android.exoplayer2.MediaItem
 import java.io.File
 
 /**
@@ -60,9 +61,10 @@ class VideoPlayerActivity : AppCompatActivity() {
     private fun play(uri: Uri) {
 
         val userAgent = Util.getUserAgent(this, getString(R.string.app_name))
+        val mediaItem = MediaItem.fromUri(uri)
         val mediaSource = ProgressiveMediaSource
             .Factory(DefaultDataSourceFactory(this, userAgent))
-            .createMediaSource(uri)
+            .createMediaSource(mediaItem)
 
         binding.epVideoView.player = exoPlayer
 

@@ -3,7 +3,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'maven-publish'
 
 android {
-    compileSdkVersion 33
+    compileSdkVersion 36
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 33
@@ -41,14 +41,15 @@ android {
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
-    implementation "androidx.core:core-ktx:1.10.1"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4"
-    implementation "com.googlecode.mp4parser:isoparser:1.0.6"
+    implementation "androidx.annotation:annotation:1.8.2"
+    implementation "androidx.core:core-ktx:1.17.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+    implementation "com.googlecode.mp4parser:isoparser:1.1.22"
 
     testImplementation "junit:junit:4.13.2"
-    androidTestImplementation "androidx.test.ext:junit:1.1.5"
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
+    androidTestImplementation "androidx.test.ext:junit:1.3.0"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
 }
 
 afterEvaluate {
