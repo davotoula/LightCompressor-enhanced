@@ -26,10 +26,10 @@ android {
     }
 
     buildFeatures {
-        viewBinding true
-        buildConfig true
+        viewBinding = true
+        buildConfig = true
     }
-    namespace 'com.abedelazizshe.lightcompressor'
+    namespace = 'com.abedelazizshe.lightcompressor'
 }
 
 dependencies {
