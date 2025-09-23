@@ -187,7 +187,21 @@ class MainActivity : AppCompatActivity() {
             1500000L // Default fallback value
         }
 
+        // Get the user-entered resize value
+        val resizeText = binding.resizeInput.text.toString()
+        val maxResolution = if (resizeText.isNotEmpty()) {
+            try {
+                resizeText.toDouble()
+            } catch (e: NumberFormatException) {
+                Log.w("MainActivity", "Invalid resize input: $resizeText, using default 1280")
+                1280.0 // Default fallback value
+            }
+        } else {
+            1280.0 // Default fallback value
+        }
+
         Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
+        Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
 
         lifecycleScope.launch {
             VideoCompressor.start(
@@ -203,7 +217,7 @@ class MainActivity : AppCompatActivity() {
                     videoBitrateInBps = videoBitrateInBps,
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
                     isMinBitrateCheckEnabled = false,
-                    resizer = VideoResizer.limitSize(1280.0)
+                    resizer = VideoResizer.limitSize(maxResolution)
                 ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {

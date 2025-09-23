@@ -65,6 +65,23 @@
             android:hint="@string/bitrate_hint"
             android:inputType="number"
             android:text="1500000"
+            android:textSize="14sp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/resize_label"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/resizeInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/resize_hint"
+            android:inputType="number"
+            android:text="1280"
             android:textSize="14sp" />
 
     </LinearLayout>

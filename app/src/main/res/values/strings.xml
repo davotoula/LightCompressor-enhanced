@@ -5,4 +5,6 @@
     <string name="record_video">Record Video</string>
     <string name="bitrate_label">Bitrate (bps):</string>
     <string name="bitrate_hint">Enter bitrate in bits per second (e.g., 1500000)</string>
+    <string name="resize_label">Max Resolution (long edge):</string>
+    <string name="resize_hint">Enter max pixels for long edge (e.g., 1280)</string>
 </resources>
