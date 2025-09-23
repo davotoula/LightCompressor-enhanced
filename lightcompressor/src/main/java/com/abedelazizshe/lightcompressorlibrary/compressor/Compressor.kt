@@ -110,9 +110,8 @@ object Compressor {
             return@withContext Result(index, success = false, failureMessage = INVALID_BITRATE)
 
         //Handle new bitrate value
-        val newBitrate: Int =
-            if (configuration.videoBitrateInMbps == null) getBitrate(bitrate, configuration.quality)
-            else configuration.videoBitrateInMbps!! * 1000000
+        val newBitrate: Long = configuration.getEffectiveBitrateInBps()
+            ?: getBitrate(bitrate, configuration.quality).toLong()
 
         //Handle new width and height values
         val resizer = configuration.resizer
@@ -154,7 +153,7 @@ object Compressor {
         newWidth: Int,
         newHeight: Int,
         destination: String,
-        newBitrate: Int,
+        newBitrate: Long,
         streamableFile: String?,
         disableAudio: Boolean,
         extractor: MediaExtractor,

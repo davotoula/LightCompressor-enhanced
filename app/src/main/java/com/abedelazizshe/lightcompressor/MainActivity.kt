@@ -190,6 +190,14 @@ class MainActivity : AppCompatActivity() {
                     isMinBitrateCheckEnabled = false,
                     resizer = VideoResizer.limitSize(1280.0)
                 ),
+                // Alternative: Use the new bps API for more granular bitrate control
+                // configureWith = Configuration.withBitrateInBps(
+                //     quality = VideoQuality.MEDIUM,
+                //     videoBitrateInBps = 1500000L, // 1.5 Mbps for better quality control
+                //     videoNames = uris.map { uri -> uri.pathSegments.last() },
+                //     isMinBitrateCheckEnabled = false,
+                //     resizer = VideoResizer.limitSize(1280.0)
+                // ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
                         //Update UI

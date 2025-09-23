@@ -14,6 +14,7 @@ data class Configuration(
     var quality: VideoQuality = VideoQuality.MEDIUM,
     var isMinBitrateCheckEnabled: Boolean = true,
     var videoBitrateInMbps: Int? = null,
+    var videoBitrateInBps: Long? = null,
     var disableAudio: Boolean = false,
     val resizer: VideoResizer? = VideoResizer.auto,
     var videoNames: List<String>
@@ -25,7 +26,7 @@ data class Configuration(
         videoBitrateInMbps: Int? = null,
         disableAudio: Boolean = false,
         keepOriginalResolution: Boolean,
-        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, getVideoResizer(keepOriginalResolution, null, null), videoNames)
+        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, null, null), videoNames)
 
     @Deprecated("Use VideoResizer to override the output video dimensions.", ReplaceWith("Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)"))
     constructor(
@@ -36,7 +37,73 @@ data class Configuration(
         keepOriginalResolution: Boolean = false,
         videoHeight: Double? = null,
         videoWidth: Double? = null,
-        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, getVideoResizer(keepOriginalResolution, videoHeight, videoWidth), videoNames)
+        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, videoHeight, videoWidth), videoNames)
+
+    /**
+     * Validates the bitrate configuration to ensure only one bitrate field is used at a time
+     * for better clarity, though both can be specified with bps taking precedence.
+     */
+    internal fun getEffectiveBitrateInBps(): Long? {
+        return when {
+            videoBitrateInBps != null -> {
+                require(videoBitrateInBps!! > 0) { "videoBitrateInBps must be positive" }
+                videoBitrateInBps
+            }
+            videoBitrateInMbps != null -> {
+                require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
+                videoBitrateInMbps!! * 1000000L
+            }
+            else -> null
+        }
+    }
+
+    companion object {
+        /**
+         * Creates a Configuration with bitrate specified in bps for granular control
+         */
+        @JvmStatic
+        fun withBitrateInBps(
+            quality: VideoQuality = VideoQuality.MEDIUM,
+            isMinBitrateCheckEnabled: Boolean = true,
+            videoBitrateInBps: Long? = null,
+            disableAudio: Boolean = false,
+            resizer: VideoResizer? = VideoResizer.auto,
+            videoNames: List<String>
+        ): Configuration {
+            return Configuration(
+                quality = quality,
+                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                videoBitrateInMbps = null,
+                videoBitrateInBps = videoBitrateInBps,
+                disableAudio = disableAudio,
+                resizer = resizer,
+                videoNames = videoNames
+            )
+        }
+
+        /**
+         * Creates a Configuration with bitrate specified in Mbps (legacy approach)
+         */
+        @JvmStatic
+        fun withBitrateInMbps(
+            quality: VideoQuality = VideoQuality.MEDIUM,
+            isMinBitrateCheckEnabled: Boolean = true,
+            videoBitrateInMbps: Int? = null,
+            disableAudio: Boolean = false,
+            resizer: VideoResizer? = VideoResizer.auto,
+            videoNames: List<String>
+        ): Configuration {
+            return Configuration(
+                quality = quality,
+                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                videoBitrateInMbps = videoBitrateInMbps,
+                videoBitrateInBps = null,
+                disableAudio = disableAudio,
+                resizer = resizer,
+                videoNames = videoNames
+            )
+        }
+    }
 }
 
 private fun getVideoResizer(keepOriginalResolution: Boolean, videoHeight: Double?, videoWidth: Double?): VideoResizer? =

@@ -69,7 +69,7 @@ object CompressorUtils {
     fun setOutputFileParameters(
         inputFormat: MediaFormat,
         outputFormat: MediaFormat,
-        newBitrate: Int,
+        newBitrate: Long,
     ) {
         val newFrameRate = getFrameRate(inputFormat)
         val iFrameInterval = getIFrameIntervalRate(inputFormat)
@@ -93,7 +93,7 @@ object CompressorUtils {
             setInteger(MediaFormat.KEY_FRAME_RATE, newFrameRate)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, iFrameInterval)
             // expected bps
-            setInteger(MediaFormat.KEY_BIT_RATE, newBitrate)
+            setInteger(MediaFormat.KEY_BIT_RATE, newBitrate.toInt())
             setInteger(
                 MediaFormat.KEY_BITRATE_MODE,
                 MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR

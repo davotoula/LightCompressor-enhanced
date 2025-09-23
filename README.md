@@ -2,6 +2,49 @@
 # Purpose of fork
 Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allow for finer bitrates than increments of 1Mbps
 
+## New API Features:
+
+1. New Configuration Field: videoBitrateInBps: Long? for granular bitrate control
+2. Priority System: BPS takes precedence over Mbps when both are specified
+3. Helper Methods:
+   - Configuration.withBitrateInBps() - Creates config with bps bitrate
+   - Configuration.withBitrateInMbps() - Creates config with Mbps bitrate (legacy)
+   - getEffectiveBitrateInBps() - Internal method to resolve bitrate
+
+## Key Benefits:
+
+- Granular Control: Allows bitrates like 1,500,000 bps (1.5 Mbps) instead of being limited to whole Mbps values
+- Sub-Mbps Bitrates: Enable bitrates lower than 1 Mbps for extreme compression scenarios
+- Better Precision: Match MediaCodec's native bps format exactly
+- Backward Compatible: Existing Mbps API continues to work unchanged
+
+
+## Technical Implementation:
+
+- Updated internal compression logic to handle Long bitrate values
+- Modified MediaFormat parameter setting with proper type conversion
+- Added validation for positive bitrate values
+- Comprehensive unit tests covering all scenarios
+- Updated documentation and examples
+
+## Usage Examples:
+
+```kotlin
+// New BPS API for granular control
+val config = Configuration.withBitrateInBps(
+quality = VideoQuality.MEDIUM,
+videoBitrateInBps = 1500000L, // 1.5 Mbps exactly
+videoNames = listOf("video.mp4")
+)
+
+// Legacy Mbps API still works
+val legacyConfig = Configuration.withBitrateInMbps(
+quality = VideoQuality.HIGH,
+videoBitrateInMbps = 2, // 2 Mbps
+videoNames = listOf("video.mp4")
+)
+```
+
 # LightCompressor
 
 LightCompressor can now be used in Flutter through [light_compressor](https://pub.dev/packages/light_compressor) plugin.
