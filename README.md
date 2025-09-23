@@ -1,5 +1,6 @@
 [![JitPack](https://jitpack.io/v/AbedElazizShe/LightCompressor.svg)](https://jitpack.io/#AbedElazizShe/LightCompressor)
-
+# Purpose of fork
+Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allow for finer bitrates than increments of 1Mbps
 
 # LightCompressor
 
