@@ -6,7 +6,6 @@ plugins {
 }
 
 release {
-    disablePush = true
     checkForPreReleaseVersions = false
     checkForUncommittedFiles = false
 }
