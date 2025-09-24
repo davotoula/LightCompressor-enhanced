@@ -8,12 +8,13 @@
 .settings
 .cxx
 
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Ignore all IDEA files
+.idea/*
+.claude/
+
+# Keep these (useful to share)
+!.idea/codeStyles/
+!.idea/runConfigurations/
 
 local.properties
 maven-repository
