@@ -5,6 +5,7 @@ plugins {
     id 'io.github.simonhauck.release' version '1.5.0'
 }
 
+// Double check version in gradle.properties and ./gradlew release -PreleaseType=<release-type major/minor/patch>
 release {
     checkForPreReleaseVersions = false
     checkForUncommittedFiles = false
