@@ -2,7 +2,6 @@ package com.abedelazizshe.lightcompressor
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,11 +19,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.abedelazizshe.lightcompressor.databinding.ActivityMainBinding
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
+import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
+import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils
 import kotlinx.coroutines.launch
 
 /**
@@ -98,7 +99,7 @@ class MainActivity : AppCompatActivity() {
 
         reset()
 
-        if (resultCode == Activity.RESULT_OK)
+        if (resultCode == RESULT_OK)
             if (requestCode == REQUEST_SELECT_VIDEO || requestCode == REQUEST_CAPTURE_VIDEO) {
                 handleResult(intent)
             }
@@ -200,8 +201,32 @@ class MainActivity : AppCompatActivity() {
             1280.0 // Default fallback value
         }
 
+        // Get the selected codec
+        val selectedCodec = when (binding.codecRadioGroup.checkedRadioButtonId) {
+            R.id.radioH265 -> VideoCodec.H265
+            else -> VideoCodec.H264
+        }
+
+        // Check if H.265 is supported when selected
+        if (selectedCodec == VideoCodec.H265 && !CompressorUtils.isHevcEncodingSupported()) {
+            Log.w("MainActivity", "H.265 selected but not supported on this device, falling back to H.264")
+            binding.radioH264.isChecked = true
+            android.widget.Toast.makeText(
+                this,
+                "H.265 not supported on this device. Using H.264 instead.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+
+        val finalCodec = if (selectedCodec == VideoCodec.H265 && CompressorUtils.isHevcEncodingSupported()) {
+            VideoCodec.H265
+        } else {
+            VideoCodec.H264
+        }
+
         Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
         Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
+        Log.i("MainActivity", "Using codec: ${finalCodec.name}")
 
         lifecycleScope.launch {
             VideoCompressor.start(
@@ -217,7 +242,8 @@ class MainActivity : AppCompatActivity() {
                     videoBitrateInBps = videoBitrateInBps,
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
                     isMinBitrateCheckEnabled = false,
-                    resizer = VideoResizer.limitSize(maxResolution)
+                    resizer = VideoResizer.limitSize(maxResolution),
+                    videoCodec = finalCodec
                 ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {
