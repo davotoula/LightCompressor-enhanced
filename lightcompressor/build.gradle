@@ -39,6 +39,12 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            resources.pickFirsts.add('builddef.lst')
+        }
+    }
+
     publishing {
         singleVariant("release") {
             withSourcesJar()
