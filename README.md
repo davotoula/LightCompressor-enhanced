@@ -4,15 +4,23 @@ Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allo
 
 ## New API Features:
 
-1. New Configuration Field: videoBitrateInBps: Long? for granular bitrate control
-2. Priority System: BPS takes precedence over Mbps when both are specified
-3. Helper Methods:
+1. **H.265 (HEVC) Video Encoding Support**: Choose between H.264 (AVC) and H.265 (HEVC) codecs for video compression
+   - VideoCodec.H264 - Default, maximum compatibility
+   - VideoCodec.H265 - Better compression efficiency, smaller file sizes (where supported)
+   - Configuration.videoCodec field for codec selection
+
+2. New Configuration Field: videoBitrateInBps: Long? for granular bitrate control
+3. Priority System: BPS takes precedence over Mbps when both are specified
+4. Helper Methods:
    - Configuration.withBitrateInBps() - Creates config with bps bitrate
    - Configuration.withBitrateInMbps() - Creates config with Mbps bitrate (legacy)
    - getEffectiveBitrateInBps() - Internal method to resolve bitrate
 
 ## Key Benefits:
 
+- **H.265 Encoding**: Up to 50% better compression than H.264 at the same quality level
+- **Automatic Device Validation**: Library automatically checks H.265 support and returns clear error if unsupported
+- **Device Compatibility Check**: Built-in utility to verify H.265 encoder availability before compression
 - Granular Control: Allows bitrates like 1,500,000 bps (1.5 Mbps) instead of being limited to whole Mbps values
 - Sub-Mbps Bitrates: Enable bitrates lower than 1 Mbps for extreme compression scenarios
 - Better Precision: Match MediaCodec's native bps format exactly
@@ -30,18 +38,50 @@ Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allo
 ## Usage Examples:
 
 ```kotlin
-// New BPS API for granular control
-val config = Configuration.withBitrateInBps(
-quality = VideoQuality.MEDIUM,
-videoBitrateInBps = 1500000L, // 1.5 Mbps exactly
-videoNames = listOf("video.mp4")
+// Option 1: Check H.265 support first (recommended for better UX)
+import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils
+
+val config = if (CompressorUtils.isHevcEncodingSupported()) {
+    // Use H.265 for up to 50% better compression
+    Configuration.withBitrateInBps(
+        quality = VideoQuality.MEDIUM,
+        videoBitrateInBps = 1500000L,
+        videoNames = listOf("video.mp4"),
+        videoCodec = VideoCodec.H265
+    )
+} else {
+    // Fallback to H.264
+    Configuration.withBitrateInBps(
+        quality = VideoQuality.MEDIUM,
+        videoBitrateInBps = 1500000L,
+        videoNames = listOf("video.mp4"),
+        videoCodec = VideoCodec.H264
+    )
+}
+
+// Option 2: Let the library validate (error returned in onFailure callback)
+val h265Config = Configuration.withBitrateInBps(
+    quality = VideoQuality.MEDIUM,
+    videoBitrateInBps = 1500000L,
+    videoNames = listOf("video.mp4"),
+    videoCodec = VideoCodec.H265
+)
+// If device doesn't support H.265, onFailure will be called with:
+// "H.265 (HEVC) encoding is not supported on this device. Please use VideoCodec.H264 instead."
+
+// Default H.264 encoding (maximum compatibility)
+val h264Config = Configuration.withBitrateInBps(
+    quality = VideoQuality.MEDIUM,
+    videoBitrateInBps = 1500000L,
+    videoNames = listOf("video.mp4"),
+    videoCodec = VideoCodec.H264 // Default codec
 )
 
-// Legacy Mbps API still works
+// Legacy Mbps API still works (H.264 by default)
 val legacyConfig = Configuration.withBitrateInMbps(
-quality = VideoQuality.HIGH,
-videoBitrateInMbps = 2, // 2 Mbps
-videoNames = listOf("video.mp4")
+    quality = VideoQuality.HIGH,
+    videoBitrateInMbps = 2,
+    videoNames = listOf("video.mp4")
 )
 ```
 
@@ -151,6 +191,10 @@ or retrieve information about the original uri/file.
 
 - videoBitrateInMbps: any custom bitrate value in Mbps.
 
+- videoBitrateInBps: any custom bitrate value in bps (takes precedence over videoBitrateInMbps).
+
+- videoCodec: VideoCodec.H264 (default) or VideoCodec.H265 for HEVC encoding.
+
 - disableAudio: true/false to generate a video without audio. False by default.
 
 - resizer: Function to resize the video dimensions. `VideoResizer.auto` by default.
@@ -196,7 +240,7 @@ To cancel the compression job, just call [VideoCompressor.cancel()]
 VideoCompressor.start(
    context = applicationContext, // => This is required
    uris = List<Uri>, // => Source can be provided as content uris
-   isStreamable = false, 
+   isStreamable = false,
    // THIS STORAGE
    storageConfiguration = SharedStorageConfiguration(
        saveAt = SaveLocation.movies, // => default is movies
@@ -208,7 +252,8 @@ VideoCompressor.start(
       isMinBitrateCheckEnabled = true,
       videoBitrateInMbps = 5, /*Int, ignore, or null*/
       disableAudio = false, /*Boolean, or ignore*/
-      resizer = VideoResizer.matchSize(360, 480) /*VideoResizer, ignore, or null*/
+      resizer = VideoResizer.matchSize(360, 480), /*VideoResizer, ignore, or null*/
+      videoCodec = VideoCodec.H264 /*VideoCodec.H264 (default) or VideoCodec.H265*/
    ),
    listener = object : CompressionListener {
        override fun onProgress(index: Int, percent: Float) {

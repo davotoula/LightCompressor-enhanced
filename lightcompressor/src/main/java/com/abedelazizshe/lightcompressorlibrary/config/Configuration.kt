@@ -1,10 +1,10 @@
 package com.abedelazizshe.lightcompressorlibrary.config
 
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
+import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.utils.saveVideoInExternal
 import java.io.File
 import java.io.FileInputStream
@@ -17,7 +17,8 @@ data class Configuration(
     var videoBitrateInBps: Long? = null,
     var disableAudio: Boolean = false,
     val resizer: VideoResizer? = VideoResizer.auto,
-    var videoNames: List<String>
+    var videoNames: List<String>,
+    var videoCodec: VideoCodec = VideoCodec.H264
 ) {
     @Deprecated("Use VideoResizer to override the output video dimensions.", ReplaceWith("Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)"))
     constructor(
@@ -26,7 +27,7 @@ data class Configuration(
         videoBitrateInMbps: Int? = null,
         disableAudio: Boolean = false,
         keepOriginalResolution: Boolean,
-        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, null, null), videoNames)
+        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, null, null), videoNames, VideoCodec.H264)
 
     @Deprecated("Use VideoResizer to override the output video dimensions.", ReplaceWith("Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)"))
     constructor(
@@ -37,7 +38,7 @@ data class Configuration(
         keepOriginalResolution: Boolean = false,
         videoHeight: Double? = null,
         videoWidth: Double? = null,
-        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, videoHeight, videoWidth), videoNames)
+        videoNames: List<String>) : this(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, null, disableAudio, getVideoResizer(keepOriginalResolution, videoHeight, videoWidth), videoNames, VideoCodec.H264)
 
     /**
      * Validates the bitrate configuration to ensure only one bitrate field is used at a time
@@ -68,7 +69,8 @@ data class Configuration(
             videoBitrateInBps: Long? = null,
             disableAudio: Boolean = false,
             resizer: VideoResizer? = VideoResizer.auto,
-            videoNames: List<String>
+            videoNames: List<String>,
+            videoCodec: VideoCodec = VideoCodec.H264
         ): Configuration {
             return Configuration(
                 quality = quality,
@@ -77,7 +79,8 @@ data class Configuration(
                 videoBitrateInBps = videoBitrateInBps,
                 disableAudio = disableAudio,
                 resizer = resizer,
-                videoNames = videoNames
+                videoNames = videoNames,
+                videoCodec = videoCodec
             )
         }
 
@@ -91,7 +94,8 @@ data class Configuration(
             videoBitrateInMbps: Int? = null,
             disableAudio: Boolean = false,
             resizer: VideoResizer? = VideoResizer.auto,
-            videoNames: List<String>
+            videoNames: List<String>,
+            videoCodec: VideoCodec = VideoCodec.H264
         ): Configuration {
             return Configuration(
                 quality = quality,
@@ -100,7 +104,8 @@ data class Configuration(
                 videoBitrateInBps = null,
                 disableAudio = disableAudio,
                 resizer = resizer,
-                videoNames = videoNames
+                videoNames = videoNames,
+                videoCodec = videoCodec
             )
         }
     }

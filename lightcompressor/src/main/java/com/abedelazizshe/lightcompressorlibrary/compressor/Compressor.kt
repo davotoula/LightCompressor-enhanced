@@ -6,10 +6,12 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
+import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.findTrack
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.getBitrate
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.hasQTI
+import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.isHevcEncodingSupported
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.prepareVideoHeight
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.prepareVideoWidth
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.printException
@@ -33,7 +35,9 @@ object Compressor {
     private const val MIN_BITRATE = 2000000
 
     // H.264 Advanced Video Coding
-    private const val MIME_TYPE = "video/avc"
+    private const val MIME_TYPE_H264 = "video/avc"
+    // H.265 High Efficiency Video Coding
+    private const val MIME_TYPE_H265 = "video/hevc"
     private const val MEDIACODEC_TIMEOUT_DEFAULT = 100L
 
     private const val INVALID_BITRATE =
@@ -109,6 +113,16 @@ object Compressor {
         if (configuration.isMinBitrateCheckEnabled && bitrate <= MIN_BITRATE)
             return@withContext Result(index, success = false, failureMessage = INVALID_BITRATE)
 
+        // Check if H.265 encoding is supported when H.265 codec is selected
+        if (configuration.videoCodec == VideoCodec.H265 && !isHevcEncodingSupported()) {
+            Log.w("Compressor", "H.265 encoding requested but not supported on this device")
+            return@withContext Result(
+                index,
+                success = false,
+                failureMessage = "H.265 (HEVC) encoding is not supported on this device. Please use VideoCodec.H264 instead."
+            )
+        }
+
         //Handle new bitrate value
         val effectiveBitrateFromConfig = configuration.getEffectiveBitrateInBps()
         val qualityBasedBitrate = getBitrate(bitrate, configuration.quality).toLong()
@@ -149,7 +163,8 @@ object Compressor {
             extractor,
             listener,
             duration,
-            rotation
+            rotation,
+            configuration.videoCodec
         )
     }
 
@@ -165,7 +180,8 @@ object Compressor {
         extractor: MediaExtractor,
         compressionProgressListener: CompressionProgressListener,
         duration: Long,
-        rotation: Int
+        rotation: Int,
+        videoCodec: VideoCodec
     ): Result {
 
         if (newWidth != 0 && newHeight != 0) {
@@ -190,8 +206,10 @@ object Compressor {
                 extractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                 val inputFormat = extractor.getTrackFormat(videoIndex)
 
+                val mimeType = if (videoCodec == VideoCodec.H265) MIME_TYPE_H265 else MIME_TYPE_H264
+
                 val outputFormat: MediaFormat =
-                    MediaFormat.createVideoFormat(MIME_TYPE, newWidth, newHeight)
+                    MediaFormat.createVideoFormat(mimeType, newWidth, newHeight)
                 //set output format
                 setOutputFileParameters(
                     inputFormat,
@@ -203,7 +221,7 @@ object Compressor {
 
                 val hasQTI = hasQTI()
 
-                val encoder = prepareEncoder(outputFormat, hasQTI)
+                val encoder = prepareEncoder(outputFormat, hasQTI, mimeType)
 
                 val inputSurface: InputSurface
                 val outputSurface: OutputSurface
@@ -514,18 +532,19 @@ object Compressor {
         }
     }
 
-    private fun prepareEncoder(outputFormat: MediaFormat, hasQTI: Boolean): MediaCodec {
-
+    private fun prepareEncoder(outputFormat: MediaFormat, hasQTI: Boolean, mimeType: String): MediaCodec {
         // This seems to cause an issue with certain phones
         // val encoderName = MediaCodecList(REGULAR_CODECS).findEncoderForFormat(outputFormat)
         // val encoder: MediaCodec = MediaCodec.createByCodecName(encoderName)
         // Log.i("encoderName", encoder.name)
         // c2.qti.avc.encoder results in a corrupted .mp4 video that does not play in
         // Mac and iphones
-        var encoder = if (hasQTI) {
+
+        val useSpecificH264Encoder = hasQTI && mimeType == MIME_TYPE_H264
+        var encoder = if (useSpecificH264Encoder) {
             MediaCodec.createByCodecName("c2.android.avc.encoder")
         } else {
-            MediaCodec.createEncoderByType(MIME_TYPE)
+            MediaCodec.createEncoderByType(mimeType)
         }
 
         try {
@@ -534,7 +553,8 @@ object Compressor {
                 MediaCodec.CONFIGURE_FLAG_ENCODE
             )
         } catch (e: Exception) {
-            encoder = MediaCodec.createEncoderByType(MIME_TYPE)
+            Log.w("Compressor", "Failed to configure encoder with specific codec, falling back to generic encoder", e)
+            encoder = MediaCodec.createEncoderByType(mimeType)
             encoder.configure(
                 outputFormat, null, null,
                 MediaCodec.CONFIGURE_FLAG_ENCODE

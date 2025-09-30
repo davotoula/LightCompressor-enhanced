@@ -230,27 +230,72 @@ object CompressorUtils {
     }
 
     /**
-     * Get the highest profile level supported by the AVC encoder: High > Main > Baseline
+     * Check if the device supports HEVC (H.265) encoding
+     * @return true if HEVC encoding is supported, false otherwise
      */
-    private fun getHighestCodecProfileLevel(type: String?): Int {
-        if (type == null) {
-            return MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
-        }
+    fun isHevcEncodingSupported(): Boolean {
         val list = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-        val capabilities = list
-            .filter { codec -> type in codec.supportedTypes && codec.name.contains("encoder") }
-            .mapNotNull { codec -> codec.getCapabilitiesForType(type) }
-
-        capabilities.forEach { capabilitiesForType ->
-            val levels =  capabilitiesForType.profileLevels.map { it.profile }
-            return when {
-                MediaCodecInfo.CodecProfileLevel.AVCProfileHigh in levels -> MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
-                MediaCodecInfo.CodecProfileLevel.AVCProfileMain in levels -> MediaCodecInfo.CodecProfileLevel.AVCProfileMain
-                else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+        for (codec in list) {
+            if (codec.isEncoder) {
+                val types = codec.supportedTypes
+                for (type in types) {
+                    if (type.equals("video/hevc", ignoreCase = true)) {
+                        Log.i("HEVC Support", "HEVC encoder found: ${codec.name}")
+                        return true
+                    }
+                }
             }
         }
+        Log.w("HEVC Support", "No HEVC encoder found on this device")
+        return false
+    }
 
-        return MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+    /**
+     * Get the highest profile level supported by the encoder
+     * For AVC (H.264): High > Main > Baseline
+     * For HEVC (H.265): Main > Main Still Picture
+     */
+    private fun getHighestCodecProfileLevel(type: String?): Int {
+        val defaultProfile = getDefaultProfileForType(type)
+
+        if (type == null) return defaultProfile
+
+        val codecInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+        val supportedProfiles = codecInfos
+            .filter { codec -> type in codec.supportedTypes && codec.name.contains("encoder") }
+            .firstNotNullOfOrNull { codec -> codec.getCapabilitiesForType(type) }
+            ?.profileLevels
+            ?.map { it.profile }
+            ?: return defaultProfile
+
+        return selectBestProfile(type, supportedProfiles)
+    }
+
+    private fun getDefaultProfileForType(type: String?): Int {
+        return when (type) {
+            "video/hevc" -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+            else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+        }
+    }
+
+    private fun selectBestProfile(type: String, supportedProfiles: List<Int>): Int {
+        return when (type) {
+            "video/avc" -> when {
+                MediaCodecInfo.CodecProfileLevel.AVCProfileHigh in supportedProfiles ->
+                    MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
+                MediaCodecInfo.CodecProfileLevel.AVCProfileMain in supportedProfiles ->
+                    MediaCodecInfo.CodecProfileLevel.AVCProfileMain
+                else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+            }
+            "video/hevc" -> when {
+                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain in supportedProfiles ->
+                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+                MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill in supportedProfiles ->
+                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill
+                else -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+            }
+            else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+        }
     }
 }
 

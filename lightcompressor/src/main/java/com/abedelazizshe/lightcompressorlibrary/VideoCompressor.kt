@@ -1,28 +1,24 @@
 package com.abedelazizshe.lightcompressorlibrary
 
-import android.content.ContentValues
 import android.content.Context
-import android.content.Context.MODE_PRIVATE
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.provider.MediaStore
-import androidx.annotation.RequiresApi
 import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.compressVideo
 import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.isRunning
 import com.abedelazizshe.lightcompressorlibrary.config.*
-import com.abedelazizshe.lightcompressorlibrary.utils.saveVideoInExternal
 import com.abedelazizshe.lightcompressorlibrary.video.Result
 import kotlinx.coroutines.*
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.IOException
 
 
 enum class VideoQuality {
     VERY_HIGH, HIGH, MEDIUM, LOW, VERY_LOW
+}
+
+enum class VideoCodec {
+    H264, H265
 }
 
 object VideoCompressor : CoroutineScope by MainScope() {
