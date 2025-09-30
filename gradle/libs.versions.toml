@@ -3,9 +3,6 @@
 agp = "8.13.0"
 kotlin = "2.0.21"
 
-# Library Version, used for releases
-library-version = "1.4.0-SNAPSHOT"
-
 # AndroidX Core
 androidx-core = "1.17.0"
 androidx-annotation = "1.9.1"

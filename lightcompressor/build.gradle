@@ -74,7 +74,7 @@ afterEvaluate {
                 from components.release
                 groupId = "com.github.davotoula"
                 artifactId = "LightCompressor-enhanced"
-                version = libs.versions.library.version.get()
+                version = project.property('version')
             }
         }
     }
