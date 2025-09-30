@@ -3,7 +3,7 @@
 agp = "8.13.0"
 kotlin = "2.0.21"
 
-# Library Version
+# Library Version, used for releases
 library-version = "1.4.0-SNAPSHOT"
 
 # AndroidX Core
