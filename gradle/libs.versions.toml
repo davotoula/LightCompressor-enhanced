@@ -25,7 +25,8 @@ glide = "5.0.5"
 exoplayer = "2.19.1"
 
 # Parsing
-mp4parser = "1.0.6"
+mp4parser = "1.0.6" #Anything newer creates invalid audio track
+isoparser = "1.9.56"
 
 # Testing
 junit = "4.13.2"
@@ -65,6 +66,7 @@ exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", versio
 
 # Parsing
 mp4parser = { group = "com.googlecode.mp4parser", name = "isoparser", version.ref = "mp4parser" }
+isoparser = { group = "org.mp4parser", name = "isoparser", version.ref = "isoparser" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

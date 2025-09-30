@@ -12,6 +12,9 @@ import com.googlecode.mp4parser.boxes.mp4.objectdescriptors.DecoderConfigDescrip
 import com.googlecode.mp4parser.boxes.mp4.objectdescriptors.ESDescriptor
 import com.googlecode.mp4parser.boxes.mp4.objectdescriptors.SLConfigDescriptor
 import com.mp4parser.iso14496.part15.AvcConfigurationBox
+import com.mp4parser.iso14496.part15.HevcConfigurationBox
+import com.mp4parser.iso14496.part15.HevcDecoderConfigurationRecord
+import java.nio.ByteBuffer
 import java.util.*
 
 class Track(id: Int, format: MediaFormat, audio: Boolean) {
@@ -159,6 +162,72 @@ class Track(id: Int, format: MediaFormat, audio: Boolean) {
                 visualSampleEntry.addBox(avcConfigurationBox)
                 sampleDescriptionBox.addBox(visualSampleEntry)
 
+            } else if (mime == "video/hevc") {
+                android.util.Log.i("Track", "Creating HEVC track for H.265 video")
+                val visualSampleEntry =
+                    VisualSampleEntry("hvc1").setup(width, height)
+                visualSampleEntry.compressorname = "HEVC Coding"
+
+                val hevcConfigurationBox = HevcConfigurationBox()
+                hevcConfigurationBox.hevcDecoderConfigurationRecord = HevcDecoderConfigurationRecord()
+
+                // Extract VPS, SPS, PPS from csd-0
+                format.getByteBuffer("csd-0")?.let { csd0 ->
+                    android.util.Log.i("Track", "Parsing HEVC NAL units from csd-0, size: ${csd0.remaining()}")
+                    val nalUnits = parseNalUnits(csd0)
+
+                    val vpsArray = HevcDecoderConfigurationRecord.Array()
+                    vpsArray.array_completeness = false
+                    vpsArray.nal_unit_type = 32 // VPS NAL type
+                    vpsArray.nalUnits = ArrayList()
+
+                    val spsArray = HevcDecoderConfigurationRecord.Array()
+                    spsArray.array_completeness = false
+                    spsArray.nal_unit_type = 33 // SPS NAL type
+                    spsArray.nalUnits = ArrayList()
+
+                    val ppsArray = HevcDecoderConfigurationRecord.Array()
+                    ppsArray.array_completeness = false
+                    ppsArray.nal_unit_type = 34 // PPS NAL type
+                    ppsArray.nalUnits = ArrayList()
+
+                    for (nalUnit in nalUnits) {
+                        if (nalUnit.size >= 2) {
+                            val nalType = (nalUnit[0].toInt() and 0x7E) shr 1
+                            when (nalType) {
+                                32 -> {
+                                    vpsArray.nalUnits.add(nalUnit)
+                                    android.util.Log.i("Track", "Found VPS, size: ${nalUnit.size}")
+                                }
+                                33 -> {
+                                    spsArray.nalUnits.add(nalUnit)
+                                    android.util.Log.i("Track", "Found SPS, size: ${nalUnit.size}")
+                                }
+                                34 -> {
+                                    ppsArray.nalUnits.add(nalUnit)
+                                    android.util.Log.i("Track", "Found PPS, size: ${nalUnit.size}")
+                                }
+                                else -> {
+                                    android.util.Log.d("Track", "Skipping NAL type: $nalType")
+                                }
+                            }
+                        }
+                    }
+
+                    android.util.Log.i("Track", "HEVC parameter sets - VPS: ${vpsArray.nalUnits.size}, SPS: ${spsArray.nalUnits.size}, PPS: ${ppsArray.nalUnits.size}")
+
+                    hevcConfigurationBox.hevcDecoderConfigurationRecord.arrays =
+                        listOf(vpsArray, spsArray, ppsArray)
+                } ?: android.util.Log.w("Track", "No csd-0 found in MediaFormat for HEVC")
+
+                hevcConfigurationBox.hevcDecoderConfigurationRecord.configurationVersion = 1
+                hevcConfigurationBox.hevcDecoderConfigurationRecord.lengthSizeMinusOne = 3
+                hevcConfigurationBox.hevcDecoderConfigurationRecord.general_profile_idc = 1
+                hevcConfigurationBox.hevcDecoderConfigurationRecord.general_level_idc = 120
+
+                visualSampleEntry.addBox(hevcConfigurationBox)
+                sampleDescriptionBox.addBox(visualSampleEntry)
+
             } else if (mime == "video/mp4v") {
                 val visualSampleEntry =
                     VisualSampleEntry(VisualSampleEntry.TYPE1).setup(width, height)
@@ -282,5 +351,23 @@ class Track(id: Int, format: MediaFormat, audio: Boolean) {
         sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE).toLong()
         dataReferenceIndex = 1
         sampleSize = 16
+    }
+
+    private fun parseNalUnits(buffer: ByteBuffer): List<ByteArray> {
+        val nalUnits = mutableListOf<ByteArray>()
+        buffer.rewind()
+
+        while (buffer.remaining() > 4) {
+            val nalLength = buffer.int
+            if (nalLength > 0 && nalLength <= buffer.remaining()) {
+                val nalData = ByteArray(nalLength)
+                buffer.get(nalData)
+                nalUnits.add(nalData)
+            } else {
+                break
+            }
+        }
+
+        return nalUnits
     }
 }
