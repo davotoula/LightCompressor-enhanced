@@ -17,8 +17,9 @@ enum class VideoQuality {
     VERY_HIGH, HIGH, MEDIUM, LOW, VERY_LOW
 }
 
-enum class VideoCodec {
-    H264, H265
+enum class VideoCodec(val mimeType: String) {
+    H264("video/avc"),
+    H265("video/hevc")
 }
 
 object VideoCompressor : CoroutineScope by MainScope() {

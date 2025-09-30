@@ -201,32 +201,32 @@ class MainActivity : AppCompatActivity() {
             1280.0 // Default fallback value
         }
 
-        // Get the selected codec
+        // Get the selected codec with automatic fallback to H.264 if H.265 is not supported
         val selectedCodec = when (binding.codecRadioGroup.checkedRadioButtonId) {
-            R.id.radioH265 -> VideoCodec.H265
-            else -> VideoCodec.H264
-        }
-
-        // Check if H.265 is supported when selected
-        if (selectedCodec == VideoCodec.H265 && !CompressorUtils.isHevcEncodingSupported()) {
-            Log.w("MainActivity", "H.265 selected but not supported on this device, falling back to H.264")
-            binding.radioH264.isChecked = true
-            android.widget.Toast.makeText(
-                this,
-                "H.265 not supported on this device. Using H.264 instead.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
-
-        val finalCodec = if (selectedCodec == VideoCodec.H265 && CompressorUtils.isHevcEncodingSupported()) {
-            VideoCodec.H265
-        } else {
-            VideoCodec.H264
+            R.id.radioH265 -> {
+                if (CompressorUtils.isHevcEncodingSupported()) {
+                    VideoCodec.H265
+                } else {
+                    Log.w("MainActivity", "H.265 selected but not supported on this device, falling back to H.264")
+                    binding.radioH264.isChecked = true
+                    android.widget.Toast.makeText(
+                        this,
+                        "H.265 not supported on this device. Using H.264 instead.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    VideoCodec.H264
+                }
+            }
+            R.id.radioH264 -> VideoCodec.H264
+            else -> {
+                Log.e("MainActivity", "Unknown codec radio button: ${binding.codecRadioGroup.checkedRadioButtonId}")
+                VideoCodec.H264 // Safe default
+            }
         }
 
         Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
         Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
-        Log.i("MainActivity", "Using codec: ${finalCodec.name}")
+        Log.i("MainActivity", "Using codec: ${selectedCodec.name}")
 
         lifecycleScope.launch {
             VideoCompressor.start(
@@ -243,7 +243,7 @@ class MainActivity : AppCompatActivity() {
                     videoNames = uris.map { uri -> uri.pathSegments.last() },
                     isMinBitrateCheckEnabled = false,
                     resizer = VideoResizer.limitSize(maxResolution),
-                    videoCodec = finalCodec
+                    videoCodec = selectedCodec
                 ),
                 listener = object : CompressionListener {
                     override fun onProgress(index: Int, percent: Float) {

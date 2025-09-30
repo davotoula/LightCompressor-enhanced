@@ -34,10 +34,6 @@ object Compressor {
     // 2Mbps
     private const val MIN_BITRATE = 2000000
 
-    // H.264 Advanced Video Coding
-    private const val MIME_TYPE_H264 = "video/avc"
-    // H.265 High Efficiency Video Coding
-    private const val MIME_TYPE_H265 = "video/hevc"
     private const val MEDIACODEC_TIMEOUT_DEFAULT = 100L
 
     private const val INVALID_BITRATE =
@@ -206,7 +202,7 @@ object Compressor {
                 extractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                 val inputFormat = extractor.getTrackFormat(videoIndex)
 
-                val mimeType = if (videoCodec == VideoCodec.H265) MIME_TYPE_H265 else MIME_TYPE_H264
+                val mimeType = videoCodec.mimeType
 
                 val outputFormat: MediaFormat =
                     MediaFormat.createVideoFormat(mimeType, newWidth, newHeight)
@@ -540,7 +536,7 @@ object Compressor {
         // c2.qti.avc.encoder results in a corrupted .mp4 video that does not play in
         // Mac and iphones
 
-        val useSpecificH264Encoder = hasQTI && mimeType == MIME_TYPE_H264
+        val useSpecificH264Encoder = hasQTI && mimeType == VideoCodec.H264.mimeType
         var encoder = if (useSpecificH264Encoder) {
             MediaCodec.createByCodecName("c2.android.avc.encoder")
         } else {

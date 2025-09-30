@@ -20,6 +20,10 @@ object CompressorUtils {
     // 1 second between I-frames
     private const val I_FRAME_INTERVAL = 1
 
+    // Cache for device codec capabilities (don't change at runtime)
+    private var hevcSupportCache: Boolean? = null
+    private var qtiSupportCache: Boolean? = null
+
     fun prepareVideoWidth(
         mediaMetadataRetriever: MediaMetadataRetriever,
     ): Double {
@@ -219,35 +223,34 @@ object CompressorUtils {
     }
 
     fun hasQTI(): Boolean {
-        val list = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-        for (codec in list) {
-            Log.i("CODECS: ", codec.name)
-            if (codec.name.contains("qti.avc")) {
-                return true
-            }
+        return qtiSupportCache ?: run {
+            val hasQti = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                .codecInfos
+                .any { it.name.contains("qti.avc") }
+            Log.i("Codec Detection", "QTI codec support: $hasQti")
+            qtiSupportCache = hasQti
+            hasQti
         }
-        return false
     }
 
     /**
-     * Check if the device supports HEVC (H.265) encoding
+     * Check if the device supports HEVC (H.265) encoding.
+     * Result is cached after first check for performance.
      * @return true if HEVC encoding is supported, false otherwise
      */
     fun isHevcEncodingSupported(): Boolean {
-        val list = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-        for (codec in list) {
-            if (codec.isEncoder) {
-                val types = codec.supportedTypes
-                for (type in types) {
-                    if (type.equals("video/hevc", ignoreCase = true)) {
-                        Log.i("HEVC Support", "HEVC encoder found: ${codec.name}")
-                        return true
+        return hevcSupportCache ?: run {
+            val isSupported = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                .codecInfos
+                .any { codec ->
+                    codec.isEncoder && codec.supportedTypes.any {
+                        it.equals("video/hevc", ignoreCase = true)
                     }
                 }
-            }
+            Log.i("HEVC Support", if (isSupported) "HEVC encoder found" else "No HEVC encoder found")
+            hevcSupportCache = isSupported
+            isSupported
         }
-        Log.w("HEVC Support", "No HEVC encoder found on this device")
-        return false
     }
 
     /**
