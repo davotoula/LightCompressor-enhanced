@@ -152,9 +152,9 @@ class AppSpecificStorageConfiguration(
 
 
 enum class SaveLocation {
-    pictures,
-    downloads,
-    movies,
+    PICTURES,
+    DOWNLOADS,
+    MOVIES,
 }
 
 class SharedStorageConfiguration(
@@ -170,11 +170,11 @@ class SharedStorageConfiguration(
     ): File {
         val saveLocation =
             when (saveAt) {
-                SaveLocation.downloads -> {
+                SaveLocation.DOWNLOADS -> {
                     Environment.DIRECTORY_DOWNLOADS
                 }
 
-                SaveLocation.pictures -> {
+                SaveLocation.PICTURES -> {
                     Environment.DIRECTORY_PICTURES
                 }
 

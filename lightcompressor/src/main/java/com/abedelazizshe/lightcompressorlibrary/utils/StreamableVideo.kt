@@ -9,7 +9,7 @@ import java.nio.channels.FileChannel
 
 object StreamableVideo {
 
-    private const val tag = "StreamableVideo"
+    private const val TAG = "StreamableVideo"
     private const val ATOM_PREAMBLE_SIZE = 8
 
     /**
@@ -84,7 +84,7 @@ object StreamableVideo {
                 && atomType != UUID_ATOM
                 && atomType != FTYP_ATOM
             ) {
-                Log.wtf(tag, "encountered non-QT top-level atom (is this a QuickTime file?)")
+                Log.wtf(TAG, "encountered non-QT top-level atom (is this a QuickTime file?)")
                 break
             }
 
@@ -94,7 +94,7 @@ object StreamableVideo {
             if (atomSize < 8) break
         }
         if (atomType != MOOV_ATOM) {
-            Log.wtf(tag, "last atom in file was not a moov atom")
+            Log.wtf(TAG, "last atom in file was not a moov atom")
             return false
         }
 
@@ -131,7 +131,7 @@ object StreamableVideo {
             // uint32_t, but assuming moovAtomSize is in int32 range, so this will be in int32 range
             val offsetCount = uInt32ToInt(moovAtom.int)
             if (atomType == STCO_ATOM) {
-                Log.i(tag, "patching stco atom...")
+                Log.i(TAG, "patching stco atom...")
                 if (moovAtom.remaining() < offsetCount * 4) {
                     throw Exception("bad atom size/element count")
                 }
@@ -150,7 +150,7 @@ object StreamableVideo {
                     moovAtom.putInt(newOffset)
                 }
             } else if (atomType == CO64_ATOM) {
-                Log.wtf(tag, "patching co64 atom...")
+                Log.wtf(TAG, "patching co64 atom...")
                 if (moovAtom.remaining() < offsetCount * 8) {
                     throw Exception("bad atom size/element count")
                 }
@@ -163,18 +163,18 @@ object StreamableVideo {
         infile.position(startOffset) // seek after ftyp atom
         if (ftypAtom != null) {
             // dump the same ftyp atom
-            Log.i(tag, "writing ftyp atom...")
+            Log.i(TAG, "writing ftyp atom...")
             ftypAtom.rewind()
             outfile.write(ftypAtom)
         }
 
         // dump the new moov atom
-        Log.i(tag, "writing moov atom...")
+        Log.i(TAG, "writing moov atom...")
         moovAtom.rewind()
         outfile.write(moovAtom)
 
         // copy the remainder of the infile, from offset 0 -> (lastOffset - startOffset) - 1
-        Log.i(tag, "copying rest of file...")
+        Log.i(TAG, "copying rest of file...")
         infile.transferTo(startOffset, lastOffset - startOffset, outfile)
         return true
     }
@@ -184,7 +184,7 @@ object StreamableVideo {
             try {
                 closeable.close()
             } catch (e: IOException) {
-                Log.wtf(tag, "Failed to close file: ")
+                Log.wtf(TAG, "Failed to close file: ")
             }
         }
     }

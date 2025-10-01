@@ -234,7 +234,7 @@ class MainActivity : AppCompatActivity() {
                 uris,
                 isStreamable = false,
                 storageConfiguration = SharedStorageConfiguration(
-                    saveAt = SaveLocation.movies,
+                    saveAt = SaveLocation.MOVIES,
                     subFolderName = "my-demo-videos"
                 ),
                 configureWith = Configuration.withBitrateInBps(

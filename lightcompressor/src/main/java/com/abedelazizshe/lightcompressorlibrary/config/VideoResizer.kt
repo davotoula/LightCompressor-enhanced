@@ -12,7 +12,7 @@ fun interface VideoResizer {
          * - 90% If the width and height are both less than 960 pixels.
          */
         @JvmStatic
-        val auto: VideoResizer = ScaleResize(null);
+        val auto: VideoResizer = ScaleResize(null)
 
         /**
          * Resize the video dimensions by the given scale factor
