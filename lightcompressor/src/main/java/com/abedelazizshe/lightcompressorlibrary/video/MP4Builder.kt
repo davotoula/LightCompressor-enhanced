@@ -40,7 +40,7 @@ class MP4Builder {
     }
 
     @Throws(Exception::class)
-    private fun flushCurrentMdat() {
+    internal fun flushCurrentMdat() {
         val oldPosition = fc.position()
         fc.position(mdat.offset)
         mdat.getBox(fc)
@@ -69,8 +69,21 @@ class MP4Builder {
             writeNewMdat = false
         }
 
-        mdat.setContentSize(mdat.getContentSize() + bufferInfo.size)
-        wroteSinceLastMdat += bufferInfo.size.toLong()
+        val sampleOffset = dataOffset
+
+        val bytesWritten = if (isAudio) {
+            writeAudioSample(byteBuf, bufferInfo)
+        } else {
+            writeVideoSample(byteBuf, bufferInfo)
+        }
+
+        mdat.setContentSize(mdat.getContentSize() + bytesWritten)
+        wroteSinceLastMdat += bytesWritten
+
+        val adjustedInfo = bufferInfo.copyWithSize(bytesWritten.toInt())
+        currentMp4Movie.addSample(trackIndex, sampleOffset, adjustedInfo)
+
+        dataOffset += bytesWritten
 
         var flush = false
         if (wroteSinceLastMdat >= 32 * 1024) {
@@ -80,27 +93,121 @@ class MP4Builder {
             wroteSinceLastMdat = 0
         }
 
-        currentMp4Movie.addSample(trackIndex, dataOffset, bufferInfo)
-
-        if (!isAudio) {
-            byteBuf.position(bufferInfo.offset + 4)
-            byteBuf.limit(bufferInfo.offset + bufferInfo.size)
-
-            sizeBuffer.position(0)
-            sizeBuffer.putInt(bufferInfo.size - 4)
-            sizeBuffer.position(0)
-            fc.write(sizeBuffer)
-        } else {
-            byteBuf.position(bufferInfo.offset + 0)
-            byteBuf.limit(bufferInfo.offset + bufferInfo.size)
-        }
-
-        fc.write(byteBuf)
-        dataOffset += bufferInfo.size.toLong()
-
         if (flush) {
             fos.flush()
         }
+    }
+
+    private fun writeAudioSample(byteBuf: ByteBuffer, bufferInfo: MediaCodec.BufferInfo): Long {
+        val audioBuffer = byteBuf.duplicate()
+        audioBuffer.position(bufferInfo.offset)
+        audioBuffer.limit(bufferInfo.offset + bufferInfo.size)
+        fc.writeFully(audioBuffer)
+        return bufferInfo.size.toLong()
+    }
+
+    private fun writeVideoSample(byteBuf: ByteBuffer, bufferInfo: MediaCodec.BufferInfo): Long {
+        val sampleBuffer = byteBuf.duplicate()
+        sampleBuffer.position(bufferInfo.offset)
+        sampleBuffer.limit(bufferInfo.offset + bufferInfo.size)
+
+        val sampleData = ByteArray(bufferInfo.size)
+        sampleBuffer.get(sampleData)
+
+        val nalPayloads = extractNalPayloads(sampleData)
+
+        var written = 0L
+        for (payload in nalPayloads) {
+            sizeBuffer.clear()
+            sizeBuffer.putInt(payload.size)
+            sizeBuffer.flip()
+            written += fc.writeFully(sizeBuffer)
+            written += fc.writeFully(ByteBuffer.wrap(payload))
+        }
+        return written
+    }
+
+    private fun extractNalPayloads(sampleData: ByteArray): List<ByteArray> {
+        val lengthPrefixed = parseLengthPrefixed(sampleData)
+        if (lengthPrefixed != null) {
+            return lengthPrefixed
+        }
+        val startCodePrefixed = parseStartCodePrefixed(sampleData)
+        if (startCodePrefixed.isNotEmpty()) {
+            return startCodePrefixed
+        }
+        throw IllegalStateException("Unable to parse NAL units from sample data")
+    }
+
+    private fun parseLengthPrefixed(sampleData: ByteArray): List<ByteArray>? {
+        var offset = 0
+        val payloads = mutableListOf<ByteArray>()
+        while (offset + 4 <= sampleData.size) {
+            val length = ((sampleData[offset].toInt() and 0xFF) shl 24) or
+                ((sampleData[offset + 1].toInt() and 0xFF) shl 16) or
+                ((sampleData[offset + 2].toInt() and 0xFF) shl 8) or
+                (sampleData[offset + 3].toInt() and 0xFF)
+            offset += 4
+            if (length <= 0 || offset + length > sampleData.size) {
+                return null
+            }
+            payloads.add(sampleData.copyOfRange(offset, offset + length))
+            offset += length
+        }
+        return if (payloads.isNotEmpty() && offset == sampleData.size) payloads else null
+    }
+
+    private fun parseStartCodePrefixed(sampleData: ByteArray): List<ByteArray> {
+        val payloads = mutableListOf<ByteArray>()
+        var i = 0
+        var nalStart = -1
+        while (i < sampleData.size) {
+            val startCodeLength = startCodeLengthAt(sampleData, i)
+            if (startCodeLength > 0) {
+                if (nalStart >= 0 && nalStart < i) {
+                    payloads.add(sampleData.copyOfRange(nalStart, i))
+                }
+                nalStart = i + startCodeLength
+                i += startCodeLength
+            } else {
+                i++
+            }
+        }
+        if (nalStart in 0 until sampleData.size) {
+            payloads.add(sampleData.copyOfRange(nalStart, sampleData.size))
+        }
+        return payloads
+    }
+
+    private fun startCodeLengthAt(data: ByteArray, index: Int): Int {
+        if (index + 3 < data.size && data[index] == 0.toByte() && data[index + 1] == 0.toByte()
+            && data[index + 2] == 0.toByte() && data[index + 3] == 1.toByte()
+        ) {
+            return 4
+        }
+        if (index + 2 < data.size && data[index] == 0.toByte() && data[index + 1] == 0.toByte()
+            && data[index + 2] == 1.toByte()
+        ) {
+            return 3
+        }
+        return 0
+    }
+
+    private fun MediaCodec.BufferInfo.copyWithSize(newSize: Int): MediaCodec.BufferInfo {
+        return MediaCodec.BufferInfo().apply {
+            offset = 0
+            size = newSize
+            presentationTimeUs = this@copyWithSize.presentationTimeUs
+            flags = this@copyWithSize.flags
+        }
+    }
+
+    private fun FileChannel.writeFully(buffer: ByteBuffer): Long {
+        var written = 0L
+        while (buffer.hasRemaining()) {
+            written += write(buffer).toLong()
+        }
+        return written
     }
 
     fun addTrack(mediaFormat: MediaFormat, isAudio: Boolean): Int =

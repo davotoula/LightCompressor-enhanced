@@ -28,17 +28,17 @@ class StreamableVideoTest {
             val ftyp = atom("ftyp", ByteArray(4) { 0x01.toByte() })
             val audioPayload = ByteArray(8) { 0x0A }
             val audioMdat = atom("mdat", audioPayload)
+            val stcoOffsets = intArrayOf(
+                ftyp.size + ATOM_HEADER_SIZE,
+                ftyp.size + audioMdat.size + computeMoovSize(entryCount = 2) + ATOM_HEADER_SIZE
+            )
             val moov = atom(
                 "moov",
-                stcoAtom(
-                    intArrayOf(
-                        ftyp.size + ATOM_HEADER_SIZE, // audio chunk before moov
-                        ftyp.size + audioMdat.size + MOOV_SIZE + ATOM_HEADER_SIZE // video chunk after moov
-                    )
-                )
+                stcoAtom(stcoOffsets)
             )
             val videoPayload = ByteArray(8) { 0x0B }
             val videoMdat = atom("mdat", videoPayload)
+            val moovSize = moov.size
 
             val sourceBytes = ftyp + audioMdat + moov + videoMdat
             input.writeBytes(sourceBytes)
@@ -56,8 +56,8 @@ class StreamableVideoTest {
             assertEquals(expectedAudioMdatOffset, topLevelAtoms[2].offset)
 
             val stcoEntries = readStcoEntries(resultBytes, topLevelAtoms[1].offset)
-            val expectedAudioOffset = ftyp.size + MOOV_SIZE + ATOM_HEADER_SIZE
-            val expectedVideoOffset = ftyp.size + audioMdat.size + MOOV_SIZE + ATOM_HEADER_SIZE
+            val expectedAudioOffset = ftyp.size + moovSize + ATOM_HEADER_SIZE
+            val expectedVideoOffset = ftyp.size + audioMdat.size + moovSize + ATOM_HEADER_SIZE
             assertEquals(listOf(expectedAudioOffset, expectedVideoOffset), stcoEntries)
         } finally {
             unmockkStatic(Log::class)
@@ -142,6 +142,11 @@ class StreamableVideoTest {
 
     private companion object {
         const val ATOM_HEADER_SIZE = 8
-        const val MOOV_SIZE = 32
+
+        private fun computeMoovSize(entryCount: Int): Int {
+            val stcoPayload = 4 + 4 + entryCount * 4
+            val stcoSize = ATOM_HEADER_SIZE + stcoPayload
+            return ATOM_HEADER_SIZE + stcoSize
+        }
     }
 }
