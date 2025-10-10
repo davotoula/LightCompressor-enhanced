@@ -29,6 +29,7 @@ isoparser = "1.9.56"
 junit = "4.13.2"
 androidx-test-ext = "1.3.0"
 androidx-test-espresso = "3.7.0"
+mockk = "1.13.12"
 
 # Minimum SDK
 minSdk = "21"
@@ -67,6 +68,7 @@ isoparser = { group = "org.mp4parser", name = "isoparser", version.ref = "isopar
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidx-test-ext" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidx-test-espresso" }
 
@@ -75,4 +77,3 @@ androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espres
 androidx-lifecycle = ["androidx-lifecycle-runtime-ktx"]
 kotlinx-coroutines = ["kotlinx-coroutines-core", "kotlinx-coroutines-android"]
 androidx-testing = ["androidx-test-ext-junit", "androidx-test-espresso-core"]
-
