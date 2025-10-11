@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import com.abedelazizshe.lightcompressorlibrary.video.Mp4Movie
 import java.io.File
@@ -70,6 +71,7 @@ object CompressorUtils {
     /**
      * Set output parameters like bitrate and frame rate
      */
+    @RequiresApi(Build.VERSION_CODES.N)
     fun setOutputFileParameters(
         inputFormat: MediaFormat,
         outputFormat: MediaFormat,
@@ -113,9 +115,15 @@ object CompressorUtils {
                 setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
             }
 
-            getColorRange(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_RANGE, it)
+            val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
+            val inputColorRange = getColorRange(inputFormat)
+            if (inputColorRange != null && inputColorRange != targetColorRange) {
+                Log.w(
+                    "Output file parameters",
+                    "Overriding input color range $inputColorRange with limited range $targetColorRange"
+                )
             }
+            setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
 
 
             Log.i(
@@ -137,6 +145,7 @@ object CompressorUtils {
         else I_FRAME_INTERVAL
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorStandard(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) format.getInteger(
             MediaFormat.KEY_COLOR_STANDARD
@@ -144,6 +153,7 @@ object CompressorUtils {
         else null
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorTransfer(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) format.getInteger(
             MediaFormat.KEY_COLOR_TRANSFER
@@ -151,6 +161,7 @@ object CompressorUtils {
         else null
     }
 
+    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorRange(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) format.getInteger(
             MediaFormat.KEY_COLOR_RANGE
