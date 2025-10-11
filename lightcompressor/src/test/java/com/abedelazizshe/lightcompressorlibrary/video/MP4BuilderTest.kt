@@ -4,14 +4,21 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.ByteBuffer
 
 class MP4BuilderTest {
+
+    @Before
+    fun setUp() {
+        mockkStatic(MediaFormat::class)
+    }
 
     @After
     fun tearDown() {
@@ -88,7 +95,9 @@ class MP4BuilderTest {
 
         val builder = MP4Builder()
         builder.createMovie(movie)
-        builder.addTrack(MediaFormat(), false)
+        val mediaFormat = mockk<MediaFormat>(relaxed = true)
+        every { mediaFormat.getString(MediaFormat.KEY_MIME) } returns "video/avc"
+        builder.addTrack(mediaFormat, false)
 
         return Triple(builder, movie, tempFile)
     }

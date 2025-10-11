@@ -2,12 +2,19 @@ package com.abedelazizshe.lightcompressorlibrary.video
 
 import android.media.MediaCodec
 import android.media.MediaFormat
+import android.util.Log
 import com.coremedia.iso.boxes.*
+import com.coremedia.iso.boxes.sampleentry.VisualSampleEntry
 import com.googlecode.mp4parser.util.Matrix
+import com.mp4parser.iso14496.part15.HevcConfigurationBox
+import com.mp4parser.iso14496.part15.HevcDecoderConfigurationRecord
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.*
+//import org.mp4parser.boxes.iso14496.part15.HevcConfigurationBox
+//import org.mp4parser.boxes.iso14496.part15.HevcDecoderConfigurationRecord
+//import org.mp4parser.boxes.sampleentry.VisualSampleEntry
 
 class MP4Builder {
 
@@ -210,8 +217,103 @@ class MP4Builder {
         return written
     }
 
-    fun addTrack(mediaFormat: MediaFormat, isAudio: Boolean): Int =
-        currentMp4Movie.addTrack(mediaFormat, isAudio)
+    fun addTrack(mediaFormat: MediaFormat, isAudio: Boolean): Int {
+        if (isAudio) return currentMp4Movie.addTrack(mediaFormat, true)
+
+        val mime = mediaFormat.getString(MediaFormat.KEY_MIME)
+        if (mime != null && mime.startsWith("video/hevc")) {
+            try {
+                val csd0 = mediaFormat.getByteBuffer("csd-0") ?: return currentMp4Movie.addTrack(mediaFormat, false)
+                val data = ByteArray(csd0.remaining())
+                csd0.get(data)
+
+                val vpsList = mutableListOf<ByteArray>()
+                val spsList = mutableListOf<ByteArray>()
+                val ppsList = mutableListOf<ByteArray>()
+
+                var i = 0
+                while (i + 4 < data.size) {
+                    val startCodeLen = when {
+                        i + 3 < data.size && data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                                data[i + 2] == 0.toByte() && data[i + 3] == 1.toByte() -> 4
+                        i + 2 < data.size && data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                                data[i + 2] == 1.toByte() -> 3
+                        else -> { i++; continue }
+                    }
+
+                    val start = i + startCodeLen
+                    var next = start
+                    while (next + 3 < data.size && !(data[next] == 0.toByte() &&
+                                data[next + 1] == 0.toByte() &&
+                                ((data[next + 2] == 1.toByte()) ||
+                                        (next + 3 < data.size && data[next + 2] == 0.toByte() && data[next + 3] == 1.toByte())))
+                    ) next++
+
+                    val nal = data.copyOfRange(start, next)
+                    val nalType = (nal[0].toInt() shr 1) and 0x3F
+                    when (nalType) {
+                        32 -> vpsList.add(nal) // VPS
+                        33 -> spsList.add(nal) // SPS
+                        34 -> ppsList.add(nal) // PPS
+                    }
+                    i = next
+                }
+
+                Log.d("MP4Builder", "HEVC hvcC: VPS=${vpsList.size}, SPS=${spsList.size}, PPS=${ppsList.size}")
+
+                val record = HevcDecoderConfigurationRecord().apply {
+                    configurationVersion = 1
+                    general_profile_idc = 1
+                    general_level_idc = 120
+                    lengthSizeMinusOne = 3
+                    chromaFormat = 1
+                    bitDepthLumaMinus8 = 0
+                    bitDepthChromaMinus8 = 0
+                    avgFrameRate = 60000
+                    constantFrameRate = 0
+                    numTemporalLayers = 1
+                    isTemporalIdNested = false
+
+                    arrays = mutableListOf<HevcDecoderConfigurationRecord.Array>().apply {
+                        if (vpsList.isNotEmpty()) add(buildArray(32, vpsList))
+                        if (spsList.isNotEmpty()) add(buildArray(33, spsList))
+                        if (ppsList.isNotEmpty()) add(buildArray(34, ppsList))
+                    }
+                }
+
+                val hvcC = HevcConfigurationBox().apply {
+                    hevcDecoderConfigurationRecord = record
+                }
+
+                val visualEntry = VisualSampleEntry("hvc1").apply {
+                    width = mediaFormat.getInteger(MediaFormat.KEY_WIDTH)
+                    height = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT)
+                    addBox(hvcC)
+                }
+
+                val stsd = SampleDescriptionBox().apply { addBox(visualEntry) }
+
+                val trackIndex = currentMp4Movie.addTrack(mediaFormat, false)
+                currentMp4Movie.getTracks()[trackIndex].setSampleDescriptionBox(stsd)
+
+                return trackIndex
+
+            } catch (e: Exception) {
+                Log.e("MP4Builder", "Failed to construct hvcC", e)
+            }
+        }
+
+        return currentMp4Movie.addTrack(mediaFormat, isAudio)
+    }
+
+    private fun buildArray(type: Int, nals: List<ByteArray>): HevcDecoderConfigurationRecord.Array {
+        return HevcDecoderConfigurationRecord.Array().apply {
+            array_completeness = true
+            nal_unit_type = type
+            reserved = false
+            this.nalUnits.addAll(nals)
+        }
+    }
 
     @Throws(Exception::class)
     fun finishMovie() {
@@ -390,6 +492,24 @@ class MP4Builder {
         createStsd(track, stbl)
         createStts(track, stbl)
         createStss(track, stbl)
+        // --- Add CompositionTimeToSampleBox (ctts) ---
+        // This ensures playback on Apple decoders doesn’t show black video
+        try {
+            val sampleCount = track.getSamples().size
+            val entries = mutableListOf<CompositionTimeToSample.Entry>()
+
+            // If you don't have separate PTS offsets, just use offset=0 for all samples.
+            // This still creates a valid ctts box required by many players.
+            entries.add(CompositionTimeToSample.Entry(sampleCount, 0))
+
+            val ctts = CompositionTimeToSample()
+            ctts.entries = entries
+            stbl.addBox(ctts)
+
+            android.util.Log.d("MP4Builder", "Added ctts box with ${entries.size} entries")
+        } catch (e: Exception) {
+            android.util.Log.e("MP4Builder", "Failed to add ctts box", e)
+        }
         createStsc(track, stbl)
         createStsz(track, stbl)
         createStco(track, stbl)

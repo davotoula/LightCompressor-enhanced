@@ -453,4 +453,8 @@ class Track(id: Int, format: MediaFormat, audio: Boolean) {
             MediaCodecInfo.CodecProfileLevel.AVCLevel1b to 0x1b,
         )
     }
+
+    fun setSampleDescriptionBox(box: SampleDescriptionBox) {
+        this.sampleDescriptionBox = box
+    }
 }

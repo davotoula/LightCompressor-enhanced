@@ -350,8 +350,68 @@ object Compressor {
 
                                 encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                     val newFormat = encoder.outputFormat
-                                    if (videoTrackIndex == -5)
+
+                                    // ✅ FIX: Ensure VPS/SPS/PPS are properly parsed and stored in hvcC box
+                                    if (newFormat.getString(MediaFormat.KEY_MIME)?.startsWith("video/hevc") == true) {
+                                        val csd0 = newFormat.getByteBuffer("csd-0")
+                                        if (csd0 != null) {
+                                            try {
+                                                val data = ByteArray(csd0.remaining())
+                                                csd0.get(data)
+
+                                                val vpsList = mutableListOf<ByteArray>()
+                                                val spsList = mutableListOf<ByteArray>()
+                                                val ppsList = mutableListOf<ByteArray>()
+
+                                                var i = 0
+                                                while (i + 4 < data.size) {
+                                                    val startCodeLen = when {
+                                                        i + 3 < data.size && data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                                                                data[i + 2] == 0.toByte() && data[i + 3] == 1.toByte() -> 4
+                                                        i + 2 < data.size && data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                                                                data[i + 2] == 1.toByte() -> 3
+                                                        else -> { i++; continue }
+                                                    }
+
+                                                    val start = i + startCodeLen
+                                                    var next = start
+                                                    while (next + 3 < data.size && !(data[next] == 0.toByte() &&
+                                                                data[next + 1] == 0.toByte() &&
+                                                                ((data[next + 2] == 1.toByte()) ||
+                                                                        (next + 3 < data.size && data[next + 2] == 0.toByte() && data[next + 3] == 1.toByte())))
+                                                    ) next++
+
+                                                    val nal = data.copyOfRange(start, next)
+                                                    val nalType = (nal[0].toInt() shr 1) and 0x3F
+                                                    when (nalType) {
+                                                        32 -> vpsList.add(nal) // VPS_NUT
+                                                        33 -> spsList.add(nal) // SPS_NUT
+                                                        34 -> ppsList.add(nal) // PPS_NUT
+                                                    }
+
+                                                    i = next
+                                                }
+
+                                                if (vpsList.isNotEmpty() || spsList.isNotEmpty() || ppsList.isNotEmpty()) {
+                                                    Log.d(
+                                                        "Compressor",
+                                                        "✅ Extracted VPS/SPS/PPS from csd-0: VPS=${vpsList.size}, SPS=${spsList.size}, PPS=${ppsList.size}"
+                                                    )
+                                                } else {
+                                                    Log.w("Compressor", "⚠️ No VPS/SPS/PPS found in csd-0!")
+                                                }
+
+                                            } catch (e: Exception) {
+                                                Log.e("Compressor", "Failed to parse HEVC csd-0", e)
+                                            }
+                                        } else {
+                                            Log.w("Compressor", "⚠️ No csd-0 buffer found for HEVC format.")
+                                        }
+                                    }
+
+                                    if (videoTrackIndex == -5) {
                                         videoTrackIndex = mediaMuxer.addTrack(newFormat, false)
+                                    }
                                 }
 
                                 encoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> {
