@@ -238,11 +238,11 @@ class MP4Builder {
 
     private fun createFileTypeBox(): FileTypeBox {
         // completed list can be found at https://www.ftyps.com/
-        val minorBrands = listOf(
+        val compatibleBrands = listOf(
             "isom", "iso2", "mp41"
         )
 
-        return FileTypeBox("mp42", 0, minorBrands)
+        return FileTypeBox("isom", 0x200, compatibleBrands)
     }
 
     private fun gcd(a: Long, b: Long): Long {
