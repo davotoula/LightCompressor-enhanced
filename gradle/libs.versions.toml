@@ -32,7 +32,7 @@ androidx-test-espresso = "3.7.0"
 mockk = "1.13.12"
 
 # Minimum SDK
-minSdk = "21"
+minSdk = "24"
 targetSdk = "33"
 compileSdk = "36"
 

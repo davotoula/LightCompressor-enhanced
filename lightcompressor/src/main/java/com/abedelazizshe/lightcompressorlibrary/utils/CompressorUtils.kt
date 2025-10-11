@@ -7,7 +7,6 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import com.abedelazizshe.lightcompressorlibrary.video.Mp4Movie
 import java.io.File
@@ -71,7 +70,6 @@ object CompressorUtils {
     /**
      * Set output parameters like bitrate and frame rate
      */
-    @RequiresApi(Build.VERSION_CODES.N)
     fun setOutputFileParameters(
         inputFormat: MediaFormat,
         outputFormat: MediaFormat,
@@ -87,6 +85,12 @@ object CompressorUtils {
                 val higherLevel = getHighestCodecProfileLevel(type)
                 Log.i("Output file parameters", "Selected CodecProfileLevel: $higherLevel")
                 setInteger(MediaFormat.KEY_PROFILE, higherLevel)
+                if (type == "video/hevc") {
+                    setInteger(
+                        MediaFormat.KEY_LEVEL,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
+                    )
+                }
             } else {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             }
@@ -145,7 +149,6 @@ object CompressorUtils {
         else I_FRAME_INTERVAL
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorStandard(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) format.getInteger(
             MediaFormat.KEY_COLOR_STANDARD
@@ -153,7 +156,6 @@ object CompressorUtils {
         else null
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorTransfer(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) format.getInteger(
             MediaFormat.KEY_COLOR_TRANSFER
@@ -161,7 +163,6 @@ object CompressorUtils {
         else null
     }
 
-    @RequiresApi(Build.VERSION_CODES.N)
     private fun getColorRange(format: MediaFormat): Int? {
         return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) format.getInteger(
             MediaFormat.KEY_COLOR_RANGE
@@ -301,13 +302,7 @@ object CompressorUtils {
                     MediaCodecInfo.CodecProfileLevel.AVCProfileMain
                 else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
             }
-            "video/hevc" -> when {
-                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
-                MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill
-                else -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
-            }
+            "video/hevc" -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
     }
