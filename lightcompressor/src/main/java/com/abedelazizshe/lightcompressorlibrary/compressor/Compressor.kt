@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.ByteBuffer
+import kotlin.math.min
 
 /**
  * Created by AbedElaziz Shehadeh on 27 Jan, 2020
@@ -212,6 +213,27 @@ object Compressor {
                     outputFormat,
                     newBitrate,
                 )
+                val resolvedFrameRate = if (outputFormat.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    outputFormat.getInteger(MediaFormat.KEY_FRAME_RATE)
+                } else {
+                    Log.w(
+                        "Compressor",
+                        "Output format missing frame rate; defaulting to 30fps"
+                    )
+                    30
+                }
+                val sanitizedFrameRate = if (resolvedFrameRate > 0) resolvedFrameRate else 30
+                if (sanitizedFrameRate != resolvedFrameRate) {
+                    Log.w(
+                        "Compressor",
+                        "Non-positive frame rate ($resolvedFrameRate) replaced with 30fps"
+                    )
+                }
+                Log.d(
+                    "Compressor",
+                    "Using constant frame rate $sanitizedFrameRate fps for encoder presentation timestamps"
+                )
+                var frameIndex = 0L
 
                 val decoder: MediaCodec
 
@@ -393,14 +415,24 @@ object Compressor {
                                         if (!errorWait) {
                                             outputSurface.drawImage()
 
-                                            inputSurface.setPresentationTime(bufferInfo.presentationTimeUs * 1000)
+                                            val presentationTimeUs =
+                                                frameIndex * 1_000_000L / sanitizedFrameRate
+                                            bufferInfo.presentationTimeUs = presentationTimeUs
+                                            inputSurface.setPresentationTime(presentationTimeUs * 1000)
 
+                                            val progressNumerator = min(presentationTimeUs, duration)
+                                            val progressDenominator = if (duration > 0) {
+                                                duration.toFloat()
+                                            } else {
+                                                1f
+                                            }
                                             compressionProgressListener.onProgressChanged(
                                                 id,
-                                                bufferInfo.presentationTimeUs.toFloat() / duration.toFloat() * 100
+                                                progressNumerator.toFloat() / progressDenominator * 100
                                             )
 
                                             inputSurface.swapBuffers()
+                                            frameIndex++
                                         }
                                     }
                                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
