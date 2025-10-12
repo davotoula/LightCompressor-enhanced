@@ -276,9 +276,10 @@ internal open class HevcTranscoder(
 
             loop@ while (encoderOutputAvailable || decoderOutputAvailable) {
                 var outputHandled = false
+                var encoderStatus = MediaCodec.INFO_TRY_AGAIN_LATER
 
                 if (encoderOutputAvailable) {
-                    val encoderStatus = encoder.dequeueOutputBuffer(encoderBufferInfo, timeoutUs)
+                    encoderStatus = encoder.dequeueOutputBuffer(encoderBufferInfo, timeoutUs)
                     when {
                         encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                             encoderOutputAvailable = false
@@ -324,6 +325,7 @@ internal open class HevcTranscoder(
                     }
                     outputHandled = true
                 }
+                if (encoderStatus != MediaCodec.INFO_TRY_AGAIN_LATER) continue@loop
 
                 if (decoderOutputAvailable) {
                     val decoderStatus = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs)
@@ -561,7 +563,7 @@ internal open class HevcTranscoder(
 
     companion object {
         private const val TAG = "HevcTranscoder"
-        private const val TIMEOUT_US = 10000L
+        private const val TIMEOUT_US = 100L
         private const val HEVC_PROFILE_MAIN = MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
         private const val HEVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
     }
