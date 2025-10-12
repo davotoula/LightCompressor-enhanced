@@ -64,9 +64,6 @@ dependencies {
     implementation libs.androidx.annotation
     implementation libs.androidx.core.ktx
 
-    // Parsing
-    implementation libs.mp4parser
-
     // Testing
     testImplementation libs.junit
     testImplementation libs.mockk

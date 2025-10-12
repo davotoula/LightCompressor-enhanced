@@ -21,14 +21,11 @@ glide = "5.0.5"
 # Media
 exoplayer = "2.19.1"
 
-# Parsing
-mp4parser = "1.1.22"
-
 # Testing
 junit = "4.13.2"
 androidx-test-ext = "1.3.0"
 androidx-test-espresso = "3.7.0"
-mockk = "1.13.12"
+mockk = "1.14.6"
 
 # Minimum SDK
 minSdk = "24"
@@ -59,9 +56,6 @@ glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "gl
 
 # Media
 exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", version.ref = "exoplayer" }
-
-# Parsing
-mp4parser = { group = "com.googlecode.mp4parser", name = "isoparser", version.ref = "mp4parser" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
