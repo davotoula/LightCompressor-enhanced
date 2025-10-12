@@ -66,7 +66,6 @@ dependencies {
 
     // Parsing
     implementation libs.mp4parser
-    implementation libs.isoparser
 
     // Testing
     testImplementation libs.junit

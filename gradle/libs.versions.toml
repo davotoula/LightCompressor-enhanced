@@ -22,8 +22,7 @@ glide = "5.0.5"
 exoplayer = "2.19.1"
 
 # Parsing
-mp4parser = "1.0.6" #Anything newer creates invalid audio track
-isoparser = "1.9.56"
+mp4parser = "1.1.22"
 
 # Testing
 junit = "4.13.2"
@@ -57,14 +56,12 @@ androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview"
 # UI
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
-glide-compiler = { group = "com.github.bumptech.glide", name = "compiler", version.ref = "glide" }
 
 # Media
 exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", version.ref = "exoplayer" }
 
 # Parsing
 mp4parser = { group = "com.googlecode.mp4parser", name = "isoparser", version.ref = "mp4parser" }
-isoparser = { group = "org.mp4parser", name = "isoparser", version.ref = "isoparser" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
