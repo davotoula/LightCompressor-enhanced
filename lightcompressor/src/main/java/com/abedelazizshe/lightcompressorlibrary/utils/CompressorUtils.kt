@@ -89,24 +89,27 @@ object CompressorUtils {
             )
 
 
+            //Only attempt changing colour range if device supports it
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                getColorStandard(inputFormat)?.let {
 
-            getColorStandard(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
-            }
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
+                }
 
-            getColorTransfer(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
-            }
+                getColorTransfer(inputFormat)?.let {
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
+                }
 
-            val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
-            val inputColorRange = getColorRange(inputFormat)
-            if (inputColorRange != null && inputColorRange != targetColorRange) {
-                Log.w(
-                    "Output file parameters",
-                    "Overriding input color range $inputColorRange with limited range $targetColorRange"
-                )
+                val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
+                val inputColorRange = getColorRange(inputFormat)
+                if (inputColorRange != null && inputColorRange != targetColorRange) {
+                    Log.w(
+                        "Output file parameters",
+                        "Overriding input color range $inputColorRange with limited range $targetColorRange"
+                    )
+                }
+                setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
             }
-            setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
 
 
             Log.i(
@@ -129,23 +132,38 @@ object CompressorUtils {
     }
 
     private fun getColorStandard(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) format.getInteger(
-            MediaFormat.KEY_COLOR_STANDARD
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_STANDARD
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 
     private fun getColorTransfer(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) format.getInteger(
-            MediaFormat.KEY_COLOR_TRANSFER
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_TRANSFER
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 
     private fun getColorRange(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) format.getInteger(
-            MediaFormat.KEY_COLOR_RANGE
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_RANGE
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 

@@ -505,7 +505,7 @@ internal open class HevcTranscoder(
     internal open fun tuneHevcEncoderFormat(encoderFormat: MediaFormat) {
         if (codecSupportsProfile(VideoCodec.H265.mimeType, HEVC_PROFILE_MAIN, HEVC_LEVEL_4)) {
             encoderFormat.setInteger(MediaFormat.KEY_PROFILE, HEVC_PROFILE_MAIN)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 encoderFormat.setInteger(MediaFormat.KEY_LEVEL, HEVC_LEVEL_4)
             }
         }
@@ -515,9 +515,6 @@ internal open class HevcTranscoder(
     }
 
     internal open fun codecSupportsProfile(mime: String, profile: Int, level: Int): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            return false
-        }
         val codecInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
         codecInfos.filter { it.isEncoder }.forEach { codecInfo ->
             val type = codecInfo.supportedTypes.firstOrNull { it.equals(mime, ignoreCase = true) } ?: return@forEach
