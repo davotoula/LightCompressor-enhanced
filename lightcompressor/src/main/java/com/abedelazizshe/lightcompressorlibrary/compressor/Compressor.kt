@@ -157,6 +157,8 @@ object Compressor {
             newBitrate,
             streamableFile,
             configuration.disableAudio,
+            context,
+            srcUri,
             extractor,
             listener,
             duration,
@@ -174,12 +176,41 @@ object Compressor {
         newBitrate: Long,
         streamableFile: String?,
         disableAudio: Boolean,
+        context: Context,
+        srcUri: Uri,
         extractor: MediaExtractor,
         compressionProgressListener: CompressionProgressListener,
         duration: Long,
         rotation: Int,
         videoCodec: VideoCodec
     ): Result {
+
+        if (videoCodec == VideoCodec.H265) {
+            extractor.release()
+            if (newWidth == 0 || newHeight == 0) {
+                return Result(
+                    id,
+                    success = false,
+                    failureMessage = "Invalid output dimensions for HEVC transcode"
+                )
+            }
+            return HevcTranscoder(
+                context = context,
+                srcUri = srcUri,
+                request = HevcTranscoder.Request(
+                    index = id,
+                    width = newWidth,
+                    height = newHeight,
+                    bitrate = newBitrate,
+                    destination = File(destination),
+                    streamablePath = streamableFile,
+                    disableAudio = disableAudio,
+                    rotation = rotation,
+                    durationUs = duration,
+                    listener = compressionProgressListener
+                )
+            ).transcode()
+        }
 
         if (newWidth != 0 && newHeight != 0) {
 
