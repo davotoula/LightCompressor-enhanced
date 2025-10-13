@@ -8,8 +8,6 @@ import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
-import com.abedelazizshe.lightcompressorlibrary.video.Mp4Movie
-import java.io.File
 import kotlin.math.roundToInt
 
 object CompressorUtils {
@@ -49,25 +47,6 @@ object CompressorUtils {
     }
 
     /**
-     * Setup movie with the height, width, and rotation values
-     * @param rotation video rotation
-     *
-     * @return set movie with new values
-     */
-    fun setUpMP4Movie(
-        rotation: Int,
-        cacheFile: File,
-    ): Mp4Movie {
-        val movie = Mp4Movie()
-        movie.apply {
-            setCacheFile(cacheFile)
-            setRotation(rotation)
-        }
-
-        return movie
-    }
-
-    /**
      * Set output parameters like bitrate and frame rate
      */
     fun setOutputFileParameters(
@@ -85,6 +64,12 @@ object CompressorUtils {
                 val higherLevel = getHighestCodecProfileLevel(type)
                 Log.i("Output file parameters", "Selected CodecProfileLevel: $higherLevel")
                 setInteger(MediaFormat.KEY_PROFILE, higherLevel)
+                if (type == "video/hevc") {
+                    setInteger(
+                        MediaFormat.KEY_LEVEL,
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
+                    )
+                }
             } else {
                 setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
             }
@@ -104,17 +89,26 @@ object CompressorUtils {
             )
 
 
+            //Only attempt changing colour range if device supports it
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                getColorStandard(inputFormat)?.let {
 
-            getColorStandard(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
-            }
+                    setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
+                }
 
-            getColorTransfer(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
-            }
+                getColorTransfer(inputFormat)?.let {
+                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
+                }
 
-            getColorRange(inputFormat)?.let {
-                setInteger(MediaFormat.KEY_COLOR_RANGE, it)
+                val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
+                val inputColorRange = getColorRange(inputFormat)
+                if (inputColorRange != null && inputColorRange != targetColorRange) {
+                    Log.w(
+                        "Output file parameters",
+                        "Overriding input color range $inputColorRange with limited range $targetColorRange"
+                    )
+                }
+                setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
             }
 
 
@@ -138,23 +132,38 @@ object CompressorUtils {
     }
 
     private fun getColorStandard(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) format.getInteger(
-            MediaFormat.KEY_COLOR_STANDARD
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_STANDARD
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 
     private fun getColorTransfer(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) format.getInteger(
-            MediaFormat.KEY_COLOR_TRANSFER
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_TRANSFER
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 
     private fun getColorRange(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) format.getInteger(
-            MediaFormat.KEY_COLOR_RANGE
-        )
+        return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            format.getInteger(
+                MediaFormat.KEY_COLOR_RANGE
+            )
+        } else {
+            //should not be used on older devices
+            0
+        }
         else null
     }
 
@@ -290,13 +299,7 @@ object CompressorUtils {
                     MediaCodecInfo.CodecProfileLevel.AVCProfileMain
                 else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
             }
-            "video/hevc" -> when {
-                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
-                MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill
-                else -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
-            }
+            "video/hevc" -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
     }

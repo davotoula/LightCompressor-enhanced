@@ -224,15 +224,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Get the selected streamable setting
+        val isStreamable = when (binding.streamableRadioGroup.checkedRadioButtonId) {
+            R.id.radioStreamableYes -> true
+            R.id.radioStreamableNo -> false
+            else -> {
+                Log.e("MainActivity", "Unknown streamable radio button: ${binding.streamableRadioGroup.checkedRadioButtonId}")
+                true // Safe default
+            }
+        }
+
         Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
         Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
         Log.i("MainActivity", "Using codec: ${selectedCodec.name}")
+        Log.i("MainActivity", "Using streamable: $isStreamable")
 
         lifecycleScope.launch {
             VideoCompressor.start(
                 context = applicationContext,
                 uris,
-                isStreamable = false,
+                isStreamable = isStreamable,
                 storageConfiguration = SharedStorageConfiguration(
                     saveAt = SaveLocation.MOVIES,
                     subFolderName = "my-demo-videos"
