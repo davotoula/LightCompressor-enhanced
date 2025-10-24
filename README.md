@@ -1,6 +1,6 @@
 [![JitPack](https://jitpack.io/v/davotoula/LightCompressor-enhanced.svg)](https://jitpack.io/#davotoula/LightCompressor-enhanced)
 # Purpose of fork
-Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allow for finer bitrates than increments of 1Mbps
+
 
 ## New API Features:
 
@@ -18,6 +18,7 @@ Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allo
 
 ## Key Benefits:
 
+- Replaced 3rd party mp4 muxer with native android muxer
 - **H.265 Encoding**: Up to 50% better compression than H.264 at the same quality level
 - **Automatic Device Validation**: Library automatically checks H.265 support and returns clear error if unsupported
 - **Device Compatibility Check**: Built-in utility to verify H.265 encoder availability before compression
@@ -32,7 +33,6 @@ Add support for bitrate in bps to allow for lower bitrate than 1Mbps and to allo
 - Updated internal compression logic to handle Long bitrate values
 - Modified MediaFormat parameter setting with proper type conversion
 - Added validation for positive bitrate values
-- Comprehensive unit tests covering all scenarios
 - Updated documentation and examples
 
 ## Usage Examples:
