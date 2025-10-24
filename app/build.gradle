@@ -31,12 +31,6 @@ android {
         buildConfig = true
     }
 
-    packaging {
-        resources {
-            excludes += ['builddef.lst', 'META-INF/versions/**']
-        }
-    }
-
     namespace = 'com.abedelazizshe.lightcompressor'
 }
 
