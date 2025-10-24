@@ -1,0 +1,81 @@
+name: App Release
+
+on:
+  push:
+    tags:
+      - 'app-v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/app-v}
+          echo "VERSION=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Releasing app version: $TAG_NAME"
+
+      - name: Update version in gradle.properties
+        run: |
+          VERSION="${{ steps.extract_version.outputs.VERSION }}"
+          # Extract version code (increment for each release)
+          VERSION_CODE=$(echo $VERSION | sed 's/\.//g' | sed 's/[^0-9]//g')
+          if [ -z "$VERSION_CODE" ]; then
+            VERSION_CODE=1
+          fi
+          sed -i "s/^appVersionName=.*/appVersionName=$VERSION/" gradle.properties
+          sed -i "s/^appVersionCode=.*/appVersionCode=$VERSION_CODE/" gradle.properties
+          cat gradle.properties
+
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease
+
+      - name: Build release AAB
+        run: ./gradlew :app:bundleRelease
+
+      - name: Sign APK
+        if: env.KEYSTORE_FILE != ''
+        env:
+          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "Signing APK..."
+          # Add your signing logic here if you have a keystore
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: App v${{ steps.extract_version.outputs.VERSION }}
+          body: |
+            ## LightCompressor App v${{ steps.extract_version.outputs.VERSION }}
+
+            ### Changes
+            <!-- Add changelog here -->
+
+            ### Installation
+            Download the APK below and install it on your Android device.
+
+            **Minimum Android version**: Android 7.0 (API 24)
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+          draft: false
+          prerelease: false

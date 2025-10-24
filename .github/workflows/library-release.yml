@@ -1,0 +1,71 @@
+name: Library Release
+
+on:
+  push:
+    tags:
+      - 'lib-v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version from tag
+        id: extract_version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/lib-v}
+          echo "VERSION=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Releasing library version: $TAG_NAME"
+
+      - name: Update version in gradle.properties
+        run: |
+          sed -i "s/^version=.*/version=${{ steps.extract_version.outputs.VERSION }}/" gradle.properties
+          cat gradle.properties
+
+      - name: Build library
+        run: ./gradlew :lightcompressor:assembleRelease
+
+      - name: Publish to JitPack
+        run: ./gradlew :lightcompressor:publishToMavenLocal
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Library v${{ steps.extract_version.outputs.VERSION }}
+          body: |
+            ## Library Release v${{ steps.extract_version.outputs.VERSION }}
+
+            ### Installation
+            Add this to your root build.gradle:
+            ```gradle
+            allprojects {
+                repositories {
+                    maven { url 'https://jitpack.io' }
+                }
+            }
+            ```
+
+            Add the dependency:
+            ```gradle
+            dependencies {
+                implementation 'com.github.davotoula:LightCompressor-enhanced:${{ steps.extract_version.outputs.VERSION }}'
+            }
+            ```
+          files: |
+            lightcompressor/build/outputs/aar/*.aar
+          draft: false
+          prerelease: false
