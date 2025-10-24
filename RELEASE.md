@@ -4,6 +4,17 @@ This repository contains two separate components with independent release cycles
 1. **LightCompressor Library** - The core video compression library
 2. **LightCompressor App** - Demo/sample Android application
 
+## Prerequisites
+
+### App Signing Setup (Required for App Releases)
+
+Before releasing the app, you must configure signing keys for GitHub Actions. See [SIGNING_SETUP.md](SIGNING_SETUP.md) for detailed instructions on:
+- Generating a keystore
+- Converting it to base64
+- Adding GitHub secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+
+Without proper signing, the APK will show "Package invalid" errors on installation.
+
 ## Release Process
 
 ### Library Releases
