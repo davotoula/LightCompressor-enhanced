@@ -220,15 +220,15 @@ class MainActivity : AppCompatActivity() {
             1280 // Default if empty
         }
 
-        // Calculate recommended H.264 bitrate based on resolution
+        // Calculate recommended H.264 bitrate for cellular streaming (aggressive compression)
         val h264Bitrate = when {
-            resolution >= 3840 -> 40000 // 4K
-            resolution >= 2560 -> 25000 // 1440p
-            resolution >= 1920 -> 10000 // 1080p
-            resolution >= 1280 -> 6000  // 720p
-            resolution >= 960 -> 3000   // 540p
-            resolution >= 640 -> 1500   // 360p
-            else -> 1000                // Lower resolutions
+            resolution >= 3840 -> 16000 // 4K
+            resolution >= 2560 -> 10000 // 1440p
+            resolution >= 1920 -> 5000  // 1080p
+            resolution >= 1280 -> 2500  // 720p
+            resolution >= 960 -> 1500   // 540p
+            resolution >= 640 -> 800    // 360p
+            else -> 500                 // Lower resolutions
         }
 
         // Check if H.265 is selected
