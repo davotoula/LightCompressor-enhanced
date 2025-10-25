@@ -17,10 +17,15 @@
     <string name="codec_h264">H.264 (AVC)</string>
     <string name="codec_h265">H.265 (HEVC)</string>
     <string name="codec_explanation">H.265/HEVC codec is more efficient and produces better quality and/or smaller file size than H.264/AVC. However it is not as well supported as H.264/AVC so select H.264/AVC if you want maximum compatibility.</string>
+    <string name="auto_bitrate_toast">Auto bitrate set to %1$d kbps for %2$dpx (%3$s)</string>
     <string name="streamable_explanation">Selecting streamable will create a "fast-start" video which has meta-data moved to the start so it can start streaming faster.</string>
     <string name="streamable_label">Streamable:</string>
     <string name="streamable_yes">Yes</string>
     <string name="streamable_no">No</string>
+    <string name="bitrate_too_low">Bitrate too low. Minimum is %1$d kbps. Using %1$d kbps.</string>
+    <string name="bitrate_too_high">Bitrate too high. Maximum is %1$d kbps. Using %1$d kbps.</string>
+    <string name="codec_h265_not_supported">H.265 not supported on this device. Using H.264 instead.</string>
+    <string name="select_video_prompt">Select video</string>
     <string name="video_not_saved_larger_toast">Video not saved. Compressed file (%1$s) is larger than original (%2$s).</string>
     <string name="video_not_saved_status">Not saved - larger than original</string>
     <string name="shared_video_received">Received %1$d video(s) for compression</string>

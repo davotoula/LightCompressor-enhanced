@@ -244,11 +244,11 @@ class MainActivity : AppCompatActivity() {
         // Set the calculated bitrate
         binding.bitrateInput.setText(finalBitrate.toString())
 
-        val codecName = if (isH265) "H.265" else "H.264"
+        val codecName = if (isH265) getString(R.string.codec_h265) else getString(R.string.codec_h264)
         Log.i("MainActivity", "Auto bitrate: ${resolution}px with $codecName = $finalBitrate kbps")
         android.widget.Toast.makeText(
             this,
-            "Auto bitrate set to $finalBitrate kbps for ${resolution}px ($codecName)",
+            getString(R.string.auto_bitrate_toast, finalBitrate, resolution, codecName),
             android.widget.Toast.LENGTH_SHORT
         ).show()
     }
@@ -264,7 +264,10 @@ class MainActivity : AppCompatActivity() {
             Intent.EXTRA_ALLOW_MULTIPLE,
             true
         )
-        startActivityForResult(Intent.createChooser(intent, "Select video"), REQUEST_SELECT_VIDEO)
+        startActivityForResult(
+            Intent.createChooser(intent, getString(R.string.select_video_prompt)),
+            REQUEST_SELECT_VIDEO
+        )
     }
 
     private fun dispatchTakeVideoIntent() {
@@ -471,7 +474,7 @@ class MainActivity : AppCompatActivity() {
             Log.w("MainActivity", "Bitrate $videoBitrateInKbps kbps is below minimum (200 kbps), clamping to 200")
             android.widget.Toast.makeText(
                 this,
-                "Bitrate too low. Minimum is 200 kbps. Using 200 kbps.",
+                getString(R.string.bitrate_too_low, 200),
                 android.widget.Toast.LENGTH_LONG
             ).show()
             videoBitrateInKbps = 200L
@@ -479,7 +482,7 @@ class MainActivity : AppCompatActivity() {
             Log.w("MainActivity", "Bitrate $videoBitrateInKbps kbps is above maximum (100000 kbps), clamping to 100000")
             android.widget.Toast.makeText(
                 this,
-                "Bitrate too high. Maximum is 100000 kbps. Using 100000 kbps.",
+                getString(R.string.bitrate_too_high, 100000),
                 android.widget.Toast.LENGTH_LONG
             ).show()
             videoBitrateInKbps = 100000L
@@ -510,7 +513,7 @@ class MainActivity : AppCompatActivity() {
                     binding.radioH264.isChecked = true
                     android.widget.Toast.makeText(
                         this,
-                        "H.265 not supported on this device. Using H.264 instead.",
+                        getString(R.string.codec_h265_not_supported),
                         android.widget.Toast.LENGTH_LONG
                     ).show()
                     VideoCodec.H264
