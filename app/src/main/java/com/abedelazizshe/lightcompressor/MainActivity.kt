@@ -79,6 +79,27 @@ class MainActivity : AppCompatActivity() {
             VideoCompressor.cancel()
         }
 
+        // Resolution preset buttons
+        binding.preset4k.setOnClickListener {
+            binding.resizeInput.setText("3840")
+            Log.i("MainActivity", "4K preset selected: 3840px")
+        }
+
+        binding.preset1080p.setOnClickListener {
+            binding.resizeInput.setText("1920")
+            Log.i("MainActivity", "1080p preset selected: 1920px")
+        }
+
+        binding.preset720p.setOnClickListener {
+            binding.resizeInput.setText("1280")
+            Log.i("MainActivity", "720p preset selected: 1280px")
+        }
+
+        binding.preset540p.setOnClickListener {
+            binding.resizeInput.setText("960")
+            Log.i("MainActivity", "540p preset selected: 960px")
+        }
+
         val recyclerview = findViewById<RecyclerView>(R.id.recyclerview)
         recyclerview.layoutManager = LinearLayoutManager(this)
         adapter = RecyclerViewAdapter(applicationContext, data)

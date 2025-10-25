@@ -8,6 +8,10 @@
     <string name="bitrate_hint">Enter bitrate in kilobits per second (e.g., 1500)</string>
     <string name="resize_label">Max Resolution (long edge):</string>
     <string name="resize_hint">Enter max pixels for long edge (e.g., 1280)</string>
+    <string name="preset_4k">4K</string>
+    <string name="preset_1080p">1080p</string>
+    <string name="preset_720p">720p</string>
+    <string name="preset_540p">540p</string>
     <string name="codec_label">Video Codec:</string>
     <string name="codec_h264">H.264 (AVC)</string>
     <string name="codec_h265">H.265 (HEVC)</string>
