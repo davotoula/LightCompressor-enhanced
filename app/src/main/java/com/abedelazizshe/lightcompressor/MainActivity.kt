@@ -27,6 +27,7 @@ import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils
 import kotlinx.coroutines.launch
+import androidx.core.net.toUri
 
 /**
  * Created by AbedElaziz Shehadeh on 26 Jan, 2020
@@ -71,6 +72,73 @@ class MainActivity : AppCompatActivity() {
         recyclerview.layoutManager = LinearLayoutManager(this)
         adapter = RecyclerViewAdapter(applicationContext, data)
         recyclerview.adapter = adapter
+
+        // Handle shared videos from other apps
+        handleSharedIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleSharedIntent(intent)
+    }
+
+    private fun handleSharedIntent(intent: Intent?) {
+        Log.i("MainActivity", "handleSharedIntent called with action: ${intent?.action}, type: ${intent?.type}")
+
+        when (intent?.action) {
+            Intent.ACTION_SEND -> {
+                // Handle single video share
+                if (intent.type?.startsWith("video/") == true || intent.hasExtra(Intent.EXTRA_STREAM)) {
+                    val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                    }
+                    uri?.let {
+                        Log.i("MainActivity", "Received shared video: $it")
+                        android.widget.Toast.makeText(
+                            this,
+                            getString(R.string.shared_video_received, 1),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        reset()
+                        uris.add(it)
+                        processVideo()
+                    }
+                } else {
+                    Log.w("MainActivity", "ACTION_SEND received but type doesn't match video or no EXTRA_STREAM")
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                // Handle multiple video share
+                Log.i("MainActivity", "Processing ACTION_SEND_MULTIPLE")
+                val sharedUris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                }
+
+                if (sharedUris != null && sharedUris.isNotEmpty()) {
+                    Log.i("MainActivity", "Received ${sharedUris.size} shared videos")
+                    sharedUris.forEachIndexed { index, uri ->
+                        Log.i("MainActivity", "  Shared URI[$index]: $uri")
+                    }
+                    android.widget.Toast.makeText(
+                        this,
+                        getString(R.string.shared_video_received, sharedUris.size),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    reset()
+                    uris.addAll(sharedUris)
+                    Log.i("MainActivity", "After adding, uris list size: ${uris.size}")
+                    processVideo()
+                } else {
+                    Log.w("MainActivity", "ACTION_SEND_MULTIPLE received but no URIs found or list is empty")
+                }
+            }
+        }
     }
 
     //Pick a video file from device
@@ -272,6 +340,10 @@ class MainActivity : AppCompatActivity() {
         Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
         Log.i("MainActivity", "Using codec: ${selectedCodec.name}")
         Log.i("MainActivity", "Using streamable: $isStreamable")
+        Log.i("MainActivity", "Starting compression for ${uris.size} video(s)")
+        uris.forEachIndexed { index, uri ->
+            Log.i("MainActivity", "  Video[$index]: $uri")
+        }
 
         lifecycleScope.launch {
             VideoCompressor.start(
@@ -306,6 +378,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onStart(index: Int) {
+                        Log.i("MainActivity", "onStart called for index $index (URI: ${uris[index]})")
                         // Store original video size for comparison later
                         val originalSize = getOriginalVideoSize(uris[index])
                         originalVideoSizes[index] = originalSize
@@ -322,6 +395,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onSuccess(index: Int, size: Long, path: String?) {
+                        Log.i("MainActivity", "onSuccess called for index $index, size: ${getFileSize(size)}, path: $path")
                         val originalSize = originalVideoSizes[index] ?: 0L
 
                         // Check if compressed video is larger than original
@@ -339,7 +413,7 @@ class MainActivity : AppCompatActivity() {
                                         // If it's a content URI or file doesn't exist via File API,
                                         // try deleting via ContentResolver
                                         try {
-                                            val uri = Uri.parse(filePath)
+                                            val uri = filePath.toUri()
                                             val deleted = contentResolver.delete(uri, null, null)
                                             if (deleted > 0) {
                                                 Log.i("MainActivity", "Deleted compressed file via ContentResolver: $filePath")
@@ -386,11 +460,11 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onFailure(index: Int, failureMessage: String) {
-                        Log.wtf("failureMessage", failureMessage)
+                        Log.e("MainActivity", "onFailure called for index $index: $failureMessage")
                     }
 
                     override fun onCancelled(index: Int) {
-                        Log.wtf("TAG", "compression has been cancelled")
+                        Log.w("MainActivity", "onCancelled called for index $index")
                         // make UI changes, cleanup, etc
                     }
                 },
