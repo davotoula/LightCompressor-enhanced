@@ -265,7 +265,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 bitrateText.toLong()
             } catch (e: NumberFormatException) {
-                Log.w("MainActivity", "Invalid bitrate input: $bitrateText, using default 1500 kbps")
+                Log.w("MainActivity", "Invalid bitrate input: $bitrateText, using default 1500 kbps", e)
                 1500L // Default fallback value in kbps
             }
         } else {
@@ -299,7 +299,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 resizeText.toDouble()
             } catch (e: NumberFormatException) {
-                Log.w("MainActivity", "Invalid resize input: $resizeText, using default 1280")
+                Log.w("MainActivity", "Invalid resize input: $resizeText, using default 1280", e)
                 1280.0 // Default fallback value
             }
         } else {
