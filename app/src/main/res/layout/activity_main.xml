@@ -54,38 +54,11 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/bitrate_label"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp" />
-
-        <EditText
-            android:id="@+id/bitrateInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:autofillHints="bitrate"
-            android:hint="@string/bitrate_hint"
-            android:inputType="number"
-            android:text="1500"
-            android:textSize="14sp"
-            android:layout_marginBottom="16dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
             android:text="@string/resize_label"
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
-        <EditText
-            android:id="@+id/resizeInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:autofillHints="longEdgeMaxPixels"
-            android:hint="@string/resize_hint"
-            android:inputType="number"
-            android:text="1280"
-            android:textSize="14sp"
-            android:layout_marginBottom="8dp" />
+
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -133,6 +106,18 @@
                 style="?attr/materialButtonOutlinedStyle" />
 
         </LinearLayout>
+
+        <EditText
+            android:id="@+id/resizeInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:autofillHints="longEdgeMaxPixels"
+            android:hint="@string/resize_hint"
+            android:inputType="number"
+            android:text="1280"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp" />
+
 
         <TextView
             android:layout_width="wrap_content"
@@ -194,6 +179,24 @@
                 android:text="@string/streamable_no" />
 
         </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bitrate_label"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/bitrateInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:autofillHints="bitrate"
+            android:hint="@string/bitrate_hint"
+            android:inputType="number"
+            android:text="1500"
+            android:textSize="14sp"
+            android:layout_marginBottom="16dp" />
 
     </LinearLayout>
 
