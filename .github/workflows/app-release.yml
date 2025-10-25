@@ -74,7 +74,7 @@ jobs:
         with:
           name: App v${{ steps.extract_version.outputs.VERSION }}
           body: |
-            ## LightCompressor App v${{ steps.extract_version.outputs.VERSION }}
+            ## LCe App v${{ steps.extract_version.outputs.VERSION }}
 
             ### Changes
             <!-- Add changelog here -->
