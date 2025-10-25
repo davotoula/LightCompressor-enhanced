@@ -126,6 +126,15 @@
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
+        <TextView
+            android:id="@+id/codecExplanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/codec_explanation"
+            android:textSize="12sp" />
+
         <RadioGroup
             android:id="@+id/codecRadioGroup"
             android:layout_width="match_parent"
@@ -156,6 +165,15 @@
             android:textSize="16sp"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/streamableExplanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/streamable_explanation"
+            android:textSize="12sp" />
 
         <RadioGroup
             android:id="@+id/streamableRadioGroup"

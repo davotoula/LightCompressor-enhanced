@@ -16,6 +16,8 @@
     <string name="codec_label">Video Codec:</string>
     <string name="codec_h264">H.264 (AVC)</string>
     <string name="codec_h265">H.265 (HEVC)</string>
+    <string name="codec_explanation">H.265/HEVC codec is more efficient and produces better quality and/or smaller file size than H.264/AVC. However it is not as well supported as H.264/AVC so select H.264/AVC if you want maximum compatibility.</string>
+    <string name="streamable_explanation">Selecting streamable will create a "fast-start" video which has meta-data moved to the start so it can start streaming faster.</string>
     <string name="streamable_label">Streamable:</string>
     <string name="streamable_yes">Yes</string>
     <string name="streamable_no">No</string>
