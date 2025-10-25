@@ -194,8 +194,11 @@ class MainActivity : AppCompatActivity() {
     private fun reset() {
         uris.clear()
         binding.mainContents.visibility = View.GONE
+        val itemCount = data.size
         data.clear()
-        adapter.notifyDataSetChanged()
+        if (itemCount > 0) {
+            adapter.notifyItemRangeRemoved(0, itemCount)
+        }
         originalVideoSizes.clear()
     }
 
@@ -373,7 +376,7 @@ class MainActivity : AppCompatActivity() {
                                     "",
                                     percent
                                 )
-                                adapter.notifyDataSetChanged()
+                                adapter.notifyItemChanged(index)
                             }
                     }
 
@@ -389,7 +392,7 @@ class MainActivity : AppCompatActivity() {
                             VideoDetailsModel("", uris[index], "")
                         )
                         runOnUiThread {
-                            adapter.notifyDataSetChanged()
+                            adapter.notifyItemInserted(index)
                         }
 
                     }
@@ -442,7 +445,7 @@ class MainActivity : AppCompatActivity() {
                                     getString(R.string.video_not_saved_status),
                                     0F
                                 )
-                                adapter.notifyDataSetChanged()
+                                adapter.notifyItemChanged(index)
                             }
                         } else {
                             // Normal success case - compressed file is smaller or equal
@@ -454,7 +457,7 @@ class MainActivity : AppCompatActivity() {
                                 100F
                             )
                             runOnUiThread {
-                                adapter.notifyDataSetChanged()
+                                adapter.notifyItemChanged(index)
                             }
                         }
                     }
