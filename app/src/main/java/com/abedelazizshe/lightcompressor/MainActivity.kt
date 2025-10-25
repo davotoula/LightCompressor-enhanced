@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
     private val data = mutableListOf<VideoDetailsModel>()
     private lateinit var adapter: RecyclerViewAdapter
     private val originalVideoSizes = mutableMapOf<Int, Long>()
+    private var videosFromSharing = false // Track if videos came from sharing vs file picker
+    private var completedVideosCount = 0
+    private var currentBatchStartIndex = 0 // Track where current batch starts in data list
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +60,15 @@ class MainActivity : AppCompatActivity() {
         setReadStoragePermission()
 
         binding.pickVideo.setOnClickListener {
-            pickVideo()
+            if (uris.isNotEmpty()) {
+                // Videos already loaded, start compression
+                Log.i("MainActivity", "Start button clicked, beginning compression")
+                processVideo()
+            } else {
+                // No videos loaded, pick videos
+                Log.i("MainActivity", "Pick Video button clicked")
+                pickVideo()
+            }
         }
 
         binding.recordVideo.setOnClickListener {
@@ -104,7 +115,9 @@ class MainActivity : AppCompatActivity() {
                         ).show()
                         reset()
                         uris.add(it)
-                        processVideo()
+                        videosFromSharing = true // Mark as shared videos
+                        showSharedVideosInUI()
+                        updateButtonState()
                     }
                 } else {
                     Log.w("MainActivity", "ACTION_SEND received but type doesn't match video or no EXTRA_STREAM")
@@ -132,12 +145,39 @@ class MainActivity : AppCompatActivity() {
                     ).show()
                     reset()
                     uris.addAll(sharedUris)
+                    videosFromSharing = true // Mark as shared videos
                     Log.i("MainActivity", "After adding, uris list size: ${uris.size}")
-                    processVideo()
+                    showSharedVideosInUI()
+                    updateButtonState()
                 } else {
                     Log.w("MainActivity", "ACTION_SEND_MULTIPLE received but no URIs found or list is empty")
                 }
             }
+        }
+    }
+
+    private fun showSharedVideosInUI() {
+        // Make the RecyclerView visible
+        binding.mainContents.visibility = View.VISIBLE
+
+        // Add all URIs to the TOP of the data list (newest at top)
+        uris.forEachIndexed { index, uri ->
+            data.add(index, VideoDetailsModel("", uri, getString(R.string.video_waiting_to_start)))
+            adapter.notifyItemInserted(index)
+        }
+
+        Log.i("MainActivity", "Showing ${uris.size} shared videos in UI at top of list")
+    }
+
+    private fun updateButtonState() {
+        if (uris.isNotEmpty()) {
+            // Videos are loaded, change button to "Start"
+            binding.pickVideo.text = getString(R.string.start_compression)
+            Log.i("MainActivity", "Button changed to Start (${uris.size} video(s) loaded)")
+        } else {
+            // No videos loaded, show "Pick Video"
+            binding.pickVideo.text = getString(R.string.pick_video)
+            Log.i("MainActivity", "Button changed to Pick Video")
         }
     }
 
@@ -166,7 +206,12 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetTextI18n")
     override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
 
-        reset()
+        // Don't call reset() here - we want to keep previous results visible
+        // Just clear URIs if there are any old ones
+        if (uris.isNotEmpty()) {
+            uris.clear()
+            originalVideoSizes.clear()
+        }
 
         if (resultCode == RESULT_OK)
             if (requestCode == REQUEST_SELECT_VIDEO || requestCode == REQUEST_CAPTURE_VIDEO) {
@@ -183,10 +228,14 @@ class MainActivity : AppCompatActivity() {
                 val videoItem = clipData.getItemAt(i)
                 uris.add(videoItem.uri)
             }
+            videosFromSharing = false // Mark as picked videos
+            // Auto-start compression for picked videos
             processVideo()
         } else if (data != null && data.data != null) {
             val uri = data.data
             uris.add(uri!!)
+            videosFromSharing = false // Mark as picked videos
+            // Auto-start compression for picked videos
             processVideo()
         }
     }
@@ -200,6 +249,15 @@ class MainActivity : AppCompatActivity() {
             adapter.notifyItemRangeRemoved(0, itemCount)
         }
         originalVideoSizes.clear()
+        videosFromSharing = false
+        completedVideosCount = 0
+        updateButtonState()
+
+        // Make sure buttons are enabled after reset
+        binding.pickVideo.isEnabled = true
+        binding.pickVideo.alpha = 1.0f
+        binding.recordVideo.isEnabled = true
+        binding.recordVideo.alpha = 1.0f
     }
 
     private fun getOriginalVideoSize(uri: Uri): Long {
@@ -255,9 +313,73 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkAndResetAfterCompletion() {
+        completedVideosCount++
+        Log.i("MainActivity", "Completed $completedVideosCount of ${uris.size} videos")
+
+        // Check if all videos are done
+        if (completedVideosCount >= uris.size) {
+            runOnUiThread {
+                // Re-enable the buttons
+                binding.pickVideo.isEnabled = true
+                binding.pickVideo.alpha = 1.0f
+                binding.recordVideo.isEnabled = true
+                binding.recordVideo.alpha = 1.0f
+                Log.i("MainActivity", "Re-enabled Pick/Record Video buttons after compression complete")
+            }
+
+            // If videos were from file picker, clear URIs but keep results visible
+            if (!videosFromSharing) {
+                Log.i("MainActivity", "All picked videos completed, clearing URIs for next pick")
+                runOnUiThread {
+                    // Small delay to let user see the final result
+                    android.os.Handler(mainLooper).postDelayed({
+                        // Clear URIs so "Pick Video" button works for new videos
+                        // But keep data list so results remain visible
+                        uris.clear()
+                        originalVideoSizes.clear()
+                        completedVideosCount = 0
+                        updateButtonState()
+                        Log.i("MainActivity", "URIs cleared, ready to pick new videos. Results still visible.")
+                    }, 1000)
+                }
+            }
+        }
+    }
+
     @SuppressLint("SetTextI18n")
     private fun processVideo() {
         binding.mainContents.visibility = View.VISIBLE
+        completedVideosCount = 0 // Reset counter when starting new compression
+
+        // Disable buttons during compression
+        binding.pickVideo.isEnabled = false
+        binding.pickVideo.alpha = 0.5f
+        binding.recordVideo.isEnabled = false
+        binding.recordVideo.alpha = 0.5f
+        Log.i("MainActivity", "Disabled Pick/Record Video buttons during compression")
+
+        // If we're reprocessing shared videos (data list already has items for these URIs)
+        // clear those old results before starting fresh
+        if (videosFromSharing && data.isNotEmpty()) {
+            // Find items in data list that match current URIs and remove them
+            val itemsToRemove = data.filter { item ->
+                uris.any { uri -> uri == item.uri }
+            }
+            if (itemsToRemove.isNotEmpty()) {
+                Log.i("MainActivity", "Clearing ${itemsToRemove.size} old results for re-compression")
+                itemsToRemove.forEach { item ->
+                    val index = data.indexOf(item)
+                    if (index >= 0) {
+                        data.removeAt(index)
+                        adapter.notifyItemRemoved(index)
+                    }
+                }
+            }
+        }
+
+        currentBatchStartIndex = 0 // New items will be inserted at the top
+        Log.i("MainActivity", "Starting new batch at data index: $currentBatchStartIndex")
 
         // Get the user-entered bitrate value in kbps and convert to bps
         val bitrateText = binding.bitrateInput.text.toString()
@@ -370,13 +492,14 @@ class MainActivity : AppCompatActivity() {
                         //Update UI
                         if (percent <= 100)
                             runOnUiThread {
-                                data[index] = VideoDetailsModel(
+                                val dataIndex = currentBatchStartIndex + index
+                                data[dataIndex] = VideoDetailsModel(
                                     "",
                                     uris[index],
                                     "",
                                     percent
                                 )
-                                adapter.notifyItemChanged(index)
+                                adapter.notifyItemChanged(dataIndex)
                             }
                     }
 
@@ -387,12 +510,17 @@ class MainActivity : AppCompatActivity() {
                         originalVideoSizes[index] = originalSize
                         Log.i("MainActivity", "Original video size for index $index: ${getFileSize(originalSize)}")
 
-                        data.add(
-                            index,
-                            VideoDetailsModel("", uris[index], "")
-                        )
                         runOnUiThread {
-                            adapter.notifyItemInserted(index)
+                            val dataIndex = currentBatchStartIndex + index
+                            if (dataIndex < data.size && data[dataIndex].uri == uris[index]) {
+                                // Item already exists (from showSharedVideosInUI), update it
+                                data[dataIndex] = VideoDetailsModel("", uris[index], getString(R.string.video_starting))
+                                adapter.notifyItemChanged(dataIndex)
+                            } else {
+                                // Item doesn't exist, add it (file picker flow)
+                                data.add(dataIndex, VideoDetailsModel("", uris[index], ""))
+                                adapter.notifyItemInserted(dataIndex)
+                            }
                         }
 
                     }
@@ -400,6 +528,7 @@ class MainActivity : AppCompatActivity() {
                     override fun onSuccess(index: Int, size: Long, path: String?) {
                         Log.i("MainActivity", "onSuccess called for index $index, size: ${getFileSize(size)}, path: $path")
                         val originalSize = originalVideoSizes[index] ?: 0L
+                        val dataIndex = currentBatchStartIndex + index
 
                         // Check if compressed video is larger than original
                         if (size > originalSize && originalSize > 0) {
@@ -439,35 +568,42 @@ class MainActivity : AppCompatActivity() {
                                 ).show()
 
                                 // Update UI to show failure
-                                data[index] = VideoDetailsModel(
+                                data[dataIndex] = VideoDetailsModel(
                                     null,
                                     uris[index],
                                     getString(R.string.video_not_saved_status),
                                     0F
                                 )
-                                adapter.notifyItemChanged(index)
+                                adapter.notifyItemChanged(dataIndex)
                             }
                         } else {
                             // Normal success case - compressed file is smaller or equal
                             Log.i("MainActivity", "Compression successful. Original: ${getFileSize(originalSize)}, Compressed: ${getFileSize(size)}")
-                            data[index] = VideoDetailsModel(
+                            data[dataIndex] = VideoDetailsModel(
                                 path,
                                 uris[index],
                                 getFileSize(size),
                                 100F
                             )
                             runOnUiThread {
-                                adapter.notifyItemChanged(index)
+                                adapter.notifyItemChanged(dataIndex)
                             }
                         }
+
+                        // Check if all videos are done and reset if needed
+                        checkAndResetAfterCompletion()
                     }
 
                     override fun onFailure(index: Int, failureMessage: String) {
                         Log.e("MainActivity", "onFailure called for index $index: $failureMessage")
+                        // Check if all videos are done and reset if needed
+                        checkAndResetAfterCompletion()
                     }
 
                     override fun onCancelled(index: Int) {
                         Log.w("MainActivity", "onCancelled called for index $index")
+                        // Check if all videos are done and reset if needed
+                        checkAndResetAfterCompletion()
                         // make UI changes, cleanup, etc
                     }
                 },

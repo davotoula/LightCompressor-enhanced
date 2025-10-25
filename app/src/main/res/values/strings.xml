@@ -2,6 +2,7 @@
     <string name="app_name">LCe</string>
     <string name="home_title">LCe - LightCompressor Enhanced</string>
     <string name="pick_video">Pick Video</string>
+    <string name="start_compression">Start</string>
     <string name="record_video">Record Video</string>
     <string name="bitrate_label">Bitrate (kbps):</string>
     <string name="bitrate_hint">Enter bitrate in kilobits per second (e.g., 1500)</string>
@@ -16,4 +17,6 @@
     <string name="video_not_saved_larger_toast">Video not saved. Compressed file (%1$s) is larger than original (%2$s).</string>
     <string name="video_not_saved_status">Not saved - larger than original</string>
     <string name="shared_video_received">Received %1$d video(s) for compression</string>
+    <string name="video_waiting_to_start">Waiting to start…</string>
+    <string name="video_starting">Starting…</string>
 </resources>
