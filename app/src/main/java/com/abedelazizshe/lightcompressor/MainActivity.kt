@@ -44,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private val uris = mutableListOf<Uri>()
     private val data = mutableListOf<VideoDetailsModel>()
     private lateinit var adapter: RecyclerViewAdapter
+    private val originalVideoSizes = mutableMapOf<Int, Long>()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -127,6 +128,18 @@ class MainActivity : AppCompatActivity() {
         binding.mainContents.visibility = View.GONE
         data.clear()
         adapter.notifyDataSetChanged()
+        originalVideoSizes.clear()
+    }
+
+    private fun getOriginalVideoSize(uri: Uri): Long {
+        return try {
+            contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                descriptor.statSize
+            } ?: 0L
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to get original video size for $uri", e)
+            0L
+        }
     }
 
     private fun setReadStoragePermission() {
@@ -293,6 +306,11 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onStart(index: Int) {
+                        // Store original video size for comparison later
+                        val originalSize = getOriginalVideoSize(uris[index])
+                        originalVideoSizes[index] = originalSize
+                        Log.i("MainActivity", "Original video size for index $index: ${getFileSize(originalSize)}")
+
                         data.add(
                             index,
                             VideoDetailsModel("", uris[index], "")
@@ -304,14 +322,66 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onSuccess(index: Int, size: Long, path: String?) {
-                        data[index] = VideoDetailsModel(
-                            path,
-                            uris[index],
-                            getFileSize(size),
-                            100F
-                        )
-                        runOnUiThread {
-                            adapter.notifyDataSetChanged()
+                        val originalSize = originalVideoSizes[index] ?: 0L
+
+                        // Check if compressed video is larger than original
+                        if (size > originalSize && originalSize > 0) {
+                            Log.w("MainActivity", "Compressed video ($size bytes) is larger than original ($originalSize bytes). Not saving.")
+
+                            // Delete the compressed file if it exists
+                            path?.let { filePath ->
+                                try {
+                                    // Try to delete as a regular file first
+                                    val file = java.io.File(filePath)
+                                    if (file.exists() && file.delete()) {
+                                        Log.i("MainActivity", "Deleted compressed file: $filePath")
+                                    } else {
+                                        // If it's a content URI or file doesn't exist via File API,
+                                        // try deleting via ContentResolver
+                                        try {
+                                            val uri = Uri.parse(filePath)
+                                            val deleted = contentResolver.delete(uri, null, null)
+                                            if (deleted > 0) {
+                                                Log.i("MainActivity", "Deleted compressed file via ContentResolver: $filePath")
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.w("MainActivity", "Could not delete compressed file: $filePath", e)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("MainActivity", "Failed to delete compressed file: $filePath", e)
+                                }
+                            }
+
+                            // Show toast to user
+                            runOnUiThread {
+                                android.widget.Toast.makeText(
+                                    this@MainActivity,
+                                    getString(R.string.video_not_saved_larger_toast, getFileSize(size), getFileSize(originalSize)),
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+
+                                // Update UI to show failure
+                                data[index] = VideoDetailsModel(
+                                    null,
+                                    uris[index],
+                                    getString(R.string.video_not_saved_status),
+                                    0F
+                                )
+                                adapter.notifyDataSetChanged()
+                            }
+                        } else {
+                            // Normal success case - compressed file is smaller or equal
+                            Log.i("MainActivity", "Compression successful. Original: ${getFileSize(originalSize)}, Compressed: ${getFileSize(size)}")
+                            data[index] = VideoDetailsModel(
+                                path,
+                                uris[index],
+                                getFileSize(size),
+                                100F
+                            )
+                            runOnUiThread {
+                                adapter.notifyDataSetChanged()
+                            }
                         }
                     }
 

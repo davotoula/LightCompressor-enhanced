@@ -14,4 +14,6 @@
     <string name="streamable_yes">Yes</string>
     <string name="streamable_no">No</string>
     <string name="cancel">cancel</string>
+    <string name="video_not_saved_larger_toast">Video not saved. Compressed file (%1$s) is larger than original (%2$s).</string>
+    <string name="video_not_saved_status">Not saved - larger than original</string>
 </resources>
