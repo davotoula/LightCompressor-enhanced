@@ -187,6 +187,15 @@
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
+        <Button
+            android:id="@+id/bitrateAuto"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/bitrate_auto"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"
+            style="?attr/materialButtonOutlinedStyle" />
+
         <EditText
             android:id="@+id/bitrateInput"
             android:layout_width="match_parent"

@@ -100,6 +100,11 @@ class MainActivity : AppCompatActivity() {
             Log.i("MainActivity", "540p preset selected: 960px")
         }
 
+        // Auto bitrate button
+        binding.bitrateAuto.setOnClickListener {
+            calculateAndSetAutoBitrate()
+        }
+
         val recyclerview = findViewById<RecyclerView>(R.id.recyclerview)
         recyclerview.layoutManager = LinearLayoutManager(this)
         adapter = RecyclerViewAdapter(applicationContext, data)
@@ -200,6 +205,52 @@ class MainActivity : AppCompatActivity() {
             binding.pickVideo.text = getString(R.string.pick_video)
             Log.i("MainActivity", "Button changed to Pick Video")
         }
+    }
+
+    private fun calculateAndSetAutoBitrate() {
+        // Get resolution from resizeInput
+        val resolutionText = binding.resizeInput.text.toString()
+        val resolution = if (resolutionText.isNotEmpty()) {
+            try {
+                resolutionText.toInt()
+            } catch (e: NumberFormatException) {
+                1280 // Default if invalid
+            }
+        } else {
+            1280 // Default if empty
+        }
+
+        // Calculate recommended H.264 bitrate based on resolution
+        val h264Bitrate = when {
+            resolution >= 3840 -> 40000 // 4K
+            resolution >= 2560 -> 25000 // 1440p
+            resolution >= 1920 -> 10000 // 1080p
+            resolution >= 1280 -> 6000  // 720p
+            resolution >= 960 -> 3000   // 540p
+            resolution >= 640 -> 1500   // 360p
+            else -> 1000                // Lower resolutions
+        }
+
+        // Check if H.265 is selected
+        val isH265 = binding.codecRadioGroup.checkedRadioButtonId == R.id.radioH265
+
+        // Apply 0.7 multiplier for H.265
+        val finalBitrate = if (isH265) {
+            (h264Bitrate * 0.7).toInt()
+        } else {
+            h264Bitrate
+        }
+
+        // Set the calculated bitrate
+        binding.bitrateInput.setText(finalBitrate.toString())
+
+        val codecName = if (isH265) "H.265" else "H.264"
+        Log.i("MainActivity", "Auto bitrate: ${resolution}px with $codecName = $finalBitrate kbps")
+        android.widget.Toast.makeText(
+            this,
+            "Auto bitrate set to $finalBitrate kbps for ${resolution}px ($codecName)",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 
     //Pick a video file from device
