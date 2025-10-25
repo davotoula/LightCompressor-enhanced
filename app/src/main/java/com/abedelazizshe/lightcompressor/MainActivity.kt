@@ -175,18 +175,39 @@ class MainActivity : AppCompatActivity() {
     private fun processVideo() {
         binding.mainContents.visibility = View.VISIBLE
 
-        // Get the user-entered bitrate value
+        // Get the user-entered bitrate value in kbps and convert to bps
         val bitrateText = binding.bitrateInput.text.toString()
-        val videoBitrateInBps = if (bitrateText.isNotEmpty()) {
+        var videoBitrateInKbps = if (bitrateText.isNotEmpty()) {
             try {
                 bitrateText.toLong()
             } catch (e: NumberFormatException) {
-                Log.w("MainActivity", "Invalid bitrate input: $bitrateText, using default 1500000")
-                1500000L // Default fallback value
+                Log.w("MainActivity", "Invalid bitrate input: $bitrateText, using default 1500 kbps")
+                1500L // Default fallback value in kbps
             }
         } else {
-            1500000L // Default fallback value
+            1500L // Default fallback value in kbps
         }
+
+        // Validate bitrate range (200 - 100000 kbps)
+        if (videoBitrateInKbps < 200) {
+            Log.w("MainActivity", "Bitrate $videoBitrateInKbps kbps is below minimum (200 kbps), clamping to 200")
+            android.widget.Toast.makeText(
+                this,
+                "Bitrate too low. Minimum is 200 kbps. Using 200 kbps.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            videoBitrateInKbps = 200L
+        } else if (videoBitrateInKbps > 100000) {
+            Log.w("MainActivity", "Bitrate $videoBitrateInKbps kbps is above maximum (100000 kbps), clamping to 100000")
+            android.widget.Toast.makeText(
+                this,
+                "Bitrate too high. Maximum is 100000 kbps. Using 100000 kbps.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            videoBitrateInKbps = 100000L
+        }
+
+        val videoBitrateInBps = videoBitrateInKbps * 1000 // Convert kbps to bps
 
         // Get the user-entered resize value
         val resizeText = binding.resizeInput.text.toString()
@@ -234,7 +255,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        Log.i("MainActivity", "Using bitrate: $videoBitrateInBps bps (${videoBitrateInBps / 1000000.0} Mbps)")
+        Log.i("MainActivity", "Using bitrate: $videoBitrateInKbps kbps ($videoBitrateInBps bps)")
         Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
         Log.i("MainActivity", "Using codec: ${selectedCodec.name}")
         Log.i("MainActivity", "Using streamable: $isStreamable")

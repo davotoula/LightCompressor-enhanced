@@ -36,7 +36,7 @@
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
-                android:text="cancel" />
+                android:text="@string/cancel" />
         </RelativeLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -62,9 +62,10 @@
             android:id="@+id/bitrateInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:autofillHints="bitrate"
             android:hint="@string/bitrate_hint"
             android:inputType="number"
-            android:text="1500000"
+            android:text="1500"
             android:textSize="14sp"
             android:layout_marginBottom="16dp" />
 
@@ -79,6 +80,7 @@
             android:id="@+id/resizeInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:autofillHints="longEdgeMaxPixels"
             android:hint="@string/resize_hint"
             android:inputType="number"
             android:text="1280"

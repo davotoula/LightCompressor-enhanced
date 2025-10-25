@@ -3,8 +3,8 @@
     <string name="home_title">LCe - LightCompressor Enhanced</string>
     <string name="pick_video">Pick Video</string>
     <string name="record_video">Record Video</string>
-    <string name="bitrate_label">Bitrate (bps):</string>
-    <string name="bitrate_hint">Enter bitrate in bits per second (e.g., 1500000)</string>
+    <string name="bitrate_label">Bitrate (kbps):</string>
+    <string name="bitrate_hint">Enter bitrate in kilobits per second (e.g., 1500)</string>
     <string name="resize_label">Max Resolution (long edge):</string>
     <string name="resize_hint">Enter max pixels for long edge (e.g., 1280)</string>
     <string name="codec_label">Video Codec:</string>
@@ -13,4 +13,5 @@
     <string name="streamable_label">Streamable:</string>
     <string name="streamable_yes">Yes</string>
     <string name="streamable_no">No</string>
+    <string name="cancel">cancel</string>
 </resources>
