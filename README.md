@@ -35,6 +35,14 @@
 - Added validation for positive bitrate values
 - Updated documentation and examples
 
+## TODO
+- [ ] Rewrite app to use JetPack Compose
+- [ ] Publish app to Zapstore
+- [ ] Publish app to Google Play
+- [ ] Publish library to maven repo
+- [ ] Performance improvements
+- [ ] Compress large files test (200mb+)
+
 ## Usage Examples:
 
 ```kotlin
