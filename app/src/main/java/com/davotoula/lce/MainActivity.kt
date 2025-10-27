@@ -214,6 +214,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 resolutionText.toInt()
             } catch (e: NumberFormatException) {
+                Log.w("MainActivity", "Invalid resolution input: $resolutionText, using default 1280", e)
                 1280 // Default if invalid
             }
         } else {

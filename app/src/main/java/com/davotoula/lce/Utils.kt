@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import java.io.*
 import java.text.DecimalFormat
 import kotlin.math.log10
@@ -24,6 +25,7 @@ fun getMediaPath(context: Context, uri: Uri): String {
         } else ""
 
     } catch (e: Exception) {
+        Log.w("Utils", "Exceptions while getting media path, ${e.message}", e)
         resolver.let {
             val filePath = (context.applicationInfo.dataDir + File.separator
                     + System.currentTimeMillis())
@@ -77,10 +79,12 @@ fun getPathFromUri(context: Context, uri: Uri): String {
             success = true
         }
     } catch (ignored: IOException) {
+        Log.w("Utils", "Exceptions while getting path from uri, ${ignored.message}", ignored)
     } finally {
         try {
             inputStream?.close()
         } catch (ignored: IOException) {
+            Log.w("Utils", "Exceptions while closing input stream, ${ignored.message}", ignored)
         }
         try {
             outputStream?.close()
@@ -88,6 +92,7 @@ fun getPathFromUri(context: Context, uri: Uri): String {
             // If closing the output stream fails, we cannot be sure that the
             // target file was written in full. Flushing the stream merely moves
             // the bytes into the OS, not necessarily to the file.
+            Log.w("Utils", "Exceptions while closing output stream, ${ignored.message}", ignored)
             success = false
         }
     }
@@ -104,6 +109,7 @@ private fun getVideoExtension(uriVideo: Uri): String {
             extension = imagePath.substring(imagePath.lastIndexOf(".") + 1)
         }
     } catch (e: Exception) {
+        Log.w("Utils", "Exceptions while getting video extension, ${e.message}", e)
         extension = null
     }
     if (extension == null || extension.isEmpty()) {
