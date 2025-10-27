@@ -1,4 +1,5 @@
 repository: https://github.com/davotoula/LightCompressor-enhanced
 description: A powerful and easy-to-use video compression app for android that uses the native MediaCodec API. It supports H.264/H2.65 hardware accelerated encoding and configurable resolution, bitrate, and fast-start (streamable).
+tags: video videography compression
 assets:
   - .*.apk

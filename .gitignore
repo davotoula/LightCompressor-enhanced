@@ -7,6 +7,7 @@
 .vscode
 .settings
 .cxx
+.env
 
 # Ignore all IDEA files
 .idea/*
