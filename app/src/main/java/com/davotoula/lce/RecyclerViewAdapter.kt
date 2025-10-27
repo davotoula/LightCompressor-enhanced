@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressor
+package com.davotoula.lce
 
 import android.content.Context
 import android.view.LayoutInflater

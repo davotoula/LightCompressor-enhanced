@@ -6,7 +6,7 @@ plugins {
 android {
     compileSdkVersion libs.versions.compileSdk.get().toInteger()
     defaultConfig {
-        applicationId "com.abedelazizshe.lightcompressor"
+        applicationId "com.davotoula.lce"
         minSdkVersion 24
         targetSdkVersion libs.versions.targetSdk.get().toInteger()
         versionCode project.property('appVersionCode').toInteger()
@@ -58,7 +58,7 @@ android {
         buildConfig = true
     }
 
-    namespace = 'com.abedelazizshe.lightcompressor'
+    namespace = 'com.davotoula.lce'
 }
 
 dependencies {

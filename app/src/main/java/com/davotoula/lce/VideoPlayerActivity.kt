@@ -1,11 +1,11 @@
-package com.abedelazizshe.lightcompressor
+package com.davotoula.lce
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.abedelazizshe.lightcompressor.databinding.ActivityVideoPlayerBinding
+import com.davotoula.lce.databinding.ActivityVideoPlayerBinding
 import com.google.android.exoplayer2.DefaultLoadControl
 import com.google.android.exoplayer2.DefaultRenderersFactory
 import com.google.android.exoplayer2.SimpleExoPlayer
