@@ -1,7 +1,10 @@
 [![JitPack](https://jitpack.io/v/davotoula/LightCompressor-enhanced.svg)](https://jitpack.io/#davotoula/LightCompressor-enhanced)
+
+## Download and Install app
+[![Obtanium](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/obtainium.png)](https://obtainium.imranr.dev/)[![ZapStore](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/zapstore.svg)](https://zapstore.dev/apps)
+
+
 # Purpose of fork
-
-
 ## New API Features:
 
 1. **H.265 (HEVC) Video Encoding Support**: Choose between H.264 (AVC) and H.265 (HEVC) codecs for video compression
