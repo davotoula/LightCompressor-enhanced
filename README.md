@@ -37,7 +37,7 @@
 
 ## TODO
 - [ ] Rewrite app to use JetPack Compose
-- [ ] Publish app to Zapstore
+- [x] Publish app to Zapstore
 - [ ] Publish app to Google Play
 - [ ] Publish library to maven repo
 - [ ] Performance improvements
