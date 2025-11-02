@@ -1,6 +1,25 @@
 [![](https://jitpack.io/v/davotoula/LightCompressor-enhanced.svg)](https://jitpack.io/#davotoula/LightCompressor-enhanced)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/davotoula/LightCompressor-enhanced/total)
 
+
+## Use the library in your project
+Step 1. Add the JitPack repository to your build file
+
+Add it in your root settings.gradle at the end of repositories:
+
+	dependencyResolutionManagement {
+		repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+		repositories {
+			mavenCentral()
+			maven { url 'https://jitpack.io' }
+		}
+	}
+Step 2. Add the dependency
+
+	dependencies {
+	        implementation 'com.github.davotoula:LightCompressor-enhanced:Tag'
+	}
+
 ## Download and Install app
 [![Obtanium](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/obtainium.png)](https://obtainium.imranr.dev/)[![ZapStore](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/zapstore.svg)](https://zapstore.dev/apps)
 
