@@ -1,14 +1,14 @@
 [versions]
 # Build Tools
-agp = "8.13.0"
-kotlin = "2.0.21"
+agp = "8.13.1"
+kotlin = "2.2.21"
 
 # AndroidX Core
 androidx-core = "1.17.0"
 androidx-annotation = "1.9.1"
 androidx-appcompat = "1.7.1"
 androidx-constraintlayout = "2.2.1"
-androidx-lifecycle = "2.9.4"
+androidx-lifecycle = "2.10.0"
 androidx-recyclerview = "1.4.0"
 
 # Kotlin Coroutines
