@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.view.View
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -49,6 +51,18 @@ class MainActivity : AppCompatActivity() {
     private var videosFromSharing = false // Track if videos came from sharing vs file picker
     private var completedVideosCount = 0
     private var currentBatchStartIndex = 0 // Track where current batch starts in data list
+    private val pickVideos =
+        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { pickedUris ->
+            if (pickedUris.isNullOrEmpty()) {
+                Log.i("MainActivity", "Photo picker returned no selection")
+                return@registerForActivityResult
+            }
+
+            clearPreviousSelection()
+            uris.addAll(pickedUris)
+            videosFromSharing = false
+            processVideo()
+        }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -256,6 +270,12 @@ class MainActivity : AppCompatActivity() {
 
     //Pick a video file from device
     private fun pickVideo() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pickVideos.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+            )
+            return
+        }
         val intent = Intent()
         intent.apply {
             type = "video/*"
@@ -284,10 +304,7 @@ class MainActivity : AppCompatActivity() {
 
         // Don't call reset() here - we want to keep previous results visible
         // Just clear URIs if there are any old ones
-        if (uris.isNotEmpty()) {
-            uris.clear()
-            originalVideoSizes.clear()
-        }
+        clearPreviousSelection()
 
         if (resultCode == RESULT_OK)
             if (requestCode == REQUEST_SELECT_VIDEO || requestCode == REQUEST_CAPTURE_VIDEO) {
@@ -336,6 +353,13 @@ class MainActivity : AppCompatActivity() {
         binding.recordVideo.alpha = 1.0f
     }
 
+    private fun clearPreviousSelection() {
+        if (uris.isNotEmpty()) {
+            uris.clear()
+            originalVideoSizes.clear()
+        }
+    }
+
     private fun getOriginalVideoSize(uri: Uri): Long {
         return try {
             contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
@@ -348,44 +372,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setReadStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
+        val (permission, requestCode) = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> return // Photo Picker handles access
 
-                if (!ActivityCompat.shouldShowRequestPermissionRationale(
-                        this,
-                        Manifest.permission.READ_MEDIA_VIDEO
-                    )
-                ) {
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.READ_MEDIA_VIDEO),
-                        1
-                    )
-                }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                Manifest.permission.READ_EXTERNAL_STORAGE to 2
             }
-        } else {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
 
-                if (!ActivityCompat.shouldShowRequestPermissionRationale(
-                        this,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    )
-                ) {
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                        1
-                    )
-                }
+            else -> {
+                Manifest.permission.WRITE_EXTERNAL_STORAGE to 3
             }
+        }
+
+        if (
+            ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED &&
+            !ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(permission), requestCode)
         }
     }
 

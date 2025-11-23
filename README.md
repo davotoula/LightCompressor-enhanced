@@ -166,23 +166,24 @@ To use this library, you must add the following permission to allow read and wri
     tools:ignore="ScopedStorage" />
 ```
 
-**API >= 29**
+**API 29 - 32**
 
 ```xml
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
     android:maxSdkVersion="32"/>
 ```
 
-**API >= 33**
+**API >= 33 (Photo Picker recommended)**
 
 ```xml
  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
 ```
 
 ```kotlin
-
  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-     // request READ_MEDIA_VIDEO run-time permission
+     // Prefer Android Photo Picker for videos (no storage permission needed)
+ } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+     // request READ_EXTERNAL_STORAGE run-time permission
  } else {
      // request WRITE_EXTERNAL_STORAGE run-time permission
  }
