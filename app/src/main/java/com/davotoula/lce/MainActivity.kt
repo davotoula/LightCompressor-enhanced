@@ -14,20 +14,20 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.davotoula.lce.databinding.ActivityMainBinding
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
-import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
+import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils
+import com.davotoula.lce.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
-import androidx.core.net.toUri
 
 /**
  * Created by AbedElaziz Shehadeh on 26 Jan, 2020
