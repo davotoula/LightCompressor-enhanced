@@ -20,8 +20,8 @@ glide = "5.0.5"
 
 # Firebase
 firebase-bom = "33.7.0"
-google-services = "4.4.2"
-firebase-crashlytics-gradle = "3.0.2"
+google-services = "4.4.4"
+firebase-crashlytics-gradle = "3.0.6"
 
 # Media
 exoplayer = "2.19.1"

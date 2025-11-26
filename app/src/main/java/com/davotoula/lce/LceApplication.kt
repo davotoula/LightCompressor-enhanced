@@ -14,11 +14,11 @@ class LceApplication : Application() {
             FirebaseApp.initializeApp(this)
         }
 
-        Firebase.crashlytics.setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(true)
         Firebase.crashlytics.setCustomKey("build_type", BuildConfig.BUILD_TYPE)
         Firebase.crashlytics.setCustomKey("version_name", BuildConfig.VERSION_NAME)
 
-        Firebase.analytics
+        Firebase.analytics.setAnalyticsCollectionEnabled(true)
         AnalyticsTracker.logAppOpen()
     }
 }
