@@ -23,6 +23,10 @@ Step 2. Add the dependency
 ## Download and Install app
 [![Obtanium](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/obtainium.png)](https://obtainium.imranr.dev/)[![ZapStore](https://raw.githubusercontent.com/vitorpamplona/amethyst/main/docs/design/zapstore.svg)](https://zapstore.dev/apps)
 
+## Crash reporting & analytics
+- Firebase Crashlytics and Analytics are wired into the sample app; replace `app/google-services.json` with your Firebase config (or generate it in CI) before distributing builds.
+- Debug builds skip Crashlytics uploads; release builds will report crashes and log usage events for selection, compression, and playback flows.
+
 
 # Purpose of fork
 ## New API Features:

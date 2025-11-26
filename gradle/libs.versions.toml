@@ -18,6 +18,11 @@ kotlinx-coroutines = "1.10.2"
 material = "1.13.0"
 glide = "5.0.5"
 
+# Firebase
+firebase-bom = "33.7.0"
+google-services = "4.4.2"
+firebase-crashlytics-gradle = "3.0.2"
+
 # Media
 exoplayer = "2.19.1"
 
@@ -56,6 +61,13 @@ glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "gl
 
 # Media
 exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", version.ref = "exoplayer" }
+
+# Firebase
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics-ktx" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
+google-services = { group = "com.google.gms", name = "google-services", version.ref = "google-services" }
+firebase-crashlytics-gradle = { group = "com.google.firebase", name = "firebase-crashlytics-gradle", version.ref = "firebase-crashlytics-gradle" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

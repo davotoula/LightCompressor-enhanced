@@ -60,6 +60,7 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun play(uri: Uri) {
 
+        AnalyticsTracker.logVideoPlayback(uri.toString())
         val userAgent = Util.getUserAgent(this, getString(R.string.app_name))
         val mediaItem = MediaItem.fromUri(uri)
         val mediaSource = ProgressiveMediaSource

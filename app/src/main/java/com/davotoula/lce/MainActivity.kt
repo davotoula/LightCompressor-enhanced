@@ -49,6 +49,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: RecyclerViewAdapter
     private val originalVideoSizes = mutableMapOf<Int, Long>()
     private var videosFromSharing = false // Track if videos came from sharing vs file picker
+    private var lastSelectionSource = "unknown"
     private var completedVideosCount = 0
     private var currentBatchStartIndex = 0 // Track where current batch starts in data list
     private val pickVideos =
@@ -61,6 +62,8 @@ class MainActivity : AppCompatActivity() {
             clearPreviousSelection()
             uris.addAll(pickedUris)
             videosFromSharing = false
+            lastSelectionSource = "photo_picker"
+            AnalyticsTracker.logVideoSelection(lastSelectionSource, pickedUris.size)
             processVideo()
         }
 
@@ -90,6 +93,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.cancel.setOnClickListener {
+            if (uris.isNotEmpty()) {
+                AnalyticsTracker.logCompressionCancelled(lastSelectionSource, uris.size)
+            }
             VideoCompressor.cancel()
         }
 
@@ -156,6 +162,8 @@ class MainActivity : AppCompatActivity() {
                         reset()
                         uris.add(it)
                         videosFromSharing = true // Mark as shared videos
+                        lastSelectionSource = "share_sheet"
+                        AnalyticsTracker.logVideoSelection(lastSelectionSource, uris.size)
                         showSharedVideosInUI()
                         updateButtonState()
                     }
@@ -186,6 +194,8 @@ class MainActivity : AppCompatActivity() {
                     reset()
                     uris.addAll(sharedUris)
                     videosFromSharing = true // Mark as shared videos
+                    lastSelectionSource = "share_sheet"
+                    AnalyticsTracker.logVideoSelection(lastSelectionSource, uris.size)
                     Log.i("MainActivity", "After adding, uris list size: ${uris.size}")
                     showSharedVideosInUI()
                     updateButtonState()
@@ -308,13 +318,14 @@ class MainActivity : AppCompatActivity() {
 
         if (resultCode == RESULT_OK)
             if (requestCode == REQUEST_SELECT_VIDEO || requestCode == REQUEST_CAPTURE_VIDEO) {
-                handleResult(intent)
+                handleResult(intent, requestCode)
             }
 
         super.onActivityResult(requestCode, resultCode, intent)
     }
 
-    private fun handleResult(data: Intent?) {
+    private fun handleResult(data: Intent?, requestCode: Int) {
+        val source = if (requestCode == REQUEST_CAPTURE_VIDEO) "camera" else "picker"
         val clipData: ClipData? = data?.clipData
         if (clipData != null) {
             for (i in 0 until clipData.itemCount) {
@@ -322,12 +333,16 @@ class MainActivity : AppCompatActivity() {
                 uris.add(videoItem.uri)
             }
             videosFromSharing = false // Mark as picked videos
+            lastSelectionSource = source
+            AnalyticsTracker.logVideoSelection(lastSelectionSource, clipData.itemCount)
             // Auto-start compression for picked videos
             processVideo()
         } else if (data != null && data.data != null) {
             val uri = data.data
             uris.add(uri!!)
             videosFromSharing = false // Mark as picked videos
+            lastSelectionSource = source
+            AnalyticsTracker.logVideoSelection(lastSelectionSource, 1)
             // Auto-start compression for picked videos
             processVideo()
         }
@@ -343,6 +358,7 @@ class MainActivity : AppCompatActivity() {
         }
         originalVideoSizes.clear()
         videosFromSharing = false
+        lastSelectionSource = "unknown"
         completedVideosCount = 0
         updateButtonState()
 
@@ -430,6 +446,9 @@ class MainActivity : AppCompatActivity() {
     private fun processVideo() {
         binding.mainContents.visibility = View.VISIBLE
         completedVideosCount = 0 // Reset counter when starting new compression
+        if (lastSelectionSource == "unknown") {
+            lastSelectionSource = if (videosFromSharing) "share_sheet" else "picker"
+        }
 
         // Disable buttons during compression
         binding.pickVideo.isEnabled = false
@@ -507,6 +526,8 @@ class MainActivity : AppCompatActivity() {
             1280.0 // Default fallback value
         }
 
+        val maxResolutionInt = maxResolution.toInt()
+
         // Get the selected codec with automatic fallback to H.264 if H.265 is not supported
         val selectedCodec = when (binding.codecRadioGroup.checkedRadioButtonId) {
             R.id.radioH265 -> {
@@ -540,8 +561,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        AnalyticsTracker.logCompressionStarted(
+            bitrateKbps = videoBitrateInKbps,
+            maxResolution = maxResolutionInt,
+            codec = selectedCodec.name,
+            streamable = isStreamable,
+            videoCount = uris.size,
+            source = lastSelectionSource,
+        )
+
         Log.i("MainActivity", "Using bitrate: $videoBitrateInKbps kbps ($videoBitrateInBps bps)")
-        Log.i("MainActivity", "Using max resolution: ${maxResolution.toInt()}px (long edge)")
+        Log.i("MainActivity", "Using max resolution: ${maxResolutionInt}px (long edge)")
         Log.i("MainActivity", "Using codec: ${selectedCodec.name}")
         Log.i("MainActivity", "Using streamable: $isStreamable")
         Log.i("MainActivity", "Starting compression for ${uris.size} video(s)")
@@ -637,6 +667,12 @@ class MainActivity : AppCompatActivity() {
                                     Log.e("MainActivity", "Failed to delete compressed file: $filePath", e)
                                 }
                             }
+                            AnalyticsTracker.logCompressionResult(
+                                status = "skipped_larger",
+                                codec = selectedCodec.name,
+                                source = lastSelectionSource,
+                                videoCount = 1,
+                            )
 
                             // Show toast to user
                             runOnUiThread {
@@ -664,6 +700,12 @@ class MainActivity : AppCompatActivity() {
                                 getFileSize(size),
                                 100F
                             )
+                            AnalyticsTracker.logCompressionResult(
+                                status = "success",
+                                codec = selectedCodec.name,
+                                source = lastSelectionSource,
+                                videoCount = 1,
+                            )
                             runOnUiThread {
                                 adapter.notifyItemChanged(dataIndex)
                             }
@@ -675,12 +717,31 @@ class MainActivity : AppCompatActivity() {
 
                     override fun onFailure(index: Int, failureMessage: String) {
                         Log.e("MainActivity", "onFailure called for index $index: $failureMessage")
+                        AnalyticsTracker.recordCompressionFailure(
+                            message = failureMessage,
+                            codec = selectedCodec.name,
+                            bitrateKbps = videoBitrateInKbps,
+                            streamable = isStreamable,
+                            source = lastSelectionSource,
+                        )
+                        AnalyticsTracker.logCompressionResult(
+                            status = "failure",
+                            codec = selectedCodec.name,
+                            source = lastSelectionSource,
+                            videoCount = 1,
+                        )
                         // Check if all videos are done and reset if needed
                         checkAndResetAfterCompletion()
                     }
 
                     override fun onCancelled(index: Int) {
                         Log.w("MainActivity", "onCancelled called for index $index")
+                        AnalyticsTracker.logCompressionResult(
+                            status = "cancelled",
+                            codec = selectedCodec.name,
+                            source = lastSelectionSource,
+                            videoCount = 1,
+                        )
                         // Check if all videos are done and reset if needed
                         checkAndResetAfterCompletion()
                         // make UI changes, cleanup, etc
