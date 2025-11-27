@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private var lastSelectionSource = "unknown"
     private var completedVideosCount = 0
     private var currentBatchStartIndex = 0 // Track where current batch starts in data list
+    private var selectedPresetButton: android.widget.Button? = null
     private val pickVideos =
         registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { pickedUris ->
             if (pickedUris.isNullOrEmpty()) {
@@ -102,21 +103,25 @@ class MainActivity : AppCompatActivity() {
         // Resolution preset buttons
         binding.preset4k.setOnClickListener {
             binding.resizeInput.setText("3840")
+            updatePresetButtonSelection(binding.preset4k)
             Log.i("MainActivity", "4K preset selected: 3840px")
         }
 
         binding.preset1080p.setOnClickListener {
             binding.resizeInput.setText("1920")
+            updatePresetButtonSelection(binding.preset1080p)
             Log.i("MainActivity", "1080p preset selected: 1920px")
         }
 
         binding.preset720p.setOnClickListener {
             binding.resizeInput.setText("1280")
+            updatePresetButtonSelection(binding.preset720p)
             Log.i("MainActivity", "720p preset selected: 1280px")
         }
 
         binding.preset540p.setOnClickListener {
             binding.resizeInput.setText("960")
+            updatePresetButtonSelection(binding.preset540p)
             Log.i("MainActivity", "540p preset selected: 960px")
         }
 
@@ -132,6 +137,19 @@ class MainActivity : AppCompatActivity() {
 
         // Handle shared videos from other apps
         handleSharedIntent(intent)
+    }
+
+    private fun updatePresetButtonSelection(button: android.widget.Button) {
+        // Reset previous selection
+        selectedPresetButton?.let {
+            it.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            it.setTextColor(android.graphics.Color.BLACK)
+        }
+
+        // Apply selected styling
+        button.setBackgroundColor(android.graphics.Color.BLUE)
+        button.setTextColor(android.graphics.Color.WHITE)
+        selectedPresetButton = button
     }
 
     override fun onNewIntent(intent: Intent) {
