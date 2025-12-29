@@ -2,29 +2,24 @@ package com.davotoula.lce
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import com.davotoula.lce.databinding.ActivityVideoPlayerBinding
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.DefaultRenderersFactory
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.SimpleExoPlayer
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
-import com.google.android.exoplayer2.util.Util
-import java.io.File
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 
 /**
- * Created by AbedElaziz Shehadeh on 26 Jan, 2020
- * elaziz.shehadeh@gmail.com
+ * Video Player Activity - placeholder for Compose migration
+ * TODO: Implement Media3 PlayerView with Compose in subsequent tasks
  */
-class VideoPlayerActivity : AppCompatActivity() {
+class VideoPlayerActivity : ComponentActivity() {
 
-    private lateinit var binding: ActivityVideoPlayerBinding
-
-    private lateinit var exoPlayer: SimpleExoPlayer
     private var uri = ""
 
     companion object {
@@ -37,56 +32,25 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityVideoPlayerBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         intent?.extras?.let {
             uri = it.getString("uri", "")
         }
-        initializePlayer()
-    }
 
-    private fun initializePlayer() {
-
-        val trackSelector = DefaultTrackSelector(this)
-        val loadControl = DefaultLoadControl()
-        val rendererFactory = DefaultRenderersFactory(this)
-
-        exoPlayer = SimpleExoPlayer.Builder(this, rendererFactory)
-            .setLoadControl(loadControl)
-            .setTrackSelector(trackSelector)
-            .build()
-    }
-
-    private fun play(uri: Uri) {
-
-        AnalyticsTracker.logVideoPlayback(uri.toString())
-        val userAgent = Util.getUserAgent(this, getString(R.string.app_name))
-        val mediaItem = MediaItem.fromUri(uri)
-        val mediaSource = ProgressiveMediaSource
-            .Factory(DefaultDataSourceFactory(this, userAgent))
-            .createMediaSource(mediaItem)
-
-        binding.epVideoView.player = exoPlayer
-
-        exoPlayer.prepare(mediaSource)
-        exoPlayer.playWhenReady = true
-    }
-
-    override fun onStart() {
-        super.onStart()
-        playVideo()
-    }
-
-    private fun playVideo() {
-        val file = File(uri)
-        val localUri = Uri.fromFile(file)
-        play(localUri)
-    }
-
-    override fun onStop() {
-        super.onStop()
-        exoPlayer.stop()
-        exoPlayer.release()
+        setContent {
+            MaterialTheme {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Video Player - Coming Soon",
+                        color = Color.White
+                    )
+                }
+            }
+        }
     }
 }

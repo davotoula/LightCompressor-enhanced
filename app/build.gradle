@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
 }
@@ -58,7 +59,7 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true
+        compose = true
         buildConfig = true
     }
 
@@ -73,19 +74,23 @@ dependencies {
     implementation libs.kotlin.stdlib
     implementation libs.bundles.kotlinx.coroutines
 
-    // AndroidX
-    implementation libs.androidx.appcompat
+    // AndroidX Core
     implementation libs.androidx.core.ktx
-    implementation libs.androidx.constraintlayout
-    implementation libs.androidx.recyclerview
     implementation libs.bundles.androidx.lifecycle
 
-    // UI
-    implementation libs.material
-    implementation libs.glide
+    // Compose
+    implementation platform(libs.compose.bom)
+    implementation libs.bundles.compose
+    implementation libs.navigation.compose
+    implementation libs.lifecycle.viewmodel.compose
+    implementation libs.lifecycle.runtime.compose
+    debugImplementation libs.bundles.compose.debug
 
-    // Media
-    implementation libs.exoplayer
+    // Media3
+    implementation libs.bundles.media3
+
+    // Image Loading
+    implementation libs.coil.compose
 
     // Firebase
     implementation platform(libs.firebase.bom)
