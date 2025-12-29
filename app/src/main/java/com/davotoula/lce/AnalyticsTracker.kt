@@ -94,6 +94,26 @@ object AnalyticsTracker {
             param(PARAM_PATH_PRESENT, if (uri.isNullOrEmpty()) 0L else 1L)
         }
     }
+
+    fun logVideoWithoutSound(
+        codec: String,
+        source: String,
+        originalHasAudio: Boolean,
+    ) {
+        Firebase.crashlytics.setCustomKey(PARAM_CODEC, codec)
+        Firebase.crashlytics.setCustomKey(PARAM_SOURCE, source)
+        Firebase.crashlytics.setCustomKey("original_has_audio", originalHasAudio)
+        Firebase.crashlytics.log("compressed_video_no_audio: original_had_audio=$originalHasAudio")
+        Firebase.crashlytics.recordException(NoAudioException("Compressed video has no audio track"))
+
+        Firebase.analytics.logEvent("video_no_audio") {
+            param(PARAM_CODEC, codec)
+            param(PARAM_SOURCE, source)
+            param("original_has_audio", if (originalHasAudio) 1L else 0L)
+        }
+    }
 }
+
+private class NoAudioException(message: String) : RuntimeException(message)
 
 private class CompressionException(message: String) : RuntimeException(message)

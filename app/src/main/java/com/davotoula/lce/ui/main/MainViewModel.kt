@@ -2,6 +2,7 @@ package com.davotoula.lce.ui.main
 
 import android.app.Application
 import android.media.MediaCodecList
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
@@ -321,6 +322,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             val sizeString = getFileSize(size)
                             updateVideoComplete(index, path, sizeString)
+
+                            // Check if compressed video lost audio
+                            path?.let { compressedPath ->
+                                val compressedHasAudio = hasAudioTrack(compressedPath)
+                                if (!compressedHasAudio) {
+                                    val originalUri = state.pendingUris[index]
+                                    val originalHasAudio = hasAudioTrack(originalUri)
+                                    Log.w(
+                                        "MainViewModel",
+                                        "Compressed video has no audio. Original had audio: $originalHasAudio"
+                                    )
+                                    AnalyticsTracker.logVideoWithoutSound(
+                                        codec = videoCodec.name,
+                                        source = "main_screen",
+                                        originalHasAudio = originalHasAudio
+                                    )
+                                }
+                            }
                         }
                         checkCompressionComplete()
 
@@ -515,6 +534,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             Log.d("MainViewModel", "Error checking H.265 support: ${e.message}")
             false
+        }
+    }
+
+    private fun hasAudioTrack(path: String): Boolean {
+        val extractor = MediaExtractor()
+        return try {
+            extractor.setDataSource(path)
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+                if (mime.startsWith("audio/")) {
+                    return true
+                }
+            }
+            false
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Error checking audio track for path: $path", e)
+            false
+        } finally {
+            extractor.release()
+        }
+    }
+
+    private fun hasAudioTrack(uri: Uri): Boolean {
+        val extractor = MediaExtractor()
+        return try {
+            extractor.setDataSource(context, uri, null)
+            for (i in 0 until extractor.trackCount) {
+                val format = extractor.getTrackFormat(i)
+                val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+                if (mime.startsWith("audio/")) {
+                    return true
+                }
+            }
+            false
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Error checking audio track for uri: $uri", e)
+            false
+        } finally {
+            extractor.release()
         }
     }
 
