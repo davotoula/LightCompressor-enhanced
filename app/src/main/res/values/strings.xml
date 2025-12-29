@@ -29,6 +29,7 @@
     <string name="video_not_saved_larger_toast">Video not saved. Compressed file (%1$s) is larger than original (%2$s).</string>
     <string name="video_not_saved_status">Not saved - larger than original</string>
     <string name="shared_video_received">Received %1$d video(s) for compression</string>
+    <string name="share_video">Share video</string>
     <string name="video_waiting_to_start">Waiting to start…</string>
     <string name="video_starting">Starting…</string>
     <string name="video_player_title">Video Player</string>

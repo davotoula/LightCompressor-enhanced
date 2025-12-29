@@ -9,8 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,17 +35,20 @@ import com.davotoula.lce.VideoDetailsModel
  * - Compression progress bar when compressing (progress between 0 and 100)
  * - Progress percentage text during compression
  * - Compressed size display when complete
+ * - Share button when video is complete
  * - "Tap to play" hint when video is playable
  * - Card container with elevation for visual hierarchy
  *
  * @param video The video details model containing URI, progress, and playable path info
  * @param onClick Callback invoked when the card is clicked (only enabled when playable)
+ * @param onShare Callback invoked when the share button is clicked
  * @param modifier Optional modifier for customizing the component
  */
 @Composable
 fun VideoListItem(
     video: VideoDetailsModel,
     onClick: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isPlayable = video.playableVideoPath != null
@@ -126,6 +133,18 @@ fun VideoListItem(
                         text = "Tap to play",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            }
+
+            // Share button when video is complete
+            if (isPlayable) {
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onShare) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share video",
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }

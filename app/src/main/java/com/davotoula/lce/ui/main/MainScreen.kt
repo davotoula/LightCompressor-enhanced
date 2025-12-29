@@ -1,8 +1,11 @@
 package com.davotoula.lce.ui.main
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.core.content.FileProvider
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.components.VideoListItem
 import kotlinx.coroutines.flow.collectLatest
+import java.io.File
 
 /**
  * Main screen composable for the LCE app.
@@ -157,6 +161,11 @@ fun MainScreen(
                                     viewModel.onAction(MainAction.PlayVideo(path))
                                 }
                             },
+                            onShare = {
+                                video.playableVideoPath?.let { path ->
+                                    shareVideo(context, path)
+                                }
+                            },
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
@@ -210,4 +219,27 @@ fun MainScreen(
             }
         }
     }
+}
+
+private fun shareVideo(context: Context, videoPath: String) {
+    val videoFile = File(videoPath)
+    if (!videoFile.exists()) {
+        Toast.makeText(context, "Video file not found", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val contentUri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        videoFile
+    )
+
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "video/*"
+        putExtra(Intent.EXTRA_STREAM, contentUri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    val chooserTitle = context.getString(R.string.share_video)
+    context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
 }
