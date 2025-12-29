@@ -31,4 +31,5 @@
     <string name="shared_video_received">Received %1$d video(s) for compression</string>
     <string name="video_waiting_to_start">Waiting to start…</string>
     <string name="video_starting">Starting…</string>
+    <string name="video_player_title">Video Player</string>
 </resources>

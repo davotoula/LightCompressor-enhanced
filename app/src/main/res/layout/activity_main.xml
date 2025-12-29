@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Placeholder layout - will be replaced with Compose UI -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/compose_container"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" />

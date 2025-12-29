@@ -32,7 +32,6 @@
         tools:ignore="AllowBackup,GoogleAppIndexingWarning"
         >
 
-        <activity android:name=".VideoPlayerActivity" />
         <activity
             android:name=".MainActivity"
             android:theme="@style/AppTheme"
