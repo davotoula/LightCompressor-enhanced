@@ -95,6 +95,7 @@ fun MainScreen(
         }
     }
 
+    val permissionRequiredMessage = stringResource(R.string.permission_required_pick_videos)
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
     ) { permissions ->
@@ -104,7 +105,7 @@ fun MainScreen(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
             )
         } else {
-            Toast.makeText(context, "Permission required to pick videos", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, permissionRequiredMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -121,6 +122,7 @@ fun MainScreen(
         }
     }
 
+    val cameraPermissionMessage = stringResource(R.string.permission_required_camera)
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -130,7 +132,7 @@ fun MainScreen(
                 videoCaptureContract.launch(uri)
             }
         } else {
-            Toast.makeText(context, "Camera permission required to record video", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, cameraPermissionMessage, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -167,9 +169,9 @@ fun MainScreen(
                                 Icons.Default.DarkMode
                             }
                             val description = if (isDarkTheme) {
-                                "Switch to light mode"
+                                stringResource(R.string.switch_to_light_mode)
                             } else {
-                                "Switch to dark mode"
+                                stringResource(R.string.switch_to_dark_mode)
                             }
                             Icon(
                                 imageVector = icon,
@@ -188,7 +190,7 @@ fun MainScreen(
                         IconButton(onClick = { viewModel.onAction(MainAction.CancelCompression) }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Cancel compression",
+                                contentDescription = stringResource(R.string.cancel_compression),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -220,7 +222,7 @@ fun MainScreen(
                 // Video List Section
                 if (uiState.videos.isNotEmpty()) {
                     Text(
-                        text = "Selected Videos",
+                        text = stringResource(R.string.selected_videos),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -330,7 +332,7 @@ private fun requiredVideoPermissions(): Array<String> {
 private fun shareVideo(context: Context, videoPath: String) {
     val videoFile = File(videoPath)
     if (!videoFile.exists()) {
-        Toast.makeText(context, "Video file not found", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.video_file_not_found), Toast.LENGTH_SHORT).show()
         return
     }
 

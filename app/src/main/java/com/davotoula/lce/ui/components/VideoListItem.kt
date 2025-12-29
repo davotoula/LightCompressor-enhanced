@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
 
 /**
@@ -73,7 +75,7 @@ fun VideoListItem(
             // Thumbnail
             AsyncImage(
                 model = video.uri,
-                contentDescription = "Video thumbnail",
+                contentDescription = stringResource(R.string.video_thumbnail),
                 modifier = Modifier
                     .size(80.dp)
                     .clip(RoundedCornerShape(8.dp)),
@@ -105,7 +107,7 @@ fun VideoListItem(
                 // Completed state
                 if (isComplete) {
                     Text(
-                        text = "Compressed",
+                        text = stringResource(R.string.status_compressed),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -130,7 +132,7 @@ fun VideoListItem(
                 if (isPlayable) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Tap to play",
+                        text = stringResource(R.string.tap_to_play),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary
                     )
@@ -143,7 +145,7 @@ fun VideoListItem(
                 IconButton(onClick = onShare) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share video",
+                        contentDescription = stringResource(R.string.share_video_description),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

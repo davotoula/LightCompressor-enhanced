@@ -166,7 +166,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleSetCodec(codec: Codec) {
         val effectiveCodec = if (codec == Codec.H265 && !isH265Supported()) {
-            showToast("H.265 not supported on this device, falling back to H.264")
+            showToast(context.getString(R.string.h265_not_supported_fallback))
             Codec.H264
         } else {
             codec
@@ -240,12 +240,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
 
         if (state.pendingUris.isEmpty()) {
-            showToast("No videos selected")
+            showToast(context.getString(R.string.no_videos_selected))
             return
         }
 
         if (state.isCompressing) {
-            showToast("Compression already in progress")
+            showToast(context.getString(R.string.compression_in_progress))
             return
         }
 
@@ -400,7 +400,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 isCompressing = false,
-                toastMessage = "Compression cancelled"
+                toastMessage = context.getString(R.string.compression_cancelled)
             )
         }
     }
@@ -518,7 +518,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val notSavedStatus = context.getString(R.string.video_not_saved_status)
             val hasOversizedOutput = state.videos.any { it.newSize == notSavedStatus }
             if (!hasOversizedOutput) {
-                showToast("Compression complete")
+                showToast(context.getString(R.string.compression_complete))
             }
         }
     }

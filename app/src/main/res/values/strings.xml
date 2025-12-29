@@ -33,4 +33,33 @@
     <string name="video_waiting_to_start">Waiting to start…</string>
     <string name="video_starting">Starting…</string>
     <string name="video_player_title">Video Player</string>
+
+    <!-- Permissions -->
+    <string name="permission_required_pick_videos">Permission required to pick videos</string>
+    <string name="permission_required_camera">Camera permission required to record video</string>
+
+    <!-- Theme toggle -->
+    <string name="switch_to_light_mode">Switch to light mode</string>
+    <string name="switch_to_dark_mode">Switch to dark mode</string>
+
+    <!-- Actions -->
+    <string name="cancel_compression">Cancel compression</string>
+    <string name="selected_videos">Selected Videos</string>
+    <string name="video_file_not_found">Video file not found</string>
+
+    <!-- Toast messages -->
+    <string name="h265_not_supported_fallback">H.265 not supported on this device, falling back to H.264</string>
+    <string name="no_videos_selected">No videos selected</string>
+    <string name="compression_in_progress">Compression already in progress</string>
+    <string name="compression_cancelled">Compression cancelled</string>
+    <string name="compression_complete">Compression complete</string>
+
+    <!-- Video list item -->
+    <string name="video_thumbnail">Video thumbnail</string>
+    <string name="status_compressed">Compressed</string>
+    <string name="tap_to_play">Tap to play</string>
+    <string name="share_video_description">Share video</string>
+
+    <!-- Player -->
+    <string name="back">Back</string>
 </resources>
