@@ -25,7 +25,7 @@ firebase-crashlytics-gradle = "3.0.6"
 
 # Media
 exoplayer = "2.19.1"
-media3 = "1.5.1"
+media3 = "1.9.0"
 
 # Compose
 compose-bom = "2024.12.01"
@@ -70,9 +70,6 @@ androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview"
 # UI
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
-
-# Media
-exoplayer = { group = "com.google.android.exoplayer", name = "exoplayer", version.ref = "exoplayer" }
 
 # Media3 (replaces ExoPlayer)
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
