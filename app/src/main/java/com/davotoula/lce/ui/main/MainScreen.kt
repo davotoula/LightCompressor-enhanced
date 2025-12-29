@@ -40,6 +40,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -102,6 +105,32 @@ fun MainScreen(
             )
         } else {
             Toast.makeText(context, "Permission required to pick videos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Video capture state and launcher
+    var captureVideoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val videoCaptureContract = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CaptureVideo()
+    ) { success ->
+        if (success) {
+            captureVideoUri?.let { uri ->
+                viewModel.onAction(MainAction.SelectVideos(listOf(uri)))
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchVideoCapture(context) { uri ->
+                captureVideoUri = uri
+                videoCaptureContract.launch(uri)
+            }
+        } else {
+            Toast.makeText(context, "Camera permission required to record video", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -256,8 +285,14 @@ fun MainScreen(
 
                     OutlinedButton(
                         onClick = {
-                            // Record video functionality would be handled here
-                            // This typically opens the camera app with video capture intent
+                            if (hasCameraPermission(context)) {
+                                launchVideoCapture(context) { uri ->
+                                    captureVideoUri = uri
+                                    videoCaptureContract.launch(uri)
+                                }
+                            } else {
+                                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                            }
                         },
                         enabled = !uiState.isCompressing,
                         modifier = Modifier.weight(1f)
@@ -313,4 +348,24 @@ private fun shareVideo(context: Context, videoPath: String) {
 
     val chooserTitle = context.getString(R.string.share_video)
     context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
+}
+
+private fun hasCameraPermission(context: Context): Boolean {
+    return ContextCompat.checkSelfPermission(
+        context,
+        android.Manifest.permission.CAMERA
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+private fun launchVideoCapture(
+    context: Context,
+    onUriCreated: (Uri) -> Unit
+) {
+    val videoFile = File(context.cacheDir, "recorded_video_${System.currentTimeMillis()}.mp4")
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        videoFile
+    )
+    onUriCreated(uri)
 }
