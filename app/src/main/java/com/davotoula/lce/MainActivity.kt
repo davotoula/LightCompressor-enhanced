@@ -6,9 +6,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.davotoula.lce.navigation.LceNavHost
+import com.davotoula.lce.data.ThemePreferences
 import com.davotoula.lce.ui.theme.LceTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -19,11 +27,26 @@ class MainActivity : ComponentActivity() {
         val sharedUris = extractSharedUris(intent)
 
         setContent {
-            LceTheme {
+            val appContext = LocalContext.current.applicationContext
+            val themePreferences = remember { ThemePreferences(appContext) }
+            val darkThemeOverride by themePreferences.darkThemeOverride
+                .collectAsStateWithLifecycle(initialValue = null)
+            val isSystemDark = isSystemInDarkTheme()
+            val isDarkTheme = darkThemeOverride ?: isSystemDark
+            val scope = rememberCoroutineScope()
+
+            LceTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
                 LceNavHost(
                     navController = navController,
-                    initialVideoUris = sharedUris
+                    initialVideoUris = sharedUris,
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = {
+                        val nextTheme = !(darkThemeOverride ?: isSystemDark)
+                        scope.launch {
+                            themePreferences.setDarkThemeOverride(nextTheme)
+                        }
+                    }
                 )
             }
         }

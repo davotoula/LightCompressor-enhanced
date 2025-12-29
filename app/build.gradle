@@ -84,6 +84,7 @@ dependencies {
     implementation libs.navigation.compose
     implementation libs.lifecycle.viewmodel.compose
     implementation libs.lifecycle.runtime.compose
+    implementation libs.compose.material.icons.extended
     debugImplementation libs.bundles.compose.debug
 
     // Media3
@@ -91,6 +92,9 @@ dependencies {
 
     // Image Loading
     implementation libs.coil.compose
+
+    // DataStore
+    implementation libs.datastore.preferences
 
     // Firebase
     implementation platform(libs.firebase.bom)

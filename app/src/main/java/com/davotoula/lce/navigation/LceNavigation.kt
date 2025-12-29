@@ -55,7 +55,9 @@ sealed class LceRoute(val route: String) {
 @Composable
 fun LceNavHost(
     navController: NavHostController,
-    initialVideoUris: List<Uri> = emptyList()
+    initialVideoUris: List<Uri> = emptyList(),
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -64,6 +66,8 @@ fun LceNavHost(
         composable(LceRoute.Main.route) {
             MainScreen(
                 initialVideoUris = initialVideoUris,
+                isDarkTheme = isDarkTheme,
+                onToggleTheme = onToggleTheme,
                 onNavigateToPlayer = { videoPath ->
                     navController.navigate(LceRoute.Player.createRoute(videoPath))
                 }
