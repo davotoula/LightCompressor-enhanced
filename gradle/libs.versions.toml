@@ -6,17 +6,11 @@ kotlin = "2.2.21"
 # AndroidX Core
 androidx-core = "1.17.0"
 androidx-annotation = "1.9.1"
-androidx-appcompat = "1.7.1"
-androidx-constraintlayout = "2.2.1"
 androidx-lifecycle = "2.10.0"
-androidx-recyclerview = "1.4.0"
 
 # Kotlin Coroutines
 kotlinx-coroutines = "1.10.2"
 
-# UI Libraries
-material = "1.13.0"
-glide = "5.0.5"
 
 # Firebase
 firebase-bom = "34.7.0"
@@ -24,7 +18,6 @@ google-services = "4.4.4"
 firebase-crashlytics-gradle = "3.0.6"
 
 # Media
-exoplayer = "2.19.1"
 media3 = "1.9.0"
 
 # Compose
@@ -62,14 +55,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 # AndroidX
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidx-annotation" }
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidx-appcompat" }
-androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidx-constraintlayout" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "androidx-lifecycle" }
-androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "androidx-recyclerview" }
-
-# UI
-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 
 # Media3 (replaces ExoPlayer)
 media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
