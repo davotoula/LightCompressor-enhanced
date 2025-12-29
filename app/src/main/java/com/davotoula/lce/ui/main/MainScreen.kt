@@ -12,35 +12,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -123,160 +114,20 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Settings Section (scrollable)
+            // Main content (scrollable)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                // 1. Resolution Section
-                Text(
-                    text = stringResource(R.string.resize_label),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Resolution Preset Chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Resolution.entries.forEach { resolution ->
-                        FilterChip(
-                            selected = uiState.selectedResolution == resolution && uiState.customResolution == null,
-                            onClick = { viewModel.onAction(MainAction.SetResolution(resolution)) },
-                            label = { Text(resolution.label) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Custom Resolution TextField
-                OutlinedTextField(
-                    value = uiState.customResolutionInput,
-                    onValueChange = { value ->
-                        if (value.all { it.isDigit() }) {
-                            viewModel.onAction(MainAction.SetCustomResolutionInput(value))
-                        }
-                    },
-                    label = { Text(stringResource(R.string.resize_hint)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                // Collapsible Settings Card
+                CollapsibleSettingsCard(
+                    uiState = uiState,
+                    onAction = viewModel::onAction
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 2. Codec Section
-                Text(
-                    text = stringResource(R.string.codec_label),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Codec.entries.forEachIndexed { index, codec ->
-                        SegmentedButton(
-                            selected = uiState.selectedCodec == codec,
-                            onClick = { viewModel.onAction(MainAction.SetCodec(codec)) },
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = Codec.entries.size
-                            )
-                        ) {
-                            Text(codec.displayName)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = stringResource(R.string.codec_explanation),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 3. Streamable Section
-                Text(
-                    text = stringResource(R.string.streamable_label),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    SegmentedButton(
-                        selected = uiState.isStreamableEnabled,
-                        onClick = { viewModel.onAction(MainAction.SetStreamable(true)) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                    ) {
-                        Text(stringResource(R.string.streamable_yes))
-                    }
-                    SegmentedButton(
-                        selected = !uiState.isStreamableEnabled,
-                        onClick = { viewModel.onAction(MainAction.SetStreamable(false)) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                    ) {
-                        Text(stringResource(R.string.streamable_no))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = stringResource(R.string.streamable_explanation),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 4. Bitrate Section
-                Text(
-                    text = stringResource(R.string.bitrate_label),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { viewModel.onAction(MainAction.CalculateAutoBitrate) }
-                    ) {
-                        Text(stringResource(R.string.bitrate_auto))
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    OutlinedTextField(
-                        value = uiState.bitrateInput,
-                        onValueChange = { value ->
-                            if (value.all { it.isDigit() }) {
-                                viewModel.onAction(MainAction.SetBitrateInput(value))
-                            }
-                        },
-                        label = { Text(stringResource(R.string.bitrate_hint)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Video List Section
                 if (uiState.videos.isNotEmpty()) {

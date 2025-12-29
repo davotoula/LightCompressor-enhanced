@@ -27,7 +27,8 @@ data class MainUiState(
     val isCompressing: Boolean = false,
     val pendingUris: List<Uri> = emptyList(),
     val errorMessage: String? = null,
-    val toastMessage: String? = null
+    val toastMessage: String? = null,
+    val isSettingsExpanded: Boolean = true
 )
 
 sealed class MainAction {
@@ -44,6 +45,7 @@ sealed class MainAction {
     object CancelCompression : MainAction()
     data class PlayVideo(val path: String) : MainAction()
     object ClearToast : MainAction()
+    data object ToggleSettings : MainAction()
 }
 
 sealed class MainEvent {

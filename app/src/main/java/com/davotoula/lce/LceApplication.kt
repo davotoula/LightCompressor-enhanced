@@ -1,8 +1,8 @@
 package com.davotoula.lce
 
 import android.app.Application
-import com.google.firebase.FirebaseApp
 import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.analytics
 import com.google.firebase.crashlytics.crashlytics
 

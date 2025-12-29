@@ -10,9 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
+import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
-import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.VideoDetailsModel
@@ -51,7 +51,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             MainAction.CancelCompression -> cancelCompression()
             is MainAction.PlayVideo -> handlePlayVideo(action.path)
             MainAction.ClearToast -> clearToast()
+            MainAction.ToggleSettings -> handleToggleSettings()
         }
+    }
+
+    private fun handleToggleSettings() {
+        _uiState.update { it.copy(isSettingsExpanded = !it.isSettingsExpanded) }
     }
 
     private fun handleSelectVideos(uris: List<Uri>) {
@@ -73,7 +78,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         progress = 0f
                     )
                 },
-                errorMessage = null
+                errorMessage = null,
+                isSettingsExpanded = false
             )
         }
 
