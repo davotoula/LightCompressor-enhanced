@@ -15,6 +15,7 @@ import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.davotoula.lce.AnalyticsTracker
+import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.getFileSize
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.core.net.toUri
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -35,6 +37,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val events: SharedFlow<MainEvent> = _events.asSharedFlow()
 
     private val context get() = getApplication<Application>()
+    private val originalVideoSizes = mutableMapOf<Int, Long>()
 
     fun onAction(action: MainAction) {
         when (action) {
@@ -67,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             count = uris.size
         )
 
+        originalVideoSizes.clear()
         _uiState.update { state ->
             state.copy(
                 pendingUris = uris,
@@ -244,14 +248,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             listener = object : CompressionListener {
                 override fun onStart(index: Int) {
                     viewModelScope.launch {
+                        val originalSize = getOriginalVideoSize(state.pendingUris[index])
+                        originalVideoSizes[index] = originalSize
+                        Log.i(
+                            "MainViewModel",
+                            "Original video size for index $index: ${getFileSize(originalSize)}"
+                        )
                         updateVideoProgress(index, 0f, "Compressing...")
                     }
                 }
 
                 override fun onSuccess(index: Int, size: Long, path: String?) {
                     viewModelScope.launch {
-                        val sizeString = getFileSize(size)
-                        updateVideoComplete(index, path, sizeString)
+                        val originalSize = originalVideoSizes[index]
+                            ?: getOriginalVideoSize(state.pendingUris[index])
+
+                        if (originalSize in 1..<size) {
+                            Log.w(
+                                "MainViewModel",
+                                "Compressed video ($size bytes) is larger than original ($originalSize bytes). Not saving."
+                            )
+                            path?.let { deleteCompressedFile(it) }
+                            showToast(
+                                context.getString(
+                                    R.string.video_not_saved_larger_toast,
+                                    getFileSize(size),
+                                    getFileSize(originalSize)
+                                )
+                            )
+                            updateVideoNotSaved(index)
+                        } else {
+                            val sizeString = getFileSize(size)
+                            updateVideoComplete(index, path, sizeString)
+                        }
                         checkCompressionComplete()
 
                         AnalyticsTracker.logCompressionResult(
@@ -358,6 +387,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun updateVideoNotSaved(index: Int) {
+        val status = context.getString(R.string.video_not_saved_status)
+        _uiState.update { state ->
+            val updatedVideos = state.videos.toMutableList()
+            if (index < updatedVideos.size) {
+                updatedVideos[index] = updatedVideos[index].copy(
+                    playableVideoPath = null,
+                    progress = 1f,
+                    newSize = status
+                )
+            }
+            state.copy(videos = updatedVideos)
+        }
+    }
+
     private fun updateVideoError(index: Int, errorMessage: String) {
         _uiState.update { state ->
             val updatedVideos = state.videos.toMutableList()
@@ -371,6 +415,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun getOriginalVideoSize(uri: Uri): Long {
+        return try {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                descriptor.statSize
+            } ?: 0L
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to get original video size for $uri", e)
+            0L
+        }
+    }
+
+    private fun deleteCompressedFile(path: String) {
+        try {
+            val file = java.io.File(path)
+            if (file.exists() && file.delete()) {
+                Log.i("MainViewModel", "Deleted compressed file: $path")
+            } else {
+                try {
+                    val uri = path.toUri()
+                    val deleted = context.contentResolver.delete(uri, null, null)
+                    if (deleted > 0) {
+                        Log.i("MainViewModel", "Deleted compressed file via ContentResolver: $path")
+                    }
+                } catch (e: Exception) {
+                    Log.w("MainViewModel", "Could not delete compressed file: $path", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to delete compressed file: $path", e)
+        }
+    }
+
     private fun checkCompressionComplete() {
         val state = _uiState.value
         val allComplete = state.videos.all { video ->
@@ -379,7 +455,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (allComplete) {
             _uiState.update { it.copy(isCompressing = false) }
-            showToast("Compression complete")
+            val notSavedStatus = context.getString(R.string.video_not_saved_status)
+            val hasOversizedOutput = state.videos.any { it.newSize == notSavedStatus }
+            if (!hasOversizedOutput) {
+                showToast("Compression complete")
+            }
         }
     }
 
