@@ -4,6 +4,7 @@ import android.app.Application
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -40,9 +40,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             is MainAction.SelectVideos -> handleSelectVideos(action.uris)
             is MainAction.SetResolution -> handleSetResolution(action.resolution)
             is MainAction.SetCustomResolution -> handleSetCustomResolution(action.pixels)
+            is MainAction.SetCustomResolutionInput -> handleSetCustomResolutionInput(action.value)
             is MainAction.SetCodec -> handleSetCodec(action.codec)
             is MainAction.SetStreamable -> handleSetStreamable(action.enabled)
             is MainAction.SetBitrate -> handleSetBitrate(action.kbps)
+            is MainAction.SetBitrateInput -> handleSetBitrateInput(action.value)
             MainAction.CalculateAutoBitrate -> calculateAutoBitrate()
             MainAction.StartCompression -> startCompression()
             MainAction.CancelCompression -> cancelCompression()
@@ -82,7 +84,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 selectedResolution = resolution,
-                customResolution = null
+                customResolution = null,
+                customResolutionInput = ""
             )
         }
         calculateAutoBitrate()
@@ -90,9 +93,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleSetCustomResolution(pixels: Int) {
         _uiState.update { state ->
-            state.copy(customResolution = pixels)
+            state.copy(
+                customResolution = pixels,
+                customResolutionInput = pixels.toString()
+            )
         }
         calculateAutoBitrate()
+    }
+
+    private fun handleSetCustomResolutionInput(value: String) {
+        val pixels = parsePositiveInt(value)
+        _uiState.update { state ->
+            state.copy(
+                customResolutionInput = value,
+                customResolution = pixels
+            )
+        }
+        if (pixels != null) {
+            calculateAutoBitrate()
+        }
     }
 
     private fun handleSetCodec(codec: Codec) {
@@ -117,7 +136,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleSetBitrate(kbps: Int) {
         _uiState.update { state ->
-            state.copy(bitrateKbps = kbps.coerceIn(100, 50000))
+            val clamped = kbps.coerceIn(100, 50000)
+            state.copy(
+                bitrateKbps = clamped,
+                bitrateInput = clamped.toString()
+            )
+        }
+    }
+
+    private fun handleSetBitrateInput(value: String) {
+        val kbps = parsePositiveInt(value)
+        _uiState.update { state ->
+            state.copy(
+                bitrateInput = value,
+                bitrateKbps = kbps?.coerceIn(100, 50000) ?: state.bitrateKbps
+            )
         }
     }
 
@@ -138,7 +171,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.6 else 1.0
         val recommendedBitrate = (baseBitrate * codecMultiplier).toInt()
 
-        _uiState.update { it.copy(bitrateKbps = recommendedBitrate) }
+        _uiState.update {
+            it.copy(
+                bitrateKbps = recommendedBitrate,
+                bitrateInput = recommendedBitrate.toString()
+            )
+        }
+    }
+
+    private fun parsePositiveInt(value: String): Int? {
+        return value.toIntOrNull()?.takeIf { it > 0 }
     }
 
     private fun startCompression() {
@@ -340,6 +382,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         } catch (e: Exception) {
+            Log.d("MainViewModel", "Error checking H.265 support: ${e.message}")
             false
         }
     }

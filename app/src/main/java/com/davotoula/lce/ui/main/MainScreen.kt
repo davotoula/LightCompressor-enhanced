@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -158,11 +156,10 @@ fun MainScreen(
 
                 // Custom Resolution TextField
                 OutlinedTextField(
-                    value = uiState.customResolution?.toString() ?: "",
+                    value = uiState.customResolutionInput,
                     onValueChange = { value ->
-                        val pixels = value.toIntOrNull()
-                        if (pixels != null && pixels > 0) {
-                            viewModel.onAction(MainAction.SetCustomResolution(pixels))
+                        if (value.all { it.isDigit() }) {
+                            viewModel.onAction(MainAction.SetCustomResolutionInput(value))
                         }
                     },
                     label = { Text(stringResource(R.string.resize_hint)) },
@@ -266,11 +263,10 @@ fun MainScreen(
                     Spacer(modifier = Modifier.width(16.dp))
 
                     OutlinedTextField(
-                        value = uiState.bitrateKbps.toString(),
+                        value = uiState.bitrateInput,
                         onValueChange = { value ->
-                            val kbps = value.toIntOrNull()
-                            if (kbps != null) {
-                                viewModel.onAction(MainAction.SetBitrate(kbps))
+                            if (value.all { it.isDigit() }) {
+                                viewModel.onAction(MainAction.SetBitrateInput(value))
                             }
                         },
                         label = { Text(stringResource(R.string.bitrate_hint)) },
