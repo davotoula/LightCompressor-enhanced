@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- German (Deutsch) translations -->
+<resources>
+    <string name="pick_video">Video auswählen</string>
+    <string name="start_compression">Starten</string>
+    <string name="record_video">Video aufnehmen</string>
+    <string name="bitrate_label">4. Bitrate (kbps):</string>
+    <string name="bitrate_hint">Bitrate in Kilobit pro Sekunde eingeben (z. B. 1500)</string>
+    <string name="bitrate_auto">Automatisch</string>
+    <string name="resize_label">1. Maximale Auflösung (lange Seite):</string>
+    <string name="resize_hint">Maximale Pixelzahl für die lange Seite eingeben (z. B. 1280)</string>
+    <string name="codec_label">2. Videocodec:</string>
+    <string name="codec_explanation">Der Codec H.265/HEVC ist effizienter und erzeugt eine bessere Qualität und/oder kleinere Dateigrößen als H.264/AVC. Er wird jedoch nicht so gut unterstützt. Wählen Sie H.264/AVC für maximale Kompatibilität.</string>
+    <string name="auto_bitrate_toast">Automatische Bitrate auf %1$d kbps für %2$d px (%3$s) gesetzt</string>
+    <string name="streamable_explanation">Die Auswahl von „streambar“ erstellt ein „Fast-Start“-Video, bei dem die Metadaten an den Anfang verschoben werden, um schnelleres Streaming zu ermöglichen.</string>
+    <string name="streamable_label">3. Streambar:</string>
+    <string name="streamable_yes">Ja</string>
+    <string name="streamable_no">Nein</string>
+    <string name="bitrate_too_low">Bitrate zu niedrig. Minimum ist %1$d kbps. Verwende %1$d kbps.</string>
+    <string name="bitrate_too_high">Bitrate zu hoch. Maximum ist %1$d kbps. Verwende %1$d kbps.</string>
+    <string name="codec_h265_not_supported">H.265 wird auf diesem Gerät nicht unterstützt. Verwende H.264.</string>
+    <string name="select_video_prompt">Video auswählen</string>
+    <string name="video_not_saved_larger_toast">Video nicht gespeichert. Die komprimierte Datei (%1$s) ist größer als das Original (%2$s).</string>
+    <string name="video_not_saved_status">Nicht gespeichert – größer als Original</string>
+    <string name="shared_video_received">%1$d Video(s) zur Komprimierung erhalten</string>
+    <string name="share_video">Video teilen</string>
+    <string name="video_waiting_to_start">Warten auf Start…</string>
+    <string name="video_starting">Startet…</string>
+    <string name="video_player_title">Videoplayer</string>
+
+    <string name="permission_required_pick_videos">Berechtigung zum Auswählen von Videos erforderlich</string>
+    <string name="permission_required_camera">Kameraberechtigung zum Aufnehmen von Videos erforderlich</string>
+
+    <string name="switch_to_light_mode">Zum hellen Modus wechseln</string>
+    <string name="switch_to_dark_mode">Zum dunklen Modus wechseln</string>
+
+    <string name="cancel_compression">Komprimierung abbrechen</string>
+    <string name="selected_videos">Ausgewählte Videos</string>
+    <string name="video_file_not_found">Videodatei nicht gefunden</string>
+
+    <string name="h265_not_supported_fallback">H.265 wird auf diesem Gerät nicht unterstützt, wechsle zu H.264</string>
+    <string name="no_videos_selected">Keine Videos ausgewählt</string>
+    <string name="compression_in_progress">Komprimierung läuft bereits</string>
+    <string name="compression_cancelled">Komprimierung abgebrochen</string>
+    <string name="compression_complete">Komprimierung abgeschlossen</string>
+
+    <string name="video_thumbnail">Videovorschau</string>
+    <string name="status_compressed">Komprimiert</string>
+    <string name="tap_to_play">Antippen zum Abspielen</string>
+    <string name="share_video_description">Video teilen</string>
+
+    <string name="back">Zurück</string>
+
+</resources>

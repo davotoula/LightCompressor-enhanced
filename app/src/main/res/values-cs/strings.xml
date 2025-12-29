@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Czech (Čeština) translations -->
+<resources>
+    <string name="pick_video">Vybrat video</string>
+    <string name="start_compression">Spustit</string>
+    <string name="record_video">Nahrát video</string>
+    <string name="bitrate_label">4. Datový tok (kb/s):</string>
+    <string name="bitrate_hint">Zadejte datový tok v kilobitech za sekundu (např. 1500)</string>
+    <string name="bitrate_auto">Automaticky</string>
+    <string name="resize_label">1. Max. rozlišení (delší strana):</string>
+    <string name="resize_hint">Zadejte max. počet pixelů pro delší stranu (např. 1280)</string>
+    <string name="codec_label">2. Video kodek:</string>
+    <string name="codec_explanation">Kodek H.265/HEVC je efektivnější a poskytuje lepší kvalitu a/nebo menší velikost souboru než H.264/AVC. Není však tak dobře podporován, proto zvolte H.264/AVC pro maximální kompatibilitu.</string>
+    <string name="auto_bitrate_toast">Automatický datový tok nastaven na %1$d kb/s pro %2$d px (%3$s)</string>
+    <string name="streamable_explanation">Volba streamovatelné vytvoří „fast-start“ video, kde jsou metadata přesunuta na začátek, aby se video mohlo rychleji přehrávat.</string>
+    <string name="streamable_label">3. Streamovatelné:</string>
+    <string name="streamable_yes">Ano</string>
+    <string name="streamable_no">Ne</string>
+    <string name="bitrate_too_low">Datový tok je příliš nízký. Minimum je %1$d kb/s. Používá se %1$d kb/s.</string>
+    <string name="bitrate_too_high">Datový tok je příliš vysoký. Maximum je %1$d kb/s. Používá se %1$d kb/s.</string>
+    <string name="codec_h265_not_supported">H.265 není na tomto zařízení podporován. Používá se H.264.</string>
+    <string name="select_video_prompt">Vybrat video</string>
+    <string name="video_not_saved_larger_toast">Video nebylo uloženo. Komprimovaný soubor (%1$s) je větší než originál (%2$s).</string>
+    <string name="video_not_saved_status">Neuloženo – větší než originál</string>
+    <string name="shared_video_received">Přijato %1$d video(a) ke kompresi</string>
+    <string name="share_video">Sdílet video</string>
+    <string name="video_waiting_to_start">Čeká se na spuštění…</string>
+    <string name="video_starting">Spouštění…</string>
+    <string name="video_player_title">Přehrávač videa</string>
+
+    <string name="permission_required_pick_videos">Pro výběr videí je vyžadováno oprávnění</string>
+    <string name="permission_required_camera">Pro nahrávání videa je vyžadováno oprávnění ke kameře</string>
+
+    <string name="switch_to_light_mode">Přepnout na světlý režim</string>
+    <string name="switch_to_dark_mode">Přepnout na tmavý režim</string>
+
+    <string name="cancel_compression">Zrušit kompresi</string>
+    <string name="selected_videos">Vybraná videa</string>
+    <string name="video_file_not_found">Soubor videa nebyl nalezen</string>
+
+    <string name="h265_not_supported_fallback">H.265 není na tomto zařízení podporován, používá se H.264</string>
+    <string name="no_videos_selected">Nebyla vybrána žádná videa</string>
+    <string name="compression_in_progress">Kompresе již probíhá</string>
+    <string name="compression_cancelled">Kompresе zrušena</string>
+    <string name="compression_complete">Kompresе dokončena</string>
+
+    <string name="video_thumbnail">Náhled videa</string>
+    <string name="status_compressed">Komprimováno</string>
+    <string name="tap_to_play">Klepnutím přehrát</string>
+    <string name="share_video_description">Sdílet video</string>
+
+    <string name="back">Zpět</string>
+
+</resources>

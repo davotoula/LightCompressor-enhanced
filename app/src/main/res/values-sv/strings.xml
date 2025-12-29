@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Swedish (Svenska) translations -->
+<resources>
+    <string name="pick_video">Välj video</string>
+    <string name="start_compression">Starta</string>
+    <string name="record_video">Spela in video</string>
+    <string name="bitrate_label">4. Bithastighet (kbps):</string>
+    <string name="bitrate_hint">Ange bithastighet i kilobit per sekund (t.ex. 1500)</string>
+    <string name="bitrate_auto">Automatisk</string>
+    <string name="resize_label">1. Maxupplösning (lång sida):</string>
+    <string name="resize_hint">Ange max pixlar för den långa sidan (t.ex. 1280)</string>
+    <string name="codec_label">2. Videokodek:</string>
+    <string name="codec_explanation">Kodeken H.265/HEVC är effektivare och ger bättre kvalitet och/eller mindre filstorlek än H.264/AVC. Den stöds dock inte lika brett, så välj H.264/AVC för maximal kompatibilitet.</string>
+    <string name="auto_bitrate_toast">Automatisk bithastighet satt till %1$d kbps för %2$d px (%3$s)</string>
+    <string name="streamable_explanation">Att välja strömningsbar skapar en ”fast-start”-video där metadata flyttas till början för snabbare uppspelning.</string>
+    <string name="streamable_label">3. Strömningsbar:</string>
+    <string name="streamable_yes">Ja</string>
+    <string name="streamable_no">Nej</string>
+    <string name="bitrate_too_low">Bithastigheten är för låg. Minsta är %1$d kbps. Använder %1$d kbps.</string>
+    <string name="bitrate_too_high">Bithastigheten är för hög. Högsta är %1$d kbps. Använder %1$d kbps.</string>
+    <string name="codec_h265_not_supported">H.265 stöds inte på den här enheten. Använder H.264.</string>
+    <string name="select_video_prompt">Välj video</string>
+    <string name="video_not_saved_larger_toast">Videon sparades inte. Den komprimerade filen (%1$s) är större än originalet (%2$s).</string>
+    <string name="video_not_saved_status">Inte sparad – större än original</string>
+    <string name="shared_video_received">Tog emot %1$d video(er) för komprimering</string>
+    <string name="share_video">Dela video</string>
+    <string name="video_waiting_to_start">Väntar på att starta…</string>
+    <string name="video_starting">Startar…</string>
+    <string name="video_player_title">Videospelare</string>
+
+    <string name="permission_required_pick_videos">Behörighet krävs för att välja videor</string>
+    <string name="permission_required_camera">Kamerabehörighet krävs för att spela in video</string>
+
+    <string name="switch_to_light_mode">Byt till ljust läge</string>
+    <string name="switch_to_dark_mode">Byt till mörkt läge</string>
+
+    <string name="cancel_compression">Avbryt komprimering</string>
+    <string name="selected_videos">Valda videor</string>
+    <string name="video_file_not_found">Videofilen hittades inte</string>
+
+    <string name="h265_not_supported_fallback">H.265 stöds inte på den här enheten, använder H.264</string>
+    <string name="no_videos_selected">Inga videor valda</string>
+    <string name="compression_in_progress">Komprimering pågår redan</string>
+    <string name="compression_cancelled">Komprimering avbruten</string>
+    <string name="compression_complete">Komprimering klar</string>
+
+    <string name="video_thumbnail">Videominiatyr</string>
+    <string name="status_compressed">Komprimerad</string>
+    <string name="tap_to_play">Tryck för att spela upp</string>
+    <string name="share_video_description">Dela video</string>
+
+    <string name="back">Tillbaka</string>
+
+</resources>
