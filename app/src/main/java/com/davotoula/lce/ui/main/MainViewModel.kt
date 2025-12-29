@@ -17,6 +17,7 @@ import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
+import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.getFileSize
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.core.net.toUri
@@ -38,6 +40,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context get() = getApplication<Application>()
     private val originalVideoSizes = mutableMapOf<Int, Long>()
+    private val videoSettingsPreferences = VideoSettingsPreferences(application)
+
+    init {
+        loadSavedSettings()
+    }
+
+    private fun loadSavedSettings() {
+        viewModelScope.launch {
+            val settings = videoSettingsPreferences.settings.first()
+            _uiState.update { state ->
+                state.copy(
+                    selectedResolution = settings.resolution,
+                    selectedCodec = settings.codec,
+                    isStreamableEnabled = settings.isStreamableEnabled,
+                    bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
+                    bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput
+                )
+            }
+            if (settings.bitrateKbps == null) {
+                calculateAutoBitrate()
+            }
+        }
+    }
+
+    private fun saveSettings() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            videoSettingsPreferences.saveSettings(
+                resolution = state.selectedResolution,
+                codec = state.selectedCodec,
+                isStreamableEnabled = state.isStreamableEnabled,
+                bitrateKbps = state.bitrateKbps
+            )
+        }
+    }
 
     fun onAction(action: MainAction) {
         when (action) {
@@ -100,6 +137,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         calculateAutoBitrate()
+        saveSettings()
     }
 
     private fun handleSetCustomResolution(pixels: Int) {
@@ -137,12 +175,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             state.copy(selectedCodec = effectiveCodec)
         }
         calculateAutoBitrate()
+        saveSettings()
     }
 
     private fun handleSetStreamable(enabled: Boolean) {
         _uiState.update { state ->
             state.copy(isStreamableEnabled = enabled)
         }
+        saveSettings()
     }
 
     private fun handleSetBitrate(kbps: Int) {
@@ -153,6 +193,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 bitrateInput = clamped.toString()
             )
         }
+        saveSettings()
     }
 
     private fun handleSetBitrateInput(value: String) {
