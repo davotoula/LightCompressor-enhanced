@@ -50,15 +50,20 @@ sealed class LceRoute(val route: String) {
  * defining all screens and how they connect to each other.
  *
  * @param navController The navigation controller to manage navigation state
+ * @param initialVideoUris Videos shared via Android "Share to" intent
  */
 @Composable
-fun LceNavHost(navController: NavHostController) {
+fun LceNavHost(
+    navController: NavHostController,
+    initialVideoUris: List<Uri> = emptyList()
+) {
     NavHost(
         navController = navController,
         startDestination = LceRoute.Main.route
     ) {
         composable(LceRoute.Main.route) {
             MainScreen(
+                initialVideoUris = initialVideoUris,
                 onNavigateToPlayer = { videoPath ->
                     navController.navigate(LceRoute.Player.createRoute(videoPath))
                 }

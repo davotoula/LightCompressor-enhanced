@@ -1,5 +1,6 @@
 package com.davotoula.lce.ui.main
 
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -47,17 +48,26 @@ import kotlinx.coroutines.flow.collectLatest
  * - Video list showing selected videos and their compression progress
  * - Bottom action buttons for picking or recording videos
  *
+ * @param initialVideoUris Videos shared via Android "Share to" intent
  * @param viewModel The MainViewModel that manages the UI state and business logic
  * @param onNavigateToPlayer Callback invoked when user wants to play a compressed video
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
+    initialVideoUris: List<Uri> = emptyList(),
     viewModel: MainViewModel = viewModel(),
     onNavigateToPlayer: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Handle videos shared via "Share to" intent
+    LaunchedEffect(initialVideoUris) {
+        if (initialVideoUris.isNotEmpty()) {
+            viewModel.onAction(MainAction.SelectVideos(initialVideoUris))
+        }
+    }
 
     // Video picker launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(
