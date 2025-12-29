@@ -2,10 +2,14 @@ package com.davotoula.lce.ui.main
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +83,19 @@ fun MainScreen(
     ) { uris ->
         if (uris.isNotEmpty()) {
             viewModel.onAction(MainAction.SelectVideos(uris))
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.any { it.value }
+        if (granted) {
+            videoPickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+            )
+        } else {
+            Toast.makeText(context, "Permission required to pick videos", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -195,9 +212,13 @@ fun MainScreen(
                 ) {
                     Button(
                         onClick = {
-                            videoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-                            )
+                            if (hasVideoPermission(context)) {
+                                videoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                )
+                            } else {
+                                permissionLauncher.launch(requiredVideoPermissions())
+                            }
                         },
                         enabled = !uiState.isCompressing,
                         modifier = Modifier.weight(1f)
@@ -218,6 +239,28 @@ fun MainScreen(
                 }
             }
         }
+    }
+}
+
+private fun hasVideoPermission(context: Context): Boolean {
+    val permissions = requiredVideoPermissions()
+    return permissions.any { permission ->
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+}
+
+private fun requiredVideoPermissions(): Array<String> {
+    return when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
+            android.Manifest.permission.READ_MEDIA_VIDEO,
+            android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+        )
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        )
+        else -> arrayOf(
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        )
     }
 }
 
