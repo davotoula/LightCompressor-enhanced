@@ -10,7 +10,8 @@ import androidx.lifecycle.viewModelScope
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.VideoCompressor
-import com.abedelazizshe.lightcompressorlibrary.config.AppSpecificStorageConfiguration
+import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
+import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.davotoula.lce.AnalyticsTracker
@@ -229,7 +230,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             context = context,
             uris = state.pendingUris,
             isStreamable = state.isStreamableEnabled,
-            storageConfiguration = AppSpecificStorageConfiguration(subFolderName = "compressed"),
+            storageConfiguration = SharedStorageConfiguration(
+                saveAt = SaveLocation.MOVIES,
+                subFolderName = "lce-compressed"
+            ),
             configureWith = configuration,
             listener = object : CompressionListener {
                 override fun onStart(index: Int) {
