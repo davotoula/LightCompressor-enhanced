@@ -5,18 +5,14 @@ import androidx.compose.ui.graphics.Color
 // Primary colors - Teal-based palette
 val Teal700 = Color(0xFF00796B)
 val Teal200 = Color(0xFF80CBC4)
-val Teal500 = Color(0xFF009688)
-val Teal300 = Color(0xFF4DB6AC)
 
 // Secondary colors - Amber accent
 val Amber700 = Color(0xFFFFA000)
 val Amber200 = Color(0xFFFFE082)
-val Amber500 = Color(0xFFFFC107)
 
 // Tertiary colors - Deep Orange
 val DeepOrange700 = Color(0xFFE64A19)
 val DeepOrange200 = Color(0xFFFFAB91)
-val DeepOrange400 = Color(0xFFFF7043)
 
 // Neutral colors
 val White = Color(0xFFFFFFFF)
