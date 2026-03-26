@@ -176,4 +176,31 @@ class VideoResizerTest {
     fun `limitShortSide - negative limit throws`() {
         VideoResizer.limitShortSide(-1.0)
     }
+
+    // -- limitShortSide (two-parameter overload) --
+
+    @Test
+    fun `limitShortSide two-param - uses smaller of the two dimensions`() {
+        val resizer = VideoResizer.limitShortSide(1920.0, 1080.0)
+        val (w, h) = resizer.resize(1080.0, 2400.0)
+        assertEquals(1080.0, w, delta)
+        assertEquals(2400.0, h, delta)
+    }
+
+    @Test
+    fun `limitShortSide two-param - order does not matter`() {
+        val resizer = VideoResizer.limitShortSide(1080.0, 1920.0)
+        val (w, h) = resizer.resize(1080.0, 2400.0)
+        assertEquals(1080.0, w, delta)
+        assertEquals(2400.0, h, delta)
+    }
+
+    @Test
+    fun `limitShortSide two-param - scales down when short side exceeds limit`() {
+        val resizer = VideoResizer.limitShortSide(1280.0, 720.0)
+        val (w, h) = resizer.resize(1080.0, 1920.0)
+        // limit = min(1280, 720) = 720, short side = 1080, scale = 720/1080
+        assertEquals(720.0, w, delta)
+        assertEquals(1280.0, h, delta)
+    }
 }

@@ -50,6 +50,27 @@ fun interface VideoResizer {
         @JvmStatic
         fun matchSize(width: Double, height: Double, stretch: Boolean = false): VideoResizer = MatchDimension(width, height, stretch)
 
+        /**
+         * Scale the video down if its short side (the smaller of width/height) exceeds [limit],
+         * retaining the video's aspect ratio.
+         * @param limit The maximum short side dimension
+         */
+        @JvmStatic
+        fun limitShortSide(limit: Double): VideoResizer {
+            require(limit > 0) { "limit must be positive, was $limit" }
+            return LimitShortSide(limit)
+        }
+
+        /**
+         * Scale the video down if its short side exceeds the smaller of [maxWidth] and [maxHeight],
+         * retaining the video's aspect ratio.
+         * @param maxWidth One of the target dimensions
+         * @param maxHeight One of the target dimensions
+         */
+        @JvmStatic
+        fun limitShortSide(maxWidth: Double, maxHeight: Double): VideoResizer =
+            limitShortSide(minOf(maxWidth, maxHeight))
+
         private fun keepAspect(width: Double, height: Double, newWidth: Double, newHeight: Double): Pair<Double, Double> {
             val desiredAspect = width / height
             val videoAspect = newWidth / newHeight
@@ -75,6 +96,15 @@ fun interface VideoResizer {
         override fun resize(width: Double, height: Double): Pair<Double, Double> {
             val p = percentage ?: CompressorUtils.autoResizePercentage(width, height)
             return Pair(width * p, height * p)
+        }
+    }
+
+    private class LimitShortSide(private val limit: Double) : VideoResizer {
+        override fun resize(width: Double, height: Double): Pair<Double, Double> {
+            val shortSide = minOf(width, height)
+            if (shortSide <= limit) return Pair(width, height)
+            val scale = limit / shortSide
+            return Pair(width * scale, height * scale)
         }
     }
 }
