@@ -273,7 +273,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val configuration = Configuration.withBitrateInBps(
             isMinBitrateCheckEnabled = false,
             videoBitrateInBps = state.bitrateKbps.toLong() * 1000L,
-            resizer = VideoResizer.limitSize(resolutionPixels),
+            resizer = VideoResizer.limitShortSide(resolutionPixels),
             videoNames = videoNames,
             videoCodec = videoCodec
         )

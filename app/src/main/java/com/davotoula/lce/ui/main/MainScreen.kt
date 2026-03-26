@@ -50,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.davotoula.lce.BuildConfig
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.components.VideoListItem
 import kotlinx.coroutines.flow.collectLatest
@@ -303,6 +304,17 @@ fun MainScreen(
                     }
                 }
             }
+
+            // Version info
+            Text(
+                text = "App v${BuildConfig.VERSION_NAME} • Lib v${BuildConfig.LIBRARY_VERSION}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

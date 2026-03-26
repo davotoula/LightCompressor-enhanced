@@ -14,6 +14,7 @@ android {
         targetSdkVersion libs.versions.targetSdk.get().toInteger()
         versionCode project.property('appVersionCode').toInteger()
         versionName project.property('appVersionName')
+        buildConfigField "String", "LIBRARY_VERSION", "\"${project.property('version')}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
