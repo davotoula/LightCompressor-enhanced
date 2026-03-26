@@ -234,6 +234,13 @@ or retrieve information about the original uri/file.
 - disableAudio: true/false to generate a video without audio. False by default.
 
 - resizer: Function to resize the video dimensions. `VideoResizer.auto` by default.
+  - `VideoResizer.auto` - Auto-resize based on original dimensions
+  - `VideoResizer.scale(0.5)` - Scale by percentage
+  - `VideoResizer.limitSize(1920.0)` - Limit longest side (fits into bounding box)
+  - `VideoResizer.limitSize(1920.0, 1080.0)` - Limit width and height (fits into bounding box)
+  - `VideoResizer.limitShortSide(1080.0)` - Limit shortest side, orientation-aware. Ideal for portrait/landscape-agnostic resolution targeting (e.g. "1080p" means short side ≤ 1080)
+  - `VideoResizer.limitShortSide(1920.0, 1080.0)` - Same as above, uses the smaller of the two values
+  - `VideoResizer.matchSize(1920.0, 1080.0)` - Scale to match target dimensions
 
 
 ## The StorageConfiguration is an interface which indicate library where will be saved the File
