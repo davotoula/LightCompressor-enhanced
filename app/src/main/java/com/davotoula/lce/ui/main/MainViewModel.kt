@@ -222,7 +222,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> 1000               // Lower: 1 Mbps base
         }
 
-        val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.6 else 1.0
+        // H.265 typically saves ~25% over H.264 at equivalent quality
+        val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.75 else 1.0
         val recommendedBitrate = (baseBitrate * codecMultiplier).toInt()
 
         _uiState.update {
