@@ -7,55 +7,55 @@ import org.junit.Test
 
 /**
  * Integration tests verifying the full resolution pipeline: resizer -> roundDimension.
- * Documents the original bug and its fix.
+ * roundDimension floors to the nearest even number for codec compatibility.
  */
 class ResolutionPipelineTest {
 
     @Test
-    fun `original bug - limitSize crushes portrait 1080x2400 to 480x1088`() {
-        val resizer = VideoResizer.limitSize(1920.0, 1080.0)
-        val (w, h) = resizer.resize(1080.0, 2400.0)
-        val roundedW = roundDimension(w)
-        val roundedH = roundDimension(h)
-        assertEquals(480, roundedW)
-        assertEquals(1088, roundedH)
-    }
-
-    @Test
-    fun `fix - limitShortSide preserves portrait 1080x2400`() {
+    fun `limitShortSide preserves portrait 1080x2400 exactly`() {
         val resizer = VideoResizer.limitShortSide(1080.0)
         val (w, h) = resizer.resize(1080.0, 2400.0)
-        val roundedW = roundDimension(w)
-        val roundedH = roundDimension(h)
-        assertEquals(1088, roundedW)
-        assertEquals(2400, roundedH)
+        assertEquals(1080, roundDimension(w))
+        assertEquals(2400, roundDimension(h))
     }
 
     @Test
-    fun `portrait MEDIUM downscale with limitShortSide`() {
+    fun `limitShortSide 720p downscale portrait`() {
         val resizer = VideoResizer.limitShortSide(720.0)
         val (w, h) = resizer.resize(1080.0, 1920.0)
-        val roundedW = roundDimension(w)
-        val roundedH = roundDimension(h)
-        assertEquals(720, roundedW)
-        assertEquals(1280, roundedH)
+        assertEquals(720, roundDimension(w))
+        assertEquals(1280, roundDimension(h))
     }
 
     @Test
-    fun `standard 16x9 landscape unchanged with limitShortSide`() {
+    fun `limitShortSide 1080 landscape 16x9`() {
         val resizer = VideoResizer.limitShortSide(1080.0)
         val (w, h) = resizer.resize(1920.0, 1080.0)
-        val roundedW = roundDimension(w)
-        val roundedH = roundDimension(h)
-        assertEquals(1920, roundedW)
-        assertEquals(1088, roundedH)
+        assertEquals(1920, roundDimension(w))
+        assertEquals(1080, roundDimension(h))
     }
 
     @Test
-    fun `roundDimension may push short side slightly above limit - expected codec alignment`() {
+    fun `limitShortSide 720p landscape`() {
+        val resizer = VideoResizer.limitShortSide(720.0)
+        val (w, h) = resizer.resize(1920.0, 1080.0)
+        assertEquals(1280, roundDimension(w))
+        assertEquals(720, roundDimension(h))
+    }
+
+    @Test
+    fun `limitSize creates landscape bounding box - crushes portrait`() {
+        val resizer = VideoResizer.limitSize(1920.0, 1080.0)
+        val (w, h) = resizer.resize(1080.0, 2400.0)
+        assertEquals(486, roundDimension(w))
+        assertEquals(1080, roundDimension(h))
+    }
+
+    @Test
+    fun `no resize when already within limit`() {
         val resizer = VideoResizer.limitShortSide(1080.0)
-        val (w, _) = resizer.resize(1080.0, 2400.0)
-        assertEquals(1080.0, w, 0.01)
-        assertEquals(1088, roundDimension(w))
+        val (w, h) = resizer.resize(720.0, 1280.0)
+        assertEquals(720, roundDimension(w))
+        assertEquals(1280, roundDimension(h))
     }
 }

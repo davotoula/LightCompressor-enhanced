@@ -1,6 +1,5 @@
 package com.abedelazizshe.lightcompressorlibrary.utils
 
-import kotlin.math.roundToInt
 
 fun uInt32ToLong(int32: Int): Long {
     return int32.toLong()
@@ -26,7 +25,17 @@ fun uInt32ToInt(uInt32: Int): Int {
     return uInt32
 }
 
-private fun roundEven(value: Int): Int = value + 1 and 1.inv()
-
 fun roundDimension(value: Double): Int =
-    roundEven(((value / 16).roundToInt() * 16))
+    value.toInt() and 1.inv()
+
+/**
+ * Returns 16-aligned fallback dimensions, or null if already 16-aligned
+ * or if the fallback would produce zero dimensions.
+ */
+fun fallbackTo16Aligned(width: Int, height: Int): Pair<Int, Int>? {
+    val w16 = width / 16 * 16
+    val h16 = height / 16 * 16
+    if (w16 == width && h16 == height) return null
+    if (w16 == 0 || h16 == 0) return null
+    return Pair(w16, h16)
+}

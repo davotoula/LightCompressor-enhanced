@@ -12,6 +12,7 @@ import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.isHevcEnco
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.prepareVideoHeight
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.prepareVideoWidth
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.printException
+import com.abedelazizshe.lightcompressorlibrary.utils.fallbackTo16Aligned
 import com.abedelazizshe.lightcompressorlibrary.utils.roundDimension
 import com.abedelazizshe.lightcompressorlibrary.video.*
 import kotlinx.coroutines.Dispatchers
@@ -87,7 +88,7 @@ object Compressor {
 
         var (rotation, bitrate, duration) = try {
             Triple(rotationData.toInt(), bitrateData.toInt(), durationData.toLong() * 1000)
-        } catch (e: java.lang.Exception) {
+        } catch (_: java.lang.Exception) {
             return@withContext Result(
                 index,
                 success = false,
@@ -185,21 +186,49 @@ object Compressor {
             )
         }
 
+        return try {
+            transcode(id, newWidth, newHeight, destination, newBitrate, streamableFile,
+                disableAudio, context, srcUri, compressionProgressListener, duration, rotation, videoCodec)
+        } catch (e: Exception) {
+            val fallback = fallbackTo16Aligned(newWidth, newHeight)
+                ?: throw e // already 16-aligned or too small, nothing to retry
+            Log.w("Compressor",
+                "Encoder failed with ${newWidth}x${newHeight}, retrying with 16-aligned ${fallback.first}x${fallback.second}", e)
+            transcode(id, fallback.first, fallback.second, destination, newBitrate, streamableFile,
+                disableAudio, context, srcUri, compressionProgressListener, duration, rotation, videoCodec)
+        }
+    }
+
+    private fun transcode(
+        id: Int,
+        width: Int,
+        height: Int,
+        destination: String,
+        bitrate: Long,
+        streamableFile: String?,
+        disableAudio: Boolean,
+        context: Context,
+        srcUri: Uri,
+        listener: CompressionProgressListener,
+        duration: Long,
+        rotation: Int,
+        videoCodec: VideoCodec
+    ): Result {
         return when (videoCodec) {
             VideoCodec.H265 -> HevcTranscoder(
                 context = context,
                 srcUri = srcUri,
                 request = HevcTranscoder.Request(
                     index = id,
-                    width = newWidth,
-                    height = newHeight,
-                    bitrate = newBitrate,
+                    width = width,
+                    height = height,
+                    bitrate = bitrate,
                     destination = File(destination),
                     streamablePath = streamableFile,
                     disableAudio = disableAudio,
                     rotation = rotation,
                     durationUs = duration,
-                    listener = compressionProgressListener
+                    listener = listener
                 )
             ).transcode()
 
@@ -208,15 +237,15 @@ object Compressor {
                 srcUri = srcUri,
                 request = AVCTranscoder.Request(
                     index = id,
-                    width = newWidth,
-                    height = newHeight,
-                    bitrate = newBitrate,
+                    width = width,
+                    height = height,
+                    bitrate = bitrate,
                     destination = File(destination),
                     streamablePath = streamableFile,
                     disableAudio = disableAudio,
                     rotation = rotation,
                     durationUs = duration,
-                    listener = compressionProgressListener
+                    listener = listener
                 )
             ).transcode()
         }
