@@ -7,8 +7,8 @@
     <string name="bitrate_label">4. Taxa de bits (kbps):</string>
     <string name="bitrate_hint">Insira a taxa de bits em kilobits por segundo (ex.: 1500)</string>
     <string name="bitrate_auto">Automático</string>
-    <string name="resize_label">1. Resolução máxima (lado maior):</string>
-    <string name="resize_hint">Insira o máximo de pixels para o lado maior (ex.: 1280)</string>
+    <string name="resize_label">1. Resolução máxima (lado menor):</string>
+    <string name="resize_hint">Insira o máximo de pixels para o lado menor (ex.: 720)</string>
     <string name="codec_label">2. Codec de vídeo:</string>
     <string name="codec_explanation">O codec H.265/HEVC é mais eficiente e produz melhor qualidade e/ou arquivos menores do que o H.264/AVC. No entanto, ele não é tão bem suportado, então selecione H.264/AVC para máxima compatibilidade.</string>
     <string name="auto_bitrate_toast">Taxa de bits automática definida para %1$d kbps em %2$d px (%3$s)</string>

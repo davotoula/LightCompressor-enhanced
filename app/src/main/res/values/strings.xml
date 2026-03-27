@@ -7,8 +7,8 @@
     <string name="bitrate_label">4. Bitrate (kbps):</string>
     <string name="bitrate_hint">Enter bitrate in kilobits per second (e.g., 1500)</string>
     <string name="bitrate_auto">Auto</string>
-    <string name="resize_label">1. Max Resolution (long edge):</string>
-    <string name="resize_hint">Enter max pixels for long edge (e.g., 1280)</string>
+    <string name="resize_label">1. Max Resolution (short side):</string>
+    <string name="resize_hint">Enter max pixels for short side (e.g., 720)</string>
     <string name="preset_4k" translatable="false">4K</string>
     <string name="preset_1080p" translatable="false">1080p</string>
     <string name="preset_720p" translatable="false">720p</string>

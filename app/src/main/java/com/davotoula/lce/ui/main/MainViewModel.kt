@@ -53,6 +53,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { state ->
                 state.copy(
                     selectedResolution = settings.resolution,
+                    customResolutionInput = settings.resolution.shortSide.toString(),
                     selectedCodec = settings.codec,
                     isStreamableEnabled = settings.isStreamableEnabled,
                     bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
@@ -134,7 +135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             state.copy(
                 selectedResolution = resolution,
                 customResolution = null,
-                customResolutionInput = ""
+                customResolutionInput = resolution.shortSide.toString()
             )
         }
         calculateAutoBitrate()
@@ -209,16 +210,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun calculateAutoBitrate() {
         val state = _uiState.value
-        val resolutionPixels = state.customResolution ?: state.selectedResolution.pixels
+        val shortSide = state.customResolution ?: state.selectedResolution.shortSide
 
-        // Calculate recommended bitrate based on resolution and codec
+        // Calculate recommended bitrate based on short side resolution and codec
         // H.265 typically achieves same quality at ~40% lower bitrate
         val baseBitrate = when {
-            resolutionPixels >= 3840 -> 8000  // 4K: 8 Mbps base
-            resolutionPixels >= 1920 -> 4000  // 1080p: 4 Mbps base
-            resolutionPixels >= 1280 -> 2000  // 720p: 2 Mbps base
-            resolutionPixels >= 960 -> 1500   // 540p: 1.5 Mbps base
-            else -> 1000                       // Lower: 1 Mbps base
+            shortSide >= 2160 -> 8000  // 4K: 8 Mbps base
+            shortSide >= 1080 -> 4000  // 1080p: 4 Mbps base
+            shortSide >= 720 -> 2000   // 720p: 2 Mbps base
+            shortSide >= 540 -> 1500   // 540p: 1.5 Mbps base
+            else -> 1000               // Lower: 1 Mbps base
         }
 
         val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.6 else 1.0
@@ -249,7 +250,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val resolutionPixels = (state.customResolution ?: state.selectedResolution.pixels).toDouble()
+        val resolutionPixels = (state.customResolution ?: state.selectedResolution.shortSide).toDouble()
         val videoCodec = when (state.selectedCodec) {
             Codec.H264 -> VideoCodec.H264
             Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264

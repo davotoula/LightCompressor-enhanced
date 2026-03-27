@@ -7,8 +7,8 @@
     <string name="bitrate_label">4. Datový tok (kb/s):</string>
     <string name="bitrate_hint">Zadejte datový tok v kilobitech za sekundu (např. 1500)</string>
     <string name="bitrate_auto">Automaticky</string>
-    <string name="resize_label">1. Max. rozlišení (delší strana):</string>
-    <string name="resize_hint">Zadejte max. počet pixelů pro delší stranu (např. 1280)</string>
+    <string name="resize_label">1. Max. rozlišení (kratší strana):</string>
+    <string name="resize_hint">Zadejte max. počet pixelů pro kratší stranu (např. 720)</string>
     <string name="codec_label">2. Video kodek:</string>
     <string name="codec_explanation">Kodek H.265/HEVC je efektivnější a poskytuje lepší kvalitu a/nebo menší velikost souboru než H.264/AVC. Není však tak dobře podporován, proto zvolte H.264/AVC pro maximální kompatibilitu.</string>
     <string name="auto_bitrate_toast">Automatický datový tok nastaven na %1$d kb/s pro %2$d px (%3$s)</string>

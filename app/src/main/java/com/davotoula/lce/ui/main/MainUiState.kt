@@ -3,11 +3,11 @@ package com.davotoula.lce.ui.main
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
 
-enum class Resolution(val pixels: Int, val label: String) {
-    UHD_4K(3840, "4K"),
-    FHD_1080(1920, "1080p"),
-    HD_720(1280, "720p"),
-    SD_540(960, "540p")
+enum class Resolution(val shortSide: Int, val label: String) {
+    UHD_4K(2160, "4K"),
+    FHD_1080(1080, "1080p"),
+    HD_720(720, "720p"),
+    SD_540(540, "540p")
 }
 
 enum class Codec(val displayName: String) {

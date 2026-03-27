@@ -7,8 +7,8 @@
     <string name="bitrate_label">4. Bitrate (kbps):</string>
     <string name="bitrate_hint">Bitrate in Kilobit pro Sekunde eingeben (z. B. 1500)</string>
     <string name="bitrate_auto">Automatisch</string>
-    <string name="resize_label">1. Maximale Auflösung (lange Seite):</string>
-    <string name="resize_hint">Maximale Pixelzahl für die lange Seite eingeben (z. B. 1280)</string>
+    <string name="resize_label">1. Maximale Auflösung (kurze Seite):</string>
+    <string name="resize_hint">Maximale Pixelzahl für die kurze Seite eingeben (z. B. 720)</string>
     <string name="codec_label">2. Videocodec:</string>
     <string name="codec_explanation">Der Codec H.265/HEVC ist effizienter und erzeugt eine bessere Qualität und/oder kleinere Dateigrößen als H.264/AVC. Er wird jedoch nicht so gut unterstützt. Wählen Sie H.264/AVC für maximale Kompatibilität.</string>
     <string name="auto_bitrate_toast">Automatische Bitrate auf %1$d kbps für %2$d px (%3$s) gesetzt</string>
