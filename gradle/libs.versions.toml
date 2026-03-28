@@ -1,6 +1,6 @@
 [versions]
 # Build Tools
-agp = "8.13.2"
+agp = "9.1.0"
 kotlin = "2.2.21"
 
 # AndroidX Core
@@ -44,7 +44,6 @@ compileSdk = "36"
 [libraries]
 # Build Tools (for buildscript classpath)
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
-kotlin-gradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-gradlePlugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }
 
 # Kotlin

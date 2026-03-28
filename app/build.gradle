@@ -1,6 +1,7 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.google.gms.google-services'
     id 'com.google.firebase.crashlytics'
@@ -11,7 +12,6 @@ android {
     defaultConfig {
         applicationId "com.davotoula.lce"
         minSdkVersion 24
-        targetSdkVersion libs.versions.targetSdk.get().toInteger()
         versionCode project.property('appVersionCode').toInteger()
         versionName project.property('appVersionName')
         buildConfigField "String", "LIBRARY_VERSION", "\"${project.property('version')}\""
@@ -40,23 +40,25 @@ android {
                 keyAlias 'androiddebugkey'
                 keyPassword 'android'
             }
-            v1SigningEnabled true
-            v2SigningEnabled true
+            v1SigningEnabled = true
+            v2SigningEnabled = true
         }
     }
 
     buildTypes {
         release {
             minifyEnabled true
-            signingConfig signingConfigs.release
+            signingConfig = signingConfigs.release
         }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_11
+        }
     }
 
     buildFeatures {
@@ -65,6 +67,9 @@ android {
     }
 
     namespace = 'com.davotoula.lce'
+    lint {
+        targetSdk libs.versions.targetSdk.get().toInteger()
+    }
 }
 
 dependencies {
