@@ -214,40 +214,22 @@ object Compressor {
         rotation: Int,
         videoCodec: VideoCodec
     ): Result {
-        return when (videoCodec) {
-            VideoCodec.H265 -> HevcTranscoder(
-                context = context,
-                srcUri = srcUri,
-                request = HevcTranscoder.Request(
-                    index = id,
-                    width = width,
-                    height = height,
-                    bitrate = bitrate,
-                    destination = File(destination),
-                    streamablePath = streamableFile,
-                    disableAudio = disableAudio,
-                    rotation = rotation,
-                    durationUs = duration,
-                    listener = listener
-                )
-            ).transcode()
-
-            VideoCodec.H264 -> AVCTranscoder(
-                context = context,
-                srcUri = srcUri,
-                request = AVCTranscoder.Request(
-                    index = id,
-                    width = width,
-                    height = height,
-                    bitrate = bitrate,
-                    destination = File(destination),
-                    streamablePath = streamableFile,
-                    disableAudio = disableAudio,
-                    rotation = rotation,
-                    durationUs = duration,
-                    listener = listener
-                )
-            ).transcode()
-        }
+        return Transcoder(
+            codec = videoCodec,
+            context = context,
+            srcUri = srcUri,
+            request = Transcoder.Request(
+                index = id,
+                width = width,
+                height = height,
+                bitrate = bitrate,
+                destination = File(destination),
+                streamablePath = streamableFile,
+                disableAudio = disableAudio,
+                rotation = rotation,
+                durationUs = duration,
+                listener = listener
+            )
+        ).transcode()
     }
 }
