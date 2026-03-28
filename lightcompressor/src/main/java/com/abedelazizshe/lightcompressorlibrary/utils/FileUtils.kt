@@ -5,10 +5,12 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
+@RequiresApi(Build.VERSION_CODES.Q)
 fun saveVideoInExternal(
     context: Context,
     videoFileName: String,
@@ -30,9 +32,7 @@ fun saveVideoInExternal(
         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
     if (saveLocation == Environment.DIRECTORY_DOWNLOADS) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        }
+        collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
     }
 
     val fileUri = context.contentResolver.insert(collection, values)

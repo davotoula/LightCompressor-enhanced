@@ -172,7 +172,9 @@ internal open class HevcTranscoder(
             } catch (_: Exception) {
             }
             if (streamableRequested && muxerOutputFile != request.destination && muxerOutputFile.exists()) {
-                muxerOutputFile.delete()
+                if (!muxerOutputFile.delete()) {
+                    Log.w(TAG, "Failed to delete temporary muxer file: ${muxerOutputFile.absolutePath}")
+                }
             }
         }
     }
@@ -275,7 +277,6 @@ internal open class HevcTranscoder(
             var decoderOutputAvailable = !decoderDone
 
             loop@ while (encoderOutputAvailable || decoderOutputAvailable) {
-                var outputHandled = false
                 var encoderStatus = MediaCodec.INFO_TRY_AGAIN_LATER
 
                 if (encoderOutputAvailable) {
@@ -323,7 +324,6 @@ internal open class HevcTranscoder(
                             throw RuntimeException("Unexpected encoder status: $encoderStatus")
                         }
                     }
-                    outputHandled = true
                 }
                 if (encoderStatus != MediaCodec.INFO_TRY_AGAIN_LATER) continue@loop
 
@@ -334,8 +334,7 @@ internal open class HevcTranscoder(
                             decoderOutputAvailable = false
                         }
 
-                        decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED ||
-                            decoderStatus == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED -> {
+                        decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                             // No-op for surface decoding.
                         }
 
@@ -366,11 +365,6 @@ internal open class HevcTranscoder(
                             }
                         }
                     }
-                    outputHandled = true
-                }
-
-                if (!outputHandled) {
-                    break@loop
                 }
             }
         }
@@ -460,7 +454,9 @@ internal open class HevcTranscoder(
         if (!fastStartApplied) {
             muxerFile.copyTo(destination, overwrite = true)
         } else if (muxerFile.exists()) {
-            muxerFile.delete()
+            if (!muxerFile.delete()) {
+                Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
+            }
         }
 
         val streamablePath = request.streamablePath
@@ -473,7 +469,9 @@ internal open class HevcTranscoder(
                 false
             }
             if (converted && destination.exists()) {
-                destination.delete()
+                if (!destination.delete()) {
+                    Log.w(TAG, "Failed to delete destination file: ${destination.absolutePath}")
+                }
                 return Result(
                     request.index,
                     success = true,
@@ -540,10 +538,8 @@ internal open class HevcTranscoder(
         if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
             codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0) {
-                codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0) {
+            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
         }
         return codecFlags
     }

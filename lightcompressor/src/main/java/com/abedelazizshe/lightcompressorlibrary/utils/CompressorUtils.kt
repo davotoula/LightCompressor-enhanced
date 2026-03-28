@@ -18,6 +18,9 @@ object CompressorUtils {
     // 1 second between I-frames
     private const val I_FRAME_INTERVAL = 1
 
+    private const val LOG_TAG_OUTPUT_PARAMS = "Output file parameters"
+    private const val MIME_HEVC = "video/hevc"
+
     // Cache for device codec capabilities (don't change at runtime)
     private var hevcSupportCache: Boolean? = null
     private var qtiSupportCache: Boolean? = null
@@ -62,9 +65,9 @@ object CompressorUtils {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val type = outputFormat.getString(MediaFormat.KEY_MIME)
                 val higherLevel = getHighestCodecProfileLevel(type)
-                Log.i("Output file parameters", "Selected CodecProfileLevel: $higherLevel")
+                Log.i(LOG_TAG_OUTPUT_PARAMS, "Selected CodecProfileLevel: $higherLevel")
                 setInteger(MediaFormat.KEY_PROFILE, higherLevel)
-                if (type == "video/hevc") {
+                if (type == MIME_HEVC) {
                     setInteger(
                         MediaFormat.KEY_LEVEL,
                         MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
@@ -104,7 +107,7 @@ object CompressorUtils {
                 val inputColorRange = getColorRange(inputFormat)
                 if (inputColorRange != null && inputColorRange != targetColorRange) {
                     Log.w(
-                        "Output file parameters",
+                        LOG_TAG_OUTPUT_PARAMS,
                         "Overriding input color range $inputColorRange with limited range $targetColorRange"
                     )
                 }
@@ -113,7 +116,7 @@ object CompressorUtils {
 
 
             Log.i(
-                "Output file parameters",
+                LOG_TAG_OUTPUT_PARAMS,
                 "videoFormat: $this"
             )
         }
@@ -253,7 +256,7 @@ object CompressorUtils {
                 .codecInfos
                 .any { codec ->
                     codec.isEncoder && codec.supportedTypes.any {
-                        it.equals("video/hevc", ignoreCase = true)
+                        it.equals(MIME_HEVC, ignoreCase = true)
                     }
                 }
             Log.i("HEVC Support", if (isSupported) "HEVC encoder found" else "No HEVC encoder found")
@@ -285,7 +288,7 @@ object CompressorUtils {
 
     private fun getDefaultProfileForType(type: String?): Int {
         return when (type) {
-            "video/hevc" -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+            MIME_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
     }
@@ -299,7 +302,7 @@ object CompressorUtils {
                     MediaCodecInfo.CodecProfileLevel.AVCProfileMain
                 else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
             }
-            "video/hevc" -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
+            MIME_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
     }

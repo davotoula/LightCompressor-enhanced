@@ -33,7 +33,9 @@ object StreamableVideo {
             safeClose(inStream)
             safeClose(outStream)
             if (!ret) {
-                out.delete()
+                if (!out.delete()) {
+                    Log.w(TAG, "Failed to delete output file: ${out.absolutePath}")
+                }
             }
         }
     }
@@ -147,7 +149,7 @@ object StreamableVideo {
                 if (moovAtom.remaining() < offsetCount * 4) {
                     throw Exception("bad atom size/element count")
                 }
-                for (i in 0 until offsetCount) {
+                repeat(offsetCount) {
                     val entryPosition = moovAtom.position()
                     val currentOffset = moovAtom.getInt(entryPosition)
                     val currentOffsetUnsigned = currentOffset.toLong() and 0xFFFFFFFFL
@@ -160,12 +162,12 @@ object StreamableVideo {
                     }
                     moovAtom.putInt(updatedOffset.toInt())
                 }
-            } else if (atomType == CO64_ATOM) {
+            } else {
                 Log.wtf(TAG, "patching co64 atom...")
                 if (moovAtom.remaining() < offsetCount * 8) {
                     throw Exception("bad atom size/element count")
                 }
-                for (i in 0 until offsetCount) {
+                repeat(offsetCount) {
                     val currentOffset = moovAtom.getLong(moovAtom.position())
                     val needsShift = currentOffset < moovOffset
                     val updatedOffset = currentOffset + if (needsShift) moovAtomSizeLong else 0L
@@ -210,7 +212,7 @@ object StreamableVideo {
         if (closeable != null) {
             try {
                 closeable.close()
-            } catch (e: IOException) {
+            } catch (_: IOException) {
                 Log.wtf(TAG, "Failed to close file: ")
             }
         }
