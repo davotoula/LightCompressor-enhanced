@@ -116,7 +116,7 @@ private fun getVideoExtension(uriVideo: Uri): String {
         Log.w("Utils", "Exceptions while getting video extension, ${e.message}", e)
         extension = null
     }
-    if (extension == null || extension.isEmpty()) {
+    if (extension.isNullOrEmpty()) {
         //default extension for matches the previous behavior of the plugin
         extension = "mp4"
     }

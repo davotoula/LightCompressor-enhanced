@@ -257,7 +257,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
         }
 
-        val videoNames = state.pendingUris.mapIndexed { index, _ ->
+        val videoNames = List(state.pendingUris.size) { index ->
             "compressed_${System.currentTimeMillis()}_$index"
         }
 
