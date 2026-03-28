@@ -40,7 +40,7 @@ Package: `com.abedelazizshe.lightcompressorlibrary`
 **Compression pipeline:**
 1. `VideoCompressor.start()` → validates input, extracts metadata via `MediaMetadataRetriever`
 2. `Compressor` — orchestrates: checks bitrate (2 Mbps minimum), applies `VideoResizer`, routes to transcoder
-3. `AVCTranscoder` (H.264) / `HevcTranscoder` (H.265) — MediaCodec-based encoding with native `MediaMuxer`
+3. `Transcoder` — unified MediaCodec-based encoding (H.264/H.265) with native `MediaMuxer`, parameterized by `VideoCodec`
 4. `InputSurface` / `OutputSurface` / `TextureRenderer` — OpenGL pipeline for frame processing
 
 **Key design decisions:**
@@ -61,7 +61,7 @@ Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 
 Library tests use JUnit 4 + MockK. Test files mirror source structure under `lightcompressor/src/test/`. Key test classes:
 - `VideoResizerTest` — resolution calculation logic
 - `ResolutionPipelineTest` — end-to-end resolution pipeline
-- `AVCTranscoderTest` / `HevcTranscoderTest` — transcoder unit tests
+- `TranscoderTest` — transcoder unit tests (H.264 and H.265)
 - `NumbersUtilsTest`, `StreamableVideoTest` — utility tests
 
 ## Dependencies
