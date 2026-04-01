@@ -12,6 +12,7 @@
 # Ignore all IDEA files
 .idea/*
 .claude/
+docs/
 
 # Keep these (useful to share)
 !.idea/codeStyles/
