@@ -14,7 +14,7 @@ android {
         minSdkVersion 24
         versionCode project.property('appVersionCode').toInteger()
         versionName project.property('appVersionName')
-        buildConfigField "String", "LIBRARY_VERSION", "\"${project.property('version')}\""
+        buildConfigField "String", "LIBRARY_VERSION", "\"${rootProject.project(':lightcompressor').property('version')}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
