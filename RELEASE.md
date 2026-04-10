@@ -24,6 +24,40 @@ on installation.
 **Never commit** `release.keystore`, `.env`, or `local.properties`. They are listed
 in `.gitignore` (`*.keystore`, `.env`, `local.properties`) and must stay local-only.
 
+#### Local keystore location
+
+Keep the release keystore **outside the project tree** to prevent accidental
+`git add release.keystore` (an explicit `git add` on a named file bypasses
+`.gitignore` entirely). Canonical location on the maintainer's dev machine:
+
+```
+~/.keys/lce/release.keystore      # chmod 600
+~/.keys/lce/                      # chmod 700
+```
+
+For **local signed release builds** (e.g. testing the APK before a CI release),
+add the following to `~/.gradle/gradle.properties` (user-global, never
+project-local):
+
+```properties
+RELEASE_STORE_FILE=/Users/<you>/.keys/lce/release.keystore
+RELEASE_STORE_PASSWORD=...
+RELEASE_KEY_ALIAS=...
+RELEASE_KEY_PASSWORD=...
+```
+
+`app/build.gradle:30-35` picks these up via `project.hasProperty('RELEASE_STORE_FILE')`.
+Without them, local release builds fall back to the Android debug keystore (fine
+for verifying the build, useless for Play Store distribution — use CI for that).
+
+**Disaster recovery**: store a base64 copy of the keystore + all four passwords
+in a password manager (1Password, Bitwarden). This is the same format as the
+`KEYSTORE_BASE64` GitHub secret and lets you restore if the local copy is lost:
+
+```bash
+base64 -i ~/.keys/lce/release.keystore | pbcopy   # paste into password manager
+```
+
 ## Release Process
 
 ### Library Releases
