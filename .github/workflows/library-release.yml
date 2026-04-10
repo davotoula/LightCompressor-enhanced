@@ -3,7 +3,7 @@ name: Library Release
 on:
   push:
     tags:
-      - 'lib-v*'
+      - 'v*'
 
 jobs:
   release:
@@ -27,7 +27,7 @@ jobs:
       - name: Extract version from tag
         id: extract_version
         run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/lib-v}
+          TAG_NAME=${GITHUB_REF#refs/tags/v}
           echo "VERSION=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "Releasing library version: $TAG_NAME"
 

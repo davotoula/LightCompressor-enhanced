@@ -36,8 +36,8 @@ The library is published to JitPack and can be used as a dependency in other And
 
 3. **Create and push a library tag**:
    ```bash
-   git tag lib-v1.6.1
-   git push origin lib-v1.6.1
+   git tag v1.6.1
+   git push origin v1.6.1
    ```
 
 4. **GitHub Actions will automatically**:
@@ -55,7 +55,7 @@ The library is published to JitPack and can be used as a dependency in other And
    git push
    ```
 
-**Tag format**: `lib-v{major}.{minor}.{patch}` (e.g., `lib-v1.6.1`)
+**Tag format**: `v{major}.{minor}.{patch}` (e.g., `v1.6.1`)
 
 ### App Releases
 
@@ -110,7 +110,7 @@ appVersionCode=1
 
 Two GitHub Actions workflows handle releases:
 
-- `.github/workflows/library-release.yml` - Triggered by `lib-v*` tags
+- `.github/workflows/library-release.yml` - Triggered by `v*` tags
 - `.github/workflows/app-release.yml` - Triggered by `app-v*` tags
 
 ## Versioning Convention
