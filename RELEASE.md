@@ -8,12 +8,21 @@ This repository contains two separate components with independent release cycles
 
 ### App Signing Setup (Required for App Releases)
 
-Before releasing the app, you must configure signing keys for GitHub Actions. See [SIGNING_SETUP.md](SIGNING_SETUP.md) for detailed instructions on:
-- Generating a keystore
-- Converting it to base64
-- Adding GitHub secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+Releasing the app requires the following encrypted secrets to be configured under
+**GitHub → Settings → Secrets and variables → Actions**:
 
-Without proper signing, the APK will show "Package invalid" errors on installation.
+- `KEYSTORE_BASE64` — base64-encoded release keystore (`base64 -i release.keystore`)
+- `KEYSTORE_PASSWORD` — keystore password
+- `KEY_ALIAS` — signing key alias inside the keystore
+- `KEY_PASSWORD` — signing key password
+
+The `app-release.yml` workflow decodes `KEYSTORE_BASE64` to `release.keystore` on
+the CI runner at build time. Without these secrets, the workflow falls back to a
+throwaway debug keystore and the resulting APK will show "Package invalid" errors
+on installation.
+
+**Never commit** `release.keystore`, `.env`, or `local.properties`. They are listed
+in `.gitignore` (`*.keystore`, `.env`, `local.properties`) and must stay local-only.
 
 ## Release Process
 
@@ -56,6 +65,44 @@ The library is published to JitPack and can be used as a dependency in other And
    ```
 
 **Tag format**: `v{major}.{minor}.{patch}` (e.g., `v1.6.1`)
+
+#### Release notes
+
+`library-release.yml` uses `softprops/action-gh-release@v2` with
+`generate_release_notes: true`, so the GitHub release body is auto-populated with
+a commit list since the previous tag, appended after the static Installation
+snippet. No manual step is needed for a basic release.
+
+For a curated changelog (recommended for user-facing releases), edit the release
+body after the workflow finishes:
+
+```bash
+gh release edit v1.6.1 --repo davotoula/LightCompressor-enhanced \
+  --notes-file /tmp/release-notes.md
+```
+
+Or view the auto-generated notes first, then edit in place:
+
+```bash
+gh release view v1.6.1 --repo davotoula/LightCompressor-enhanced
+gh release edit v1.6.1 --repo davotoula/LightCompressor-enhanced --notes "..."
+```
+
+#### Verifying the release
+
+After the workflow completes, confirm JitPack serves the coordinate cleanly:
+
+```bash
+VERSION=1.6.1
+curl -sS -o /dev/null -w "POM %{http_code}\n" \
+  "https://jitpack.io/com/github/davotoula/LightCompressor-enhanced/${VERSION}/LightCompressor-enhanced-${VERSION}.pom"
+curl -sS -o /dev/null -w "AAR %{http_code} %{size_download} bytes\n" \
+  "https://jitpack.io/com/github/davotoula/LightCompressor-enhanced/${VERSION}/LightCompressor-enhanced-${VERSION}.aar"
+```
+
+Both should return HTTP 200. The first request triggers JitPack's build from the
+tag (takes 1–3 minutes); subsequent requests are cached. If either returns 404,
+check https://jitpack.io/com/github/davotoula/LightCompressor-enhanced/${VERSION}/build.log
 
 ### App Releases
 
@@ -150,12 +197,12 @@ dependencies {
 ## Troubleshooting
 
 **Q: JitPack build fails**
-- Check that the version in `gradle.properties` matches the tag (without the `lib-v` prefix)
+- Check that the version in `lightcompressor/gradle.properties` matches the tag (without the `v` prefix)
 - Verify the tag was pushed to GitHub
 - Check JitPack build logs at https://jitpack.io/com/github/davotoula/LightCompressor-enhanced/{version}/build.log
 
 **Q: GitHub Actions workflow doesn't trigger**
-- Verify the tag format matches the pattern (`lib-v*` or `app-v*`)
+- Verify the tag format matches the pattern (`v*` for library, `app-v*` for app)
 - Check GitHub Actions permissions in repository settings
 - Review workflow logs in the Actions tab
 
