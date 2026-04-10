@@ -31,10 +31,10 @@ jobs:
           echo "VERSION=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "Releasing library version: $TAG_NAME"
 
-      - name: Update version in gradle.properties
+      - name: Update version in lightcompressor/gradle.properties
         run: |
-          sed -i "s/^version=.*/version=${{ steps.extract_version.outputs.VERSION }}/" gradle.properties
-          cat gradle.properties
+          sed -i "s/^version=.*/version=${{ steps.extract_version.outputs.VERSION }}/" lightcompressor/gradle.properties
+          cat lightcompressor/gradle.properties
 
       - name: Build library
         run: ./gradlew :lightcompressor:assembleRelease

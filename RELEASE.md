@@ -23,14 +23,14 @@ The library is published to JitPack and can be used as a dependency in other And
 
 **Steps to release the library:**
 
-1. **Update the version** in `gradle.properties`:
+1. **Update the version** in `lightcompressor/gradle.properties`:
    ```properties
    version=1.6.1
    ```
 
 2. **Commit the version change**:
    ```bash
-   git add gradle.properties
+   git add lightcompressor/gradle.properties
    git commit -m "Release commit: v1.6.1"
    ```
 
@@ -45,12 +45,12 @@ The library is published to JitPack and can be used as a dependency in other And
    - Create a GitHub release
    - Make it available on JitPack
 
-5. **After release, update to next SNAPSHOT version**:
+5. **After release, update to next SNAPSHOT version** in `lightcompressor/gradle.properties`:
    ```properties
    version=1.6.2-SNAPSHOT
    ```
    ```bash
-   git add gradle.properties
+   git add lightcompressor/gradle.properties
    git commit -m "Post release commit: v1.6.2-SNAPSHOT"
    git push
    ```
@@ -92,13 +92,16 @@ The demo app is distributed as an APK for testing the library functionality.
 
 ## Version Management
 
-All versions are centralized in `gradle.properties`:
+Library version lives in `lightcompressor/gradle.properties`:
 
 ```properties
 # Library version (used by JitPack)
 version=1.6.1-SNAPSHOT
+```
 
-# App version
+App version lives in root `gradle.properties`:
+
+```properties
 appVersionName=1.0.0
 appVersionCode=1
 ```
