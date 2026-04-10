@@ -15,6 +15,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Guard against SNAPSHOT library version
+        run: |
+          if grep -q -- '-SNAPSHOT' lightcompressor/gradle.properties; then
+            echo "::error::lightcompressor/gradle.properties contains a -SNAPSHOT version. App releases must bundle a tagged library version."
+            grep '^version=' lightcompressor/gradle.properties
+            exit 1
+          fi
+          echo "Library version OK: $(grep '^version=' lightcompressor/gradle.properties)"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
