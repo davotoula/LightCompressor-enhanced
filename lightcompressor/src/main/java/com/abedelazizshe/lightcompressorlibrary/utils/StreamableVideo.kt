@@ -32,10 +32,8 @@ object StreamableVideo {
         } finally {
             safeClose(inStream)
             safeClose(outStream)
-            if (!ret) {
-                if (!out.delete()) {
-                    Log.w(TAG, "Failed to delete output file: ${out.absolutePath}")
-                }
+            if (!ret && !out.delete()) {
+                Log.w(TAG, "Failed to delete output file: ${out.absolutePath}")
             }
         }
     }

@@ -474,7 +474,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             null
         } finally {
             // The cache-dir intermediate is no longer needed regardless of outcome.
-            try { result.file.delete() } catch (_: Exception) {}
+            if (!result.file.delete() && result.file.exists()) {
+                Log.w("MainViewModel", "Failed to delete GIF cache file: ${result.file.absolutePath}")
+            }
         }
 
         if (savedFile == null) {

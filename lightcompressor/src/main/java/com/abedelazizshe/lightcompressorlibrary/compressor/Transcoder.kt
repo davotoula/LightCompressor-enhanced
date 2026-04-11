@@ -176,10 +176,8 @@ internal open class Transcoder(
                 muxer?.release()
             } catch (_: Exception) {
             }
-            if (streamableRequested && muxerOutputFile != request.destination && muxerOutputFile.exists()) {
-                if (!muxerOutputFile.delete()) {
-                    Log.w(TAG, "Failed to delete temporary muxer file: ${muxerOutputFile.absolutePath}")
-                }
+            if (streamableRequested && muxerOutputFile != request.destination && muxerOutputFile.exists() && !muxerOutputFile.delete()) {
+                Log.w(TAG, "Failed to delete temporary muxer file: ${muxerOutputFile.absolutePath}")
             }
         }
     }
@@ -458,10 +456,8 @@ internal open class Transcoder(
 
         if (!fastStartApplied) {
             muxerFile.copyTo(destination, overwrite = true)
-        } else if (muxerFile.exists()) {
-            if (!muxerFile.delete()) {
-                Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
-            }
+        } else if (muxerFile.exists() && !muxerFile.delete()) {
+            Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
         }
 
         val streamablePath = request.streamablePath
