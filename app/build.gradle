@@ -50,6 +50,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Suffix the applicationId and versionName so the debug build can be
+            // installed side-by-side with the Play/Zapstore release build. Pair
+            // with the app_name override in src/debug/res/values/strings.xml so
+            // the launcher icon shows "LCe Dev".
+            applicationIdSuffix '.dev'
+            versionNameSuffix '-dev'
+        }
         release {
             minifyEnabled true
             signingConfig = signingConfigs.release
