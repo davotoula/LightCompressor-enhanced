@@ -2,8 +2,11 @@
 <!-- Swedish (Svenska) translations -->
 <resources>
     <string name="pick_video">Välj video</string>
+    <string name="pick_gif">Välj GIF</string>
     <string name="start_compression">Starta</string>
     <string name="record_video">Spela in video</string>
+    <string name="gif_converting_status">Konverterar GIF…</string>
+    <string name="gif_conversion_failed">GIF-konverteringen misslyckades</string>
     <string name="bitrate_label">4. Bithastighet (kbps):</string>
     <string name="bitrate_hint">Ange bithastighet i kilobit per sekund (t.ex. 1500)</string>
     <string name="bitrate_auto">Automatisk</string>

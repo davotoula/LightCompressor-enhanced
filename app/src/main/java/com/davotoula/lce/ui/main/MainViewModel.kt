@@ -15,6 +15,8 @@ import com.abedelazizshe.lightcompressorlibrary.config.Configuration
 import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
+import com.abedelazizshe.lightcompressorlibrary.video.GifToMp4Converter
+import kotlinx.coroutines.Job
 import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
@@ -42,6 +44,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val context get() = getApplication<Application>()
     private val originalVideoSizes = mutableMapOf<Int, Long>()
     private val videoSettingsPreferences = VideoSettingsPreferences(application)
+    private val gifJobs = mutableListOf<Job>()
 
     init {
         loadSavedSettings()
@@ -251,14 +254,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Split pendingUris into GIFs (handled by GifToMp4Converter directly with
+        // no secondary compression) and videos (existing VideoCompressor pipeline).
+        // We remember the original index so callbacks can update the right row in
+        // state.videos regardless of which sub-pipeline ran.
+        val resolver = context.contentResolver
+        val videoOriginalIndices = mutableListOf<Int>()
+        val gifOriginalIndices = mutableListOf<Int>()
+        state.pendingUris.forEachIndexed { index, uri ->
+            val mime = resolver.getType(uri)?.lowercase()
+            if (mime == "image/gif") {
+                gifOriginalIndices += index
+            } else {
+                videoOriginalIndices += index
+            }
+        }
+
+        val videoUris = videoOriginalIndices.map { state.pendingUris[it] }
         val resolutionPixels = (state.customResolution ?: state.selectedResolution.shortSide).toDouble()
         val videoCodec = when (state.selectedCodec) {
             Codec.H264 -> VideoCodec.H264
             Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
-        }
-
-        val videoNames = List(state.pendingUris.size) { index ->
-            "compressed_${System.currentTimeMillis()}_$index"
         }
 
         AnalyticsTracker.logCompressionStarted(
@@ -272,6 +288,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _uiState.update { it.copy(isCompressing = true, errorMessage = null) }
 
+        // Kick off GIF conversions. Each coroutine updates the row at its
+        // originalIndex, then checks if the whole batch is complete.
+        gifJobs.clear()
+        for (originalIndex in gifOriginalIndices) {
+            val uri = state.pendingUris[originalIndex]
+            val job = viewModelScope.launch {
+                runGifConversion(originalIndex, uri)
+            }
+            gifJobs += job
+        }
+
+        if (videoUris.isEmpty()) {
+            // No videos left for VideoCompressor — GIF coroutines drive completion.
+            return
+        }
+
+        val videoNames = List(videoUris.size) { subIndex ->
+            "compressed_${System.currentTimeMillis()}_${videoOriginalIndices[subIndex]}"
+        }
+
         val configuration = Configuration.withBitrateInBps(
             isMinBitrateCheckEnabled = false,
             videoBitrateInBps = state.bitrateKbps.toLong() * 1000L,
@@ -282,7 +318,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         VideoCompressor.start(
             context = context,
-            uris = state.pendingUris,
+            uris = videoUris,
             isStreamable = state.isStreamableEnabled,
             storageConfiguration = SharedStorageConfiguration(
                 saveAt = SaveLocation.MOVIES,
@@ -291,21 +327,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             configureWith = configuration,
             listener = object : CompressionListener {
                 override fun onStart(index: Int) {
+                    val originalIndex = videoOriginalIndices[index]
                     viewModelScope.launch {
-                        val originalSize = getOriginalVideoSize(state.pendingUris[index])
-                        originalVideoSizes[index] = originalSize
+                        val originalSize = getOriginalVideoSize(videoUris[index])
+                        originalVideoSizes[originalIndex] = originalSize
                         Log.i(
                             "MainViewModel",
-                            "Original video size for index $index: ${getFileSize(originalSize)}"
+                            "Original video size for index $originalIndex: ${getFileSize(originalSize)}"
                         )
-                        updateVideoProgress(index, 0f, "Compressing...")
+                        updateVideoProgress(originalIndex, 0f, "Compressing...")
                     }
                 }
 
                 override fun onSuccess(index: Int, size: Long, path: String?) {
+                    val originalIndex = videoOriginalIndices[index]
                     viewModelScope.launch {
-                        val originalSize = originalVideoSizes[index]
-                            ?: getOriginalVideoSize(state.pendingUris[index])
+                        val originalSize = originalVideoSizes[originalIndex]
+                            ?: getOriginalVideoSize(videoUris[index])
 
                         if (originalSize in 1..<size) {
                             Log.w(
@@ -320,16 +358,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     getFileSize(originalSize)
                                 )
                             )
-                            updateVideoNotSaved(index)
+                            updateVideoNotSaved(originalIndex)
                         } else {
                             val sizeString = getFileSize(size)
-                            updateVideoComplete(index, path, sizeString)
+                            updateVideoComplete(originalIndex, path, sizeString)
 
                             // Check if compressed video lost audio
                             path?.let { compressedPath ->
                                 val compressedHasAudio = hasAudioTrack(compressedPath)
                                 if (!compressedHasAudio) {
-                                    val originalUri = state.pendingUris[index]
+                                    val originalUri = videoUris[index]
                                     val originalHasAudio = hasAudioTrack(originalUri)
                                     Log.w(
                                         "MainViewModel",
@@ -355,8 +393,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 override fun onFailure(index: Int, failureMessage: String) {
+                    val originalIndex = videoOriginalIndices[index]
                     viewModelScope.launch {
-                        updateVideoError(index, failureMessage)
+                        updateVideoError(originalIndex, failureMessage)
                         checkCompressionComplete()
 
                         AnalyticsTracker.recordCompressionFailure(
@@ -377,14 +416,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 override fun onProgress(index: Int, percent: Float) {
+                    val originalIndex = videoOriginalIndices[index]
                     viewModelScope.launch {
-                        updateVideoProgress(index, percent / 100f, "Compressing... ${percent.toInt()}%")
+                        updateVideoProgress(originalIndex, percent / 100f, "Compressing... ${percent.toInt()}%")
                     }
                 }
 
                 override fun onCancelled(index: Int) {
+                    val originalIndex = videoOriginalIndices[index]
                     viewModelScope.launch {
-                        updateVideoError(index, "Cancelled")
+                        updateVideoError(originalIndex, "Cancelled")
                         _uiState.update { it.copy(isCompressing = false) }
 
                         AnalyticsTracker.logCompressionCancelled(
@@ -397,8 +438,64 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private suspend fun runGifConversion(originalIndex: Int, uri: Uri) {
+        updateVideoProgress(
+            originalIndex,
+            0f,
+            context.getString(R.string.gif_converting_status)
+        )
+        val result = try {
+            GifToMp4Converter.convert(uri, context)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "GIF conversion error for $uri", e)
+            null
+        }
+
+        if (result == null) {
+            updateVideoError(
+                originalIndex,
+                context.getString(R.string.gif_conversion_failed)
+            )
+            checkCompressionComplete()
+            return
+        }
+
+        // Save the MP4 to MOVIES/lce-compressed using the library's shared
+        // storage helper, matching the VideoCompressor output location.
+        val savedFile = try {
+            val fileName = "compressed_${System.currentTimeMillis()}_$originalIndex.mp4"
+            val storage = SharedStorageConfiguration(
+                saveAt = SaveLocation.MOVIES,
+                subFolderName = "lce-compressed"
+            )
+            storage.createFileToSave(context, result.file, fileName, shouldSave = true)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to save converted GIF", e)
+            null
+        } finally {
+            // The cache-dir intermediate is no longer needed regardless of outcome.
+            try { result.file.delete() } catch (_: Exception) {}
+        }
+
+        if (savedFile == null) {
+            updateVideoError(
+                originalIndex,
+                context.getString(R.string.gif_conversion_failed)
+            )
+        } else {
+            updateVideoComplete(
+                originalIndex,
+                savedFile.path,
+                getFileSize(savedFile.length())
+            )
+        }
+        checkCompressionComplete()
+    }
+
     private fun cancelCompression() {
         VideoCompressor.cancel()
+        gifJobs.forEach { it.cancel() }
+        gifJobs.clear()
         _uiState.update { state ->
             state.copy(
                 isCompressing = false,
@@ -585,5 +682,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isCompressing) {
             VideoCompressor.cancel()
         }
+        gifJobs.forEach { it.cancel() }
+        gifJobs.clear()
     }
 }

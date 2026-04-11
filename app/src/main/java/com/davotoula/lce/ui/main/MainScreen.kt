@@ -96,6 +96,15 @@ fun MainScreen(
         }
     }
 
+    // GIF picker launcher (separate so we can constrain to image/gif)
+    val gifPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.onAction(MainAction.SelectVideos(uris))
+        }
+    }
+
     val permissionRequiredMessage = stringResource(R.string.permission_required_pick_videos)
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = RequestMultiplePermissions()
@@ -302,6 +311,24 @@ fun MainScreen(
                     ) {
                         Text(stringResource(R.string.record_video))
                     }
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        // The system photo picker does not require runtime permissions
+                        // on Android 11+; on older releases PickVisualMedia falls back
+                        // to GetContent which uses its own access model. Launching the
+                        // picker directly keeps the flow simple and works across versions.
+                        gifPickerLauncher.launch(
+                            PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.SingleMimeType("image/gif")
+                            )
+                        )
+                    },
+                    enabled = !uiState.isCompressing,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pick_gif))
                 }
             }
 

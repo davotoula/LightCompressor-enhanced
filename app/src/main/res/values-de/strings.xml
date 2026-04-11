@@ -2,8 +2,11 @@
 <!-- German (Deutsch) translations -->
 <resources>
     <string name="pick_video">Video auswählen</string>
+    <string name="pick_gif">GIF auswählen</string>
     <string name="start_compression">Starten</string>
     <string name="record_video">Video aufnehmen</string>
+    <string name="gif_converting_status">GIF wird konvertiert…</string>
+    <string name="gif_conversion_failed">GIF-Konvertierung fehlgeschlagen</string>
     <string name="bitrate_label">4. Bitrate (kbps):</string>
     <string name="bitrate_hint">Bitrate in Kilobit pro Sekunde eingeben (z. B. 1500)</string>
     <string name="bitrate_auto">Automatisch</string>
