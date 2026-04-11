@@ -1,3 +1,16 @@
+## [app-v1.4.0] - 2026-04-11
+
+### Added
+- Accept shared GIFs from other apps (`image/gif` share intent-filters)
+- GIFs in the in-app media picker (accepts `image/gif` alongside `video/*`)
+- Route GIFs through new `GifToMp4Converter` (library) to produce compressed MP4 output
+- Debug build installs side-by-side with release (dev `applicationIdSuffix`)
+- Bundles LightCompressor library **v1.9.0** (new `GifToMp4Converter`)
+
+### Fixed
+- GL/EGL resource leaks in `GifToMp4Converter`
+- Sonar: consume `File.delete()` result and flatten nested `if` in `MainViewModel` / `Transcoder`
+
 ## [app-v1.3.2] - 2026-04-10
 
 ### Added
@@ -58,7 +71,8 @@ KNOWN ISSUE: some (social media) videos lose sound on compression. Investigating
 - Top bar display issues
 - UI button highlighting behavior
 
-[Unreleased]: https://github.com/davotoula/LightCompressor-enhanced/compare/app-v1.3.2...HEAD
+[Unreleased]: https://github.com/davotoula/LightCompressor-enhanced/compare/app-v1.4.0...HEAD
+[app-v1.4.0]: https://github.com/davotoula/LightCompressor-enhanced/releases/tag/app-v1.4.0
 [app-v1.3.2]: https://github.com/davotoula/LightCompressor-enhanced/releases/tag/app-v1.3.2
 [app-v1.3.0]: https://github.com/davotoula/LightCompressor-enhanced/releases/tag/app-v1.3.0
 [app-v1.2.2]: https://github.com/davotoula/LightCompressor-enhanced/releases/tag/app-v1.2.2
