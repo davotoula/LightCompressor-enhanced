@@ -36,19 +36,44 @@ Keep the release keystore **outside the project tree** to prevent accidental
 ```
 
 For **local signed release builds** (e.g. testing the APK before a CI release),
-add the following to `~/.gradle/gradle.properties` (user-global, never
-project-local):
+the canonical setup uses an env file at `~/.keys/lce/release.env` (mirrors the
+`zapstore.env` pattern and matches the CI signing path in `app/build.gradle:28-33`):
 
-```properties
-RELEASE_STORE_FILE=/Users/<you>/.keys/lce/release.keystore
-RELEASE_STORE_PASSWORD=...
-RELEASE_KEY_ALIAS=...
-RELEASE_KEY_PASSWORD=...
+```
+KEYSTORE_FILE=/Users/<you>/.keys/lce/release.keystore
+KEYSTORE_PASSWORD=...
+KEY_ALIAS=...
+KEY_PASSWORD=...
 ```
 
-`app/build.gradle:30-35` picks these up via `project.hasProperty('RELEASE_STORE_FILE')`.
-Without them, local release builds fall back to the Android debug keystore (fine
-for verifying the build, useless for Play Store distribution — use CI for that).
+Source it into a single gradle invocation — secrets never land in
+`gradle.properties` or shell history:
+
+```bash
+set -a && source ~/.keys/lce/release.env && set +a && ./gradlew :app:assembleRelease
+```
+
+Alternatively — the older pattern — put `RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` /
+`RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` properties in `~/.gradle/gradle.properties`
+(user-global). `app/build.gradle:34-39` picks these up via `project.hasProperty('RELEASE_STORE_FILE')`.
+Prefer the env-file approach for new setups.
+
+Without either, local release builds fall back to the Android debug keystore
+(fine for verifying `BuildConfig` values, useless for Play Store distribution —
+use CI for that).
+
+**Verify the APK is signed with the release keystore** (not the Android debug
+cert) before trusting it:
+
+```bash
+/Users/<you>/Library/Android/sdk/build-tools/<latest>/apksigner verify --print-certs \
+  app/build/outputs/apk/release/lce-app-release.apk | head -5
+```
+
+If `Signer #1 certificate DN` contains `CN=Android Debug`, the signing env
+didn't pick up — re-check `release.env` was sourced into the same shell that
+ran gradle. `$ANDROID_HOME` is typically unset on macOS, so use the absolute
+path above.
 
 **Disaster recovery**: store a base64 copy of the keystore + all four passwords
 in a password manager (1Password, Bitwarden). This is the same format as the
@@ -95,6 +120,20 @@ The library is published to JitPack and can be used as a dependency in other And
    ```bash
    git add lightcompressor/gradle.properties
    git commit -m "Post release commit: v1.6.2-SNAPSHOT"
+   ```
+
+   **Back-to-back releases:** if you are immediately cutting an app release that
+   needs to bundle this exact library version, **skip step 5** and leave
+   `lightcompressor/gradle.properties` at the released version (e.g. `1.9.0`)
+   through the app release. The SNAPSHOT bump then happens once, in a single
+   post-release commit after the app tag. This avoids the temp-pin-then-revert
+   dance in the "Bundling a tagged library version in the app release" section
+   below. See commit `778e483` (`app-v1.4.0`) for the 3-commit back-to-back
+   pattern: `Release commit: v1.9.0` → `Release commit: app-v1.4.0` → `Post
+   release commit: app-v1.4.1-SNAPSHOT`.
+
+   ```bash
+   # (standalone library release only — for back-to-back, skip this block)
    git push
    ```
 
@@ -181,19 +220,63 @@ ship a **tagged** library version, never a `-SNAPSHOT` suffix.
 the workflow if `lightcompressor/gradle.properties` contains `-SNAPSHOT` at the
 tagged commit.
 
-Recommended flow (matches how `app-v1.3.2` shipped):
+Recommended flow — two patterns depending on whether the library release
+is standalone or followed immediately by an app release:
 
-1. Cut the library release first (e.g. `v1.8.3`) — see "Library Releases" above.
-2. Create a "Release commit: app-v1.x.y" that:
-   - Sets `appVersionName` and `appVersionCode` in root `gradle.properties`
-   - Reverts `lightcompressor/gradle.properties` to the released version
-     (e.g. `1.8.3`, not `1.8.4-SNAPSHOT`)
-3. Build a signed release APK locally and install on a device to visually
-   confirm the UI shows the tagged library version with no `-SNAPSHOT` suffix.
-4. Tag and push: `git tag app-v1.x.y && git push origin app-v1.x.y`
-5. After the workflow succeeds, create a "Post release commit" that bumps the
-   library back to the next `-SNAPSHOT` and the app to the next
-   `SNAPSHOT` (e.g. `1.3.3-SNAPSHOT`).
+**Pattern A — back-to-back (library + app in one session, preferred).** See
+`app-v1.4.0` for the canonical example.
+
+1. Cut the library release (e.g. `v1.9.0`) **and skip the post-release
+   `-SNAPSHOT` bump** — `lightcompressor/gradle.properties` stays at `1.9.0`.
+2. Create a "Release commit: app-v1.x.y" that only touches root
+   `gradle.properties` (new `appVersionName` + `appVersionCode`) and
+   `CHANGELOG.md`. Library file is untouched because it's already at the
+   released version.
+3. Run the mandatory on-device label check (see below).
+4. Tag and push: `git tag app-v1.x.y && git push origin master app-v1.x.y`
+5. After the workflow succeeds, create a single "Post release commit" that
+   bumps **both** library (`1.9.1-SNAPSHOT`) and app (`1.4.1-SNAPSHOT`,
+   `versionCode 141`) in one commit.
+
+**Pattern B — delayed app release (library already on `-SNAPSHOT`).** See
+`app-v1.3.2` for the canonical example.
+
+1. The library was released earlier; master is at `1.8.4-SNAPSHOT`.
+2. In the "Release commit: app-v1.x.y", temporarily pin
+   `lightcompressor/gradle.properties` back to the released library version
+   (e.g. `1.8.3`). The app ships with this pinned version.
+3. Run the mandatory on-device label check.
+4. Tag and push.
+5. Post-release commit bumps the library back to `-SNAPSHOT` and the app to
+   the next `-SNAPSHOT`.
+
+**Mandatory on-device label check (both patterns):**
+
+```bash
+# Build signed release APK (see "App Signing Setup" for release.env sourcing)
+set -a && source ~/.keys/lce/release.env && set +a
+./gradlew :app:assembleRelease
+
+# Verify keystore certificate (not Android debug)
+/Users/<you>/Library/Android/sdk/build-tools/<latest>/apksigner verify --print-certs \
+  app/build/outputs/apk/release/lce-app-release.apk | head -5
+
+# Install on a connected device
+adb install -r app/build/outputs/apk/release/lce-app-release.apk
+```
+
+Open the app on the device, scroll to the bottom of the main screen. The
+version label at `MainScreen.kt:337` **must** read exactly:
+
+```
+App v<new-version> • Lib v<released-library-version>
+```
+
+with **no `-SNAPSHOT` suffix on either side**. If it does, abort the release
+and fix the gradle.properties files — do not push the tag. The CI guard in
+`app-release.yml` catches this as a second line of defence, but the on-device
+check is faster to diagnose and verifies the rendered label, not just the
+file contents.
 
 ### Publishing to Zapstore
 
