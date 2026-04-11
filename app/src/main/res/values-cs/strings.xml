@@ -2,8 +2,11 @@
 <!-- Czech (Čeština) translations -->
 <resources>
     <string name="pick_video">Vybrat video</string>
+    <string name="pick_gif">Vybrat GIF</string>
     <string name="start_compression">Spustit</string>
     <string name="record_video">Nahrát video</string>
+    <string name="gif_converting_status">Převádění GIFu…</string>
+    <string name="gif_conversion_failed">Převod GIFu selhal</string>
     <string name="bitrate_label">4. Datový tok (kb/s):</string>
     <string name="bitrate_hint">Zadejte datový tok v kilobitech za sekundu (např. 1500)</string>
     <string name="bitrate_auto">Automaticky</string>

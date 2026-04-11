@@ -2,8 +2,11 @@
 <!-- Brazilian Portuguese (Português do Brasil) translations -->
 <resources>
     <string name="pick_video">Selecionar vídeo</string>
+    <string name="pick_gif">Selecionar GIF</string>
     <string name="start_compression">Iniciar</string>
     <string name="record_video">Gravar vídeo</string>
+    <string name="gif_converting_status">Convertendo GIF…</string>
+    <string name="gif_conversion_failed">Falha na conversão do GIF</string>
     <string name="bitrate_label">4. Taxa de bits (kbps):</string>
     <string name="bitrate_hint">Insira a taxa de bits em kilobits por segundo (ex.: 1500)</string>
     <string name="bitrate_auto">Automático</string>

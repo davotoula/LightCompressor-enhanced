@@ -11,12 +11,14 @@
 
 # Ignore all IDEA files
 .idea/*
-.claude/
+.claude/*
 docs/
 
 # Keep these (useful to share)
 !.idea/codeStyles/
 !.idea/runConfigurations/
+!.claude/settings.json
+!.claude/hooks/
 
 local.properties
 maven-repository
