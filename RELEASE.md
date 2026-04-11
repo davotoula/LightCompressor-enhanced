@@ -198,7 +198,20 @@ Recommended flow (matches how `app-v1.3.2` shipped):
 ### Publishing to Zapstore
 
 After the GitHub release for `app-v*` is live, publish to Zapstore with the
-`zapstore` CLI.
+`zsp` CLI (Go rewrite of the original Dart `zapstore` client).
+
+**Install zsp**
+
+```bash
+go install github.com/zapstore/zsp@latest
+```
+
+Binary lands in `$HOME/go/bin/zsp`. Add that directory to `PATH` in `~/.zshrc`
+if it isn't already:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+```
 
 **One-time setup — sign with a local nsec file**
 
@@ -220,6 +233,16 @@ Other accepted values: 64-char hex, `NIP07` (browser extension),
 **Disaster recovery**: store a copy of the nsec in your password manager
 alongside the keystore secrets.
 
+**Validate config before publishing**
+
+```bash
+zsp publish --check zapstore.yaml
+```
+
+A success response looks like `{"package_id":"com.davotoula.lce"}`. This
+verifies that `zapstore.yaml` parses, the GitHub release is reachable, and an
+arm64-v8a APK matches the `match:` regex — all without signing or uploading.
+
 **Publishing a release**
 
 From the repo root, with a clean working tree on the tagged commit:
@@ -228,12 +251,35 @@ From the repo root, with a clean working tree on the tagged commit:
 set -a
 source ~/.keys/lce/zapstore.env
 set +a
-zapstore publish
+zsp publish --skip-preview zapstore.yaml
 ```
 
-Zapstore reads `zapstore.yaml` for app metadata (name, description, assets
-regex) and `CHANGELOG.md` for release notes. It pulls the latest `app-v*`
-GitHub release assets matching the `assets:` regex (`.*.apk`).
+`--skip-preview` avoids the browser preview prompt that would otherwise
+block a non-interactive shell. `set -a` auto-exports every assignment
+sourced from `zapstore.env` so `zsp` (a child process) inherits `SIGN_WITH`.
+
+**First-time NIP-C1 certificate linking**
+
+On your first publish, `zsp` prompts for the APK signing keystore to link
+the certificate to your Nostr identity (NIP-C1). Supply the **absolute**
+path — `~` is not expanded by the prompt:
+
+```
+Path to your keystore (.jks / .keystore): /Users/<you>/.keys/lce/release.keystore
+Key alias (leave blank to use first alias): <Enter>
+Keystore password: <your keystore password>
+```
+
+To skip and link later: pass `--skip-certificate-linking`, then run
+`zsp identity --link-key /Users/<you>/.keys/lce/release.keystore` separately.
+
+**What gets published**
+
+`zsp` reads `zapstore.yaml` for app metadata (summary, description, tags)
+and `CHANGELOG.md` for release notes. It pulls the `app-v*` GitHub release
+assets matching `match:` (`.*\.apk$`), uploads them to
+`https://cdn.zapstore.dev` via Blossom, and broadcasts kind 32267 (app)
+and kind 30063 (release) events to `wss://relay.zapstore.dev`.
 
 After publishing, users on Zapstore will see the update on their next sync.
 
