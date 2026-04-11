@@ -49,6 +49,7 @@ import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -94,7 +95,12 @@ object GifToMp4Converter {
     private const val US_PER_MS = 1000L
     private const val NS_PER_US = 1000L
     private const val MAX_GIF_SIZE_BYTES = 20 * 1024 * 1024
+    private const val READ_CHUNK_BYTES = 8 * 1024
     private const val DRAIN_EOS_MAX_ITERATIONS = 500
+
+    // Not exposed by android.opengl.EGL14; required so eglChooseConfig picks a
+    // config whose pixel format is compatible with a MediaCodec input surface.
+    private const val EGL_RECORDABLE_ANDROID = 0x3142
 
     // Fullscreen quad: 4 vertices x (2 position + 2 texcoord) floats
     // Texcoord Y is flipped because bitmap origin is top-left, GL is bottom-left
@@ -169,18 +175,20 @@ object GifToMp4Converter {
     ): GifToMp4Result? {
         val gifBytes =
             context.contentResolver.openInputStream(uri)?.use { input ->
-                val buffer = ByteArray(MAX_GIF_SIZE_BYTES + 1)
+                val output = ByteArrayOutputStream()
+                val chunk = ByteArray(READ_CHUNK_BYTES)
                 var total = 0
-                while (total <= MAX_GIF_SIZE_BYTES) {
-                    val read = input.read(buffer, total, buffer.size - total)
+                while (true) {
+                    val read = input.read(chunk)
                     if (read == -1) break
                     total += read
+                    if (total > MAX_GIF_SIZE_BYTES) {
+                        Log.w(LOG_TAG, "GIF exceeds max size of $MAX_GIF_SIZE_BYTES bytes")
+                        return null
+                    }
+                    output.write(chunk, 0, read)
                 }
-                if (total > MAX_GIF_SIZE_BYTES) {
-                    Log.w(LOG_TAG, "GIF exceeds max size of $MAX_GIF_SIZE_BYTES bytes")
-                    return null
-                }
-                buffer.copyOf(total)
+                output.toByteArray()
             } ?: run {
                 Log.w(LOG_TAG, "Failed to read GIF bytes")
                 return null
@@ -216,8 +224,8 @@ object GifToMp4Converter {
                 10
             }
 
-        val width = gifWidth.roundToEven()
-        val height = gifHeight.roundToEven()
+        val width = roundUpToEven(gifWidth)
+        val height = roundUpToEven(gifHeight)
 
         Log.d(
             LOG_TAG,
@@ -230,6 +238,9 @@ object GifToMp4Converter {
         var muxer: MediaMuxer? = null
         var egl: EglHelper? = null
         var codecSurface: Surface? = null
+        var bitmap: Bitmap? = null
+        var program = 0
+        var textureId = 0
 
         try {
             val mimeType = MediaFormat.MIMETYPE_VIDEO_AVC
@@ -251,8 +262,8 @@ object GifToMp4Converter {
             egl.makeCurrent()
 
             // Set up GL program and texture for drawing bitmaps
-            val program = createGlProgram()
-            val textureId = createGlTexture()
+            program = createGlProgram()
+            textureId = createGlTexture()
             val vertexBuffer = createVertexBuffer()
 
             muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
@@ -260,7 +271,7 @@ object GifToMp4Converter {
             var muxerStarted = false
             val bufferInfo = MediaCodec.BufferInfo()
 
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val bitmapCanvas = Canvas(bitmap)
 
             var presentationTimeUs = 0L
@@ -281,8 +292,8 @@ object GifToMp4Converter {
 
                 // Drain encoder output
                 val drainResult = drainEncoder(codec, muxer, bufferInfo, trackIndex, muxerStarted, false)
-                trackIndex = drainResult.first
-                muxerStarted = drainResult.second
+                trackIndex = drainResult.trackIndex
+                muxerStarted = drainResult.muxerStarted
 
                 presentationTimeUs += frameDelays[i] * US_PER_MS
                 gifTimeMs += frameDelays[i]
@@ -292,11 +303,6 @@ object GifToMp4Converter {
             codec.signalEndOfInputStream()
             drainEncoder(codec, muxer, bufferInfo, trackIndex, muxerStarted, true)
 
-            // Cleanup GL resources
-            GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
-            GLES20.glDeleteProgram(program)
-            bitmap.recycle()
-
             Log.d(LOG_TAG, "GIF to MP4 conversion complete: ${outputFile.length()} bytes")
 
             return GifToMp4Result(outputFile, "video/mp4", outputFile.length())
@@ -305,6 +311,21 @@ object GifToMp4Converter {
             if (outputFile.exists()) outputFile.delete()
             return null
         } finally {
+            // GL resources must be released while the EGL context is still current
+            // (i.e. before egl.release()), otherwise glDelete* calls operate on a
+            // detached context and the handles leak in the driver.
+            try {
+                if (textureId != 0) GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
+            } catch (_: Exception) {
+            }
+            try {
+                if (program != 0) GLES20.glDeleteProgram(program)
+            } catch (_: Exception) {
+            }
+            try {
+                bitmap?.recycle()
+            } catch (_: Exception) {
+            }
             try {
                 egl?.release()
             } catch (_: Exception) {
@@ -342,43 +363,83 @@ object GifToMp4Converter {
         val eglSurface: EGLSurface
 
         init {
-            display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
-            check(display != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
+            // Request an EGL config compatible with a MediaCodec input surface.
+            // Without EGL_RECORDABLE_ANDROID some GPUs (Adreno/MediaTek) pick a
+            // window-surface-incompatible config and eglCreateWindowSurface fails
+            // or the encoder produces corrupt output. Matches InputSurface.java
+            // in the library's existing transcoder pipeline.
+            var localDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
+            var localContext: EGLContext = EGL14.EGL_NO_CONTEXT
+            var localEglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
 
-            val version = IntArray(2)
-            check(EGL14.eglInitialize(display, version, 0, version, 1)) { "eglInitialize failed" }
+            try {
+                localDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+                check(localDisplay != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
 
-            val configAttribs =
-                intArrayOf(
-                    EGL14.EGL_RED_SIZE,
-                    8,
-                    EGL14.EGL_GREEN_SIZE,
-                    8,
-                    EGL14.EGL_BLUE_SIZE,
-                    8,
-                    EGL14.EGL_ALPHA_SIZE,
-                    8,
-                    EGL14.EGL_RENDERABLE_TYPE,
-                    EGL14.EGL_OPENGL_ES2_BIT,
-                    EGL14.EGL_SURFACE_TYPE,
-                    EGL14.EGL_WINDOW_BIT,
-                    EGL14.EGL_NONE,
-                )
-            val configs = arrayOfNulls<EGLConfig>(1)
-            val numConfigs = IntArray(1)
-            check(EGL14.eglChooseConfig(display, configAttribs, 0, configs, 0, 1, numConfigs, 0)) {
-                "eglChooseConfig failed"
+                val version = IntArray(2)
+                check(EGL14.eglInitialize(localDisplay, version, 0, version, 1)) { "eglInitialize failed" }
+
+                val configAttribs =
+                    intArrayOf(
+                        EGL14.EGL_RED_SIZE,
+                        8,
+                        EGL14.EGL_GREEN_SIZE,
+                        8,
+                        EGL14.EGL_BLUE_SIZE,
+                        8,
+                        EGL14.EGL_ALPHA_SIZE,
+                        8,
+                        EGL14.EGL_RENDERABLE_TYPE,
+                        EGL14.EGL_OPENGL_ES2_BIT,
+                        EGL14.EGL_SURFACE_TYPE,
+                        EGL14.EGL_WINDOW_BIT,
+                        EGL_RECORDABLE_ANDROID,
+                        1,
+                        EGL14.EGL_NONE,
+                    )
+                val configs = arrayOfNulls<EGLConfig>(1)
+                val numConfigs = IntArray(1)
+                check(EGL14.eglChooseConfig(localDisplay, configAttribs, 0, configs, 0, 1, numConfigs, 0)) {
+                    "eglChooseConfig failed"
+                }
+                check(numConfigs[0] > 0) { "eglChooseConfig returned no matching configs" }
+                val config = requireNotNull(configs[0]) { "eglChooseConfig returned null config" }
+
+                val contextAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
+                localContext = EGL14.eglCreateContext(localDisplay, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
+                check(localContext != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
+
+                val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+                localEglSurface = EGL14.eglCreateWindowSurface(localDisplay, config, surface, surfaceAttribs, 0)
+                check(localEglSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
+            } catch (t: Throwable) {
+                // Any step above may have partially initialized EGL state.
+                // Tear down whatever succeeded so we do not leak driver handles
+                // when the caller never gets a reference to this object.
+                if (localEglSurface != EGL14.EGL_NO_SURFACE) {
+                    try {
+                        EGL14.eglDestroySurface(localDisplay, localEglSurface)
+                    } catch (_: Exception) {
+                    }
+                }
+                if (localContext != EGL14.EGL_NO_CONTEXT) {
+                    try {
+                        EGL14.eglDestroyContext(localDisplay, localContext)
+                    } catch (_: Exception) {
+                    }
+                }
+                if (localDisplay != EGL14.EGL_NO_DISPLAY) {
+                    try {
+                        EGL14.eglTerminate(localDisplay)
+                    } catch (_: Exception) {
+                    }
+                }
+                throw t
             }
-            check(numConfigs[0] > 0) { "eglChooseConfig returned no matching configs" }
-            val config = requireNotNull(configs[0]) { "eglChooseConfig returned null config" }
 
-            val contextAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
-            context = EGL14.eglCreateContext(display, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
-            check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
-
-            val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-            eglSurface = EGL14.eglCreateWindowSurface(display, config, surface, surfaceAttribs, 0)
-            check(eglSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
+            display = localDisplay
+            context = localContext
+            eglSurface = localEglSurface
         }
 
         fun makeCurrent() {
@@ -597,6 +658,11 @@ object GifToMp4Converter {
 
     // region Encoder helpers
 
+    private data class DrainState(
+        val trackIndex: Int,
+        val muxerStarted: Boolean,
+    )
+
     private fun drainEncoder(
         codec: MediaCodec,
         muxer: MediaMuxer,
@@ -604,7 +670,7 @@ object GifToMp4Converter {
         trackIndex: Int,
         muxerStarted: Boolean,
         endOfStream: Boolean,
-    ): Pair<Int, Boolean> {
+    ): DrainState {
         var currentTrackIndex = trackIndex
         var currentMuxerStarted = muxerStarted
         var eosDrainIterations = 0
@@ -614,7 +680,7 @@ object GifToMp4Converter {
 
             when {
                 outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                    if (!endOfStream) return Pair(currentTrackIndex, currentMuxerStarted)
+                    if (!endOfStream) return DrainState(currentTrackIndex, currentMuxerStarted)
                     if (++eosDrainIterations >= DRAIN_EOS_MAX_ITERATIONS) {
                         throw RuntimeException("Encoder failed to drain after EOS within $DRAIN_EOS_MAX_ITERATIONS iterations")
                     }
@@ -644,14 +710,20 @@ object GifToMp4Converter {
                     codec.releaseOutputBuffer(outputIndex, false)
 
                     if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                        return Pair(currentTrackIndex, currentMuxerStarted)
+                        return DrainState(currentTrackIndex, currentMuxerStarted)
                     }
                 }
             }
         }
     }
 
-    private fun calculateBitrate(
+    /**
+     * Pick an H.264 target bitrate based on pixel area. The thresholds target
+     * roughly 1080p/720p/480p/below and the numbers match amethyst's upstream
+     * converter so GIF-to-MP4 output looks consistent across both projects.
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun calculateBitrate(
         width: Int,
         height: Int,
     ): Int {
@@ -664,7 +736,13 @@ object GifToMp4Converter {
         }
     }
 
-    private fun Int.roundToEven(): Int = if (this % 2 != 0) this + 1 else this
+    /**
+     * H.264 requires even width/height. Rounds up odd non-negative values to
+     * the next even integer; even values and non-positive values are returned
+     * unchanged (non-positive inputs never reach here — validated upstream).
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun roundUpToEven(value: Int): Int = if (value > 0 && value % 2 != 0) value + 1 else value
 
     // endregion
 }

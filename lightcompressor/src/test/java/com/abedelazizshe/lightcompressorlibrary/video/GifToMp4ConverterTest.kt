@@ -293,4 +293,66 @@ class GifToMp4ConverterTest {
         val delays = GifToMp4Converter.parseGifFrameDelays(gif)
         assertTrue("Expected delay list to contain 80 ms, got $delays", delays.contains(80))
     }
+
+    // --- calculateBitrate ---
+
+    @Test
+    fun `calculateBitrate at or above 1080p returns 4 Mbps`() {
+        assertEquals(4_000_000, GifToMp4Converter.calculateBitrate(1920, 1080))
+        assertEquals(4_000_000, GifToMp4Converter.calculateBitrate(3840, 2160))
+    }
+
+    @Test
+    fun `calculateBitrate at or above 720p but below 1080p returns 2 Mbps`() {
+        assertEquals(2_000_000, GifToMp4Converter.calculateBitrate(1280, 720))
+        assertEquals(2_000_000, GifToMp4Converter.calculateBitrate(1920, 1079))
+    }
+
+    @Test
+    fun `calculateBitrate at or above 480p but below 720p returns 1 Mbps`() {
+        assertEquals(1_000_000, GifToMp4Converter.calculateBitrate(640, 480))
+        assertEquals(1_000_000, GifToMp4Converter.calculateBitrate(1280, 719))
+    }
+
+    @Test
+    fun `calculateBitrate below 480p returns 500 kbps`() {
+        assertEquals(500_000, GifToMp4Converter.calculateBitrate(320, 240))
+        assertEquals(500_000, GifToMp4Converter.calculateBitrate(639, 480))
+    }
+
+    @Test
+    fun `calculateBitrate uses pixel area not single-dimension`() {
+        // A tall 540x1920 portrait GIF has the same pixel count as 1920x540;
+        // both should hit the 720p threshold, not the 1080p one.
+        assertEquals(2_000_000, GifToMp4Converter.calculateBitrate(540, 1920))
+        assertEquals(2_000_000, GifToMp4Converter.calculateBitrate(1920, 540))
+    }
+
+    // --- roundUpToEven ---
+
+    @Test
+    fun `roundUpToEven leaves even numbers unchanged`() {
+        assertEquals(0, GifToMp4Converter.roundUpToEven(0))
+        assertEquals(2, GifToMp4Converter.roundUpToEven(2))
+        assertEquals(480, GifToMp4Converter.roundUpToEven(480))
+        assertEquals(1080, GifToMp4Converter.roundUpToEven(1080))
+    }
+
+    @Test
+    fun `roundUpToEven rounds odd numbers up to next even`() {
+        assertEquals(2, GifToMp4Converter.roundUpToEven(1))
+        assertEquals(4, GifToMp4Converter.roundUpToEven(3))
+        assertEquals(482, GifToMp4Converter.roundUpToEven(481))
+        assertEquals(1082, GifToMp4Converter.roundUpToEven(1081))
+    }
+
+    @Test
+    fun `roundUpToEven passes through non-positive values unchanged`() {
+        // Non-positive widths/heights never reach this function in practice
+        // (they are rejected upstream), but the function should not silently
+        // promote a negative odd number toward zero.
+        assertEquals(0, GifToMp4Converter.roundUpToEven(0))
+        assertEquals(-1, GifToMp4Converter.roundUpToEven(-1))
+        assertEquals(-2, GifToMp4Converter.roundUpToEven(-2))
+    }
 }
