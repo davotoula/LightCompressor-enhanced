@@ -171,6 +171,72 @@ The demo app is distributed as an APK for testing the library functionality.
 
 **Note**: Remember to increment `appVersionCode` for each release (it must be monotonically increasing).
 
+#### Bundling a tagged library version in the app release
+
+The app UI displays the library version read from `lightcompressor/gradle.properties`
+(see `app/build.gradle:21`). App releases going to Play Store / Zapstore must
+ship a **tagged** library version, never a `-SNAPSHOT` suffix.
+
+`.github/workflows/app-release.yml` enforces this with a guard step that fails
+the workflow if `lightcompressor/gradle.properties` contains `-SNAPSHOT` at the
+tagged commit.
+
+Recommended flow (matches how `app-v1.3.2` shipped):
+
+1. Cut the library release first (e.g. `v1.8.3`) — see "Library Releases" above.
+2. Create a "Release commit: app-v1.x.y" that:
+   - Sets `appVersionName` and `appVersionCode` in root `gradle.properties`
+   - Reverts `lightcompressor/gradle.properties` to the released version
+     (e.g. `1.8.3`, not `1.8.4-SNAPSHOT`)
+3. Build a signed release APK locally and install on a device to visually
+   confirm the UI shows the tagged library version with no `-SNAPSHOT` suffix.
+4. Tag and push: `git tag app-v1.x.y && git push origin app-v1.x.y`
+5. After the workflow succeeds, create a "Post release commit" that bumps the
+   library back to the next `-SNAPSHOT` and the app to the next
+   `SNAPSHOT` (e.g. `1.3.3-SNAPSHOT`).
+
+### Publishing to Zapstore
+
+After the GitHub release for `app-v*` is live, publish to Zapstore with the
+`zapstore` CLI.
+
+**One-time setup — sign with a local nsec file**
+
+Zapstore signing key lives alongside the release keystore, outside the repo:
+
+```
+~/.keys/lce/zapstore.env       # chmod 600
+```
+
+File contents (one line):
+
+```
+SIGN_WITH=nsec1...your_nsec_here
+```
+
+Other accepted values: 64-char hex, `NIP07` (browser extension),
+`bunker://...` (NIP-46 remote signer).
+
+**Disaster recovery**: store a copy of the nsec in your password manager
+alongside the keystore secrets.
+
+**Publishing a release**
+
+From the repo root, with a clean working tree on the tagged commit:
+
+```bash
+set -a
+source ~/.keys/lce/zapstore.env
+set +a
+zapstore publish
+```
+
+Zapstore reads `zapstore.yaml` for app metadata (name, description, assets
+regex) and `CHANGELOG.md` for release notes. It pulls the latest `app-v*`
+GitHub release assets matching the `assets:` regex (`.*.apk`).
+
+After publishing, users on Zapstore will see the update on their next sync.
+
 ## Version Management
 
 Library version lives in `lightcompressor/gradle.properties`:
