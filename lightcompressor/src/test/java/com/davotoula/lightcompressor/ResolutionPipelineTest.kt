@@ -1,7 +1,7 @@
-package com.abedelazizshe.lightcompressorlibrary
+package com.davotoula.lightcompressor
 
-import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
-import com.abedelazizshe.lightcompressorlibrary.utils.roundDimension
+import com.davotoula.lightcompressor.config.VideoResizer
+import com.davotoula.lightcompressor.utils.roundDimension
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.utils
+package com.davotoula.lightcompressor.utils
 
 import android.util.Log
 import io.mockk.every

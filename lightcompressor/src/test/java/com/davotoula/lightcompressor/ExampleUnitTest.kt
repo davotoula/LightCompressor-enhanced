@@ -1,6 +1,6 @@
-package com.abedelazizshe.lightcompressorlibrary
+package com.davotoula.lightcompressor
 
-import com.abedelazizshe.lightcompressorlibrary.config.Configuration
+import com.davotoula.lightcompressor.config.Configuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.fail

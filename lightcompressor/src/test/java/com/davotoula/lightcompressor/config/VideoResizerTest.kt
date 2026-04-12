@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.config
+package com.davotoula.lightcompressor.config
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

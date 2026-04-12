@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary
+package com.davotoula.lightcompressor
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -17,6 +17,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.abedelazizshe.lightcompressorlibrary.test", appContext.packageName)
+        assertEquals("com.davotoula.lightcompressor.test", appContext.packageName)
     }
 }

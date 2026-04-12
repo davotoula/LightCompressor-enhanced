@@ -1,13 +1,13 @@
-package com.abedelazizshe.lightcompressorlibrary.compressor
+package com.davotoula.lightcompressor.compressor
 
 import android.content.Context
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
-import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
-import com.abedelazizshe.lightcompressorlibrary.VideoCodec
-import com.abedelazizshe.lightcompressorlibrary.utils.StreamableVideo
+import com.davotoula.lightcompressor.CompressionProgressListener
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.utils.StreamableVideo
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject

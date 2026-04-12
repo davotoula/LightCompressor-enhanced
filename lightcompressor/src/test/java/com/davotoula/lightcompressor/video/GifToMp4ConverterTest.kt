@@ -21,7 +21,7 @@
  * Adapted from the amethyst project (vitorpamplona/amethyst#2189) for use in
  * LightCompressor-enhanced.
  */
-package com.abedelazizshe.lightcompressorlibrary.video
+package com.davotoula.lightcompressor.video
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
