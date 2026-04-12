@@ -2,6 +2,7 @@ package com.davotoula.lightcompressor.video
 
 import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener
+import android.util.Log
 import android.view.Surface
 
 @Suppress("TooGenericExceptionThrown")
@@ -13,6 +14,7 @@ class OutputSurface : OnFrameAvailableListener {
     private var mTextureRender: TextureRenderer? = null
 
     companion object {
+        private const val TAG = "OutputSurface"
         private const val FRAME_WAIT_TIMEOUT_MS = 2500L
         private const val FRAME_WAIT_MAX_ATTEMPTS = 3
     }
@@ -103,9 +105,14 @@ class OutputSurface : OnFrameAvailableListener {
     override fun onFrameAvailable(p0: SurfaceTexture?) {
         synchronized(mFrameSyncObject) {
             if (mFrameAvailable) {
-                throw RuntimeException("mFrameAvailable already set, frame could be dropped")
+                // Some devices deliver the onFrameAvailable callback twice for the same
+                // frame before awaitNewImage() consumes it. Treat the duplicate as
+                // non-fatal — dropping the compression run for this benign race is worse
+                // than continuing with the single frame we already have.
+                Log.w(TAG, "mFrameAvailable already set, frame signal duplicated")
+            } else {
+                mFrameAvailable = true
             }
-            mFrameAvailable = true
             mFrameSyncObject.notifyAll()
         }
     }

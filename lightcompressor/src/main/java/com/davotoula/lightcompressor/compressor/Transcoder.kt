@@ -283,6 +283,8 @@ internal open class Transcoder(
         var inputDone = false
         var decoderDone = false
         var encoderDone = false
+        var submittedFrameCount = 0L
+        var drainedFrameCount = 0L
 
         while (!encoderDone) {
             if (!inputDone) {
@@ -329,6 +331,7 @@ internal open class Transcoder(
 
             @Suppress("LoopWithTooManyJumpStatements")
             loop@ while (encoderOutputAvailable || decoderOutputAvailable) {
+                var outputHandled = false
                 var encoderStatus = MediaCodec.INFO_TRY_AGAIN_LATER
 
                 if (encoderOutputAvailable) {
@@ -358,8 +361,14 @@ internal open class Transcoder(
                                 )
                             }
 
-                            if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
+                            val isCodecConfig =
+                                encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+                            if (isCodecConfig) {
                                 encoderBufferInfo.size = 0
+                            }
+
+                            if (!isCodecConfig) {
+                                drainedFrameCount++
                             }
 
                             if (encoderBufferInfo.size > 0 && muxerStarted) {
@@ -382,10 +391,19 @@ internal open class Transcoder(
                             )
                         }
                     }
+                    outputHandled = true
                 }
                 if (encoderStatus != MediaCodec.INFO_TRY_AGAIN_LATER) continue@loop
 
-                if (decoderOutputAvailable) {
+                val inFlightFrameCount = (submittedFrameCount - drainedFrameCount).coerceAtLeast(0L)
+                val currentInFlightLimit = if (drainedFrameCount == 0L) {
+                    MAX_ENCODER_IN_FLIGHT_FRAMES_WARM_UP
+                } else {
+                    MAX_ENCODER_IN_FLIGHT_FRAMES
+                }
+                val canSubmitMoreFrames = inFlightFrameCount < currentInFlightLimit
+
+                if (decoderOutputAvailable && canSubmitMoreFrames) {
                     val decoderStatus = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs)
                     when {
                         decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
@@ -415,6 +433,7 @@ internal open class Transcoder(
                                 val presentationTimeUs = bufferInfo.presentationTimeUs
                                 inputSurface.setPresentationTime(presentationTimeUs * NS_PER_US)
                                 inputSurface.swapBuffers()
+                                submittedFrameCount++
 
                                 reportProgress(presentationTimeUs)
                             }
@@ -425,6 +444,11 @@ internal open class Transcoder(
                             }
                         }
                     }
+                    outputHandled = true
+                }
+
+                if (!outputHandled) {
+                    break@loop
                 }
             }
         }
@@ -741,6 +765,8 @@ internal open class Transcoder(
         private const val NS_PER_US = 1000L
         private const val AUDIO_BUFFER_SIZE = 64 * 1024
         private const val PERCENT_MULTIPLIER = 100f
+        private const val MAX_ENCODER_IN_FLIGHT_FRAMES = 8L
+        private const val MAX_ENCODER_IN_FLIGHT_FRAMES_WARM_UP = 12L
         private const val AVC_PROFILE_HIGH = MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
         private const val AVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.AVCLevel4
         private const val HEVC_PROFILE_MAIN = MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
