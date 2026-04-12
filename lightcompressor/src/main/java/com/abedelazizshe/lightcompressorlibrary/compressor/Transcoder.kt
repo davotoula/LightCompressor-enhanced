@@ -9,6 +9,7 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
 import android.os.Build
+import android.view.Surface
 import android.util.Log
 import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
@@ -65,6 +66,8 @@ internal open class Transcoder(
         var outputSurface: OutputSurface? = null
         var videoExtractor: MediaExtractor? = null
         var audioTrackInfo: AudioTrackInfo? = null
+        var encoderStarted = false
+        var decoderStarted = false
 
         return try {
             videoExtractor = MediaExtractor().apply {
@@ -80,6 +83,12 @@ internal open class Transcoder(
             val sourceMime = inputFormat.getString(MediaFormat.KEY_MIME)
                 ?: return failure("Source video mime type missing")
 
+            if (!isDecoderAvailable(sourceMime)) {
+                return failure(
+                    "Unsupported video codec: $sourceMime. This device cannot decode this video format."
+                )
+            }
+
             val encoderFormat = MediaFormat.createVideoFormat(
                 codec.mimeType,
                 request.width,
@@ -88,15 +97,26 @@ internal open class Transcoder(
             setOutputFileParameters(inputFormat, encoderFormat, request.bitrate)
             tuneEncoderFormat(encoderFormat)
 
-            encoder = createEncoder(encoderFormat)
-            inputSurface = InputSurface(encoder.createInputSurface())
-            inputSurface.makeCurrent()
+            val encoderOrNull = createEncoderGuarded(encoderFormat)
+                ?: return failure(
+                    if (codec == VideoCodec.H265) MSG_ENCODER_FAILED_H265 else MSG_ENCODER_FAILED_H264
+                )
+            encoder = encoderOrNull
+            try {
+                inputSurface = InputSurface(encoder.createInputSurface())
+                inputSurface.makeCurrent()
+            } catch (e: Exception) {
+                return failure("$MSG_EGL_SETUP_FAILED_PREFIX${e.message}")
+            }
             encoder.start()
+            encoderStarted = true
 
             outputSurface = OutputSurface()
-            decoder = MediaCodec.createDecoderByType(sourceMime)
-            decoder.configure(inputFormat, outputSurface.getSurface(), null, 0)
+            val decoderOrNull = createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
+                ?: return failure("$MSG_DECODER_FAILED_PREFIX$sourceMime$MSG_DECODER_FAILED_SUFFIX")
+            decoder = decoderOrNull
             decoder.start()
+            decoderStarted = true
 
             muxer = MediaMuxer(muxerOutputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             muxer.setOrientationHint(request.rotation)
@@ -110,7 +130,8 @@ internal open class Transcoder(
                 encoder = encoder,
                 inputSurface = inputSurface,
                 muxer = muxer,
-                audioTrack = audioTrackInfo
+                audioTrack = audioTrackInfo,
+                sourceMime = sourceMime
             )
 
             try {
@@ -144,17 +165,21 @@ internal open class Transcoder(
                 } catch (_: Exception) {
                 }
             }
-            try {
-                decoder?.stop()
-            } catch (_: Exception) {
+            if (decoderStarted) {
+                try {
+                    decoder?.stop()
+                } catch (_: Exception) {
+                }
             }
             try {
                 decoder?.release()
             } catch (_: Exception) {
             }
-            try {
-                encoder?.stop()
-            } catch (_: Exception) {
+            if (encoderStarted) {
+                try {
+                    encoder?.stop()
+                } catch (_: Exception) {
+                }
             }
             try {
                 encoder?.release()
@@ -223,7 +248,8 @@ internal open class Transcoder(
         encoder: MediaCodec,
         inputSurface: InputSurface,
         muxer: MediaMuxer,
-        audioTrack: AudioTrackInfo?
+        audioTrack: AudioTrackInfo?,
+        sourceMime: String
     ) {
         val timeoutUs = TIMEOUT_US
         val bufferInfo = MediaCodec.BufferInfo()
@@ -302,7 +328,9 @@ internal open class Transcoder(
                         encoderStatus >= 0 -> {
                             val encodedData = encoder.getOutputBuffer(encoderStatus)
                             if (encodedData == null) {
-                                throw RuntimeException("Encoder output buffer $encoderStatus was null")
+                                throw RuntimeException(
+                                    "Encoder produced null output buffer (index=$encoderStatus). The device encoder may be in a bad state."
+                                )
                             }
 
                             if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
@@ -324,7 +352,9 @@ internal open class Transcoder(
                         }
 
                         else -> {
-                            throw RuntimeException("Unexpected encoder status: $encoderStatus")
+                            throw RuntimeException(
+                                "Unexpected encoder status $encoderStatus during ${codec.name} transcoding"
+                            )
                         }
                     }
                 }
@@ -342,7 +372,9 @@ internal open class Transcoder(
                         }
 
                         decoderStatus < 0 -> {
-                            throw RuntimeException("Unexpected decoder status: $decoderStatus")
+                            throw RuntimeException(
+                                "Unexpected decoder status $decoderStatus while decoding $sourceMime"
+                            )
                         }
 
                         else -> {
@@ -502,6 +534,34 @@ internal open class Transcoder(
     }
 
     /**
+     * Wraps decoder creation and configuration in a try-catch, returning null on failure.
+     * Override in tests to simulate decoder creation failure.
+     */
+    internal open fun createDecoderGuarded(mime: String, format: MediaFormat, surface: Surface?): MediaCodec? {
+        return try {
+            val dec = MediaCodec.createDecoderByType(mime)
+            dec.configure(format, surface, null, 0)
+            dec
+        } catch (e: Exception) {
+            Log.w(TAG, "Decoder creation/configuration failed for $mime: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Wraps [createEncoder] in a try-catch, returning null on failure.
+     * Override in tests to simulate encoder creation failure.
+     */
+    internal open fun createEncoderGuarded(outputFormat: MediaFormat): MediaCodec? {
+        return try {
+            createEncoder(outputFormat)
+        } catch (e: Exception) {
+            Log.w(TAG, "Encoder creation failed: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
      * Creates and configures the encoder for the given format.
      * H264: uses QTI-specific fallback logic.
      * H265: uses simple createEncoderByType.
@@ -573,8 +633,19 @@ internal open class Transcoder(
         }
     }
 
+    private val codecInfos by lazy {
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+    }
+
+    internal open fun isDecoderAvailable(mime: String): Boolean {
+        return codecInfos.any { codecInfo ->
+            !codecInfo.isEncoder && codecInfo.supportedTypes.any {
+                it.equals(mime, ignoreCase = true)
+            }
+        }
+    }
+
     internal open fun codecSupportsProfile(mime: String, profile: Int, level: Int): Boolean {
-        val codecInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
         codecInfos.filter { it.isEncoder }.forEach { codecInfo ->
             val type = codecInfo.supportedTypes.firstOrNull { it.equals(mime, ignoreCase = true) } ?: return@forEach
             val profileLevel = codecInfo.getCapabilitiesForType(type).profileLevels
@@ -617,11 +688,17 @@ internal open class Transcoder(
 
     private val TAG = "Transcoder-${codec.name}"
 
-    companion object {
+    internal companion object {
         private const val TIMEOUT_US = 100L
         private const val AVC_PROFILE_HIGH = MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
         private const val AVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.AVCLevel4
         private const val HEVC_PROFILE_MAIN = MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
         private const val HEVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
+
+        internal const val MSG_ENCODER_FAILED_H265 = "Failed to create H265 encoder. Try using H.264 instead."
+        internal const val MSG_ENCODER_FAILED_H264 = "Failed to create H264 encoder. The device may not support this encoding format."
+        internal const val MSG_DECODER_FAILED_PREFIX = "Failed to create decoder for "
+        internal const val MSG_DECODER_FAILED_SUFFIX = ". The device may not have a free decoder instance."
+        internal const val MSG_EGL_SETUP_FAILED_PREFIX = "EGL/OpenGL setup failed: "
     }
 }

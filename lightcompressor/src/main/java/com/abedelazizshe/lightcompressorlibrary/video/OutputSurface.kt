@@ -63,15 +63,20 @@ class OutputSurface : OnFrameAvailableListener {
      * data is available.
      */
     fun awaitNewImage() {
-        val timeOutMS = 100
+        val timeOutMs = 2500L
+        val maxAttempts = 3
         synchronized(mFrameSyncObject) {
+            var attempts = 0
             while (!mFrameAvailable) {
                 try {
-                    // Wait for onFrameAvailable() to signal us.  Use a timeout to avoid
-                    // stalling the test if it doesn't arrive.
-                    mFrameSyncObject.wait(timeOutMS.toLong())
+                    mFrameSyncObject.wait(timeOutMs)
                     if (!mFrameAvailable) {
-                        throw RuntimeException("Surface frame wait timed out")
+                        attempts++
+                        if (attempts >= maxAttempts) {
+                            throw RuntimeException(
+                                "Surface frame wait timed out after ${maxAttempts * timeOutMs}ms"
+                            )
+                        }
                     }
                 } catch (ie: InterruptedException) {
                     throw RuntimeException(ie)

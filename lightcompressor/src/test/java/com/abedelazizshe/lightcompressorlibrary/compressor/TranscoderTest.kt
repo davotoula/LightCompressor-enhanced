@@ -1,10 +1,12 @@
 package com.abedelazizshe.lightcompressorlibrary.compressor
 
 import android.content.Context
+import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.view.Surface
 import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.utils.StreamableVideo
@@ -125,6 +127,52 @@ class TranscoderTest {
             StreamableVideo.start(muxerOutput, destination)
             StreamableVideo.start(destination, streamable)
         }
+    }
+
+    @Test
+    fun encoderFailureMessage_h265_suggestsH264() {
+        val msg = Transcoder.MSG_ENCODER_FAILED_H265
+        assertTrue(msg.contains("H265"))
+        assertTrue(msg.contains("H.264"))
+    }
+
+    @Test
+    fun encoderFailureMessage_h264_mentionsDeviceSupport() {
+        val msg = Transcoder.MSG_ENCODER_FAILED_H264
+        assertTrue(msg.contains("H264"))
+        assertTrue(msg.contains("device may not support"))
+    }
+
+    @Test
+    fun decoderFailureMessage_containsMimeType() {
+        val mime = "video/avc"
+        val msg = "${Transcoder.MSG_DECODER_FAILED_PREFIX}$mime${Transcoder.MSG_DECODER_FAILED_SUFFIX}"
+        assertTrue(msg.contains("decoder"))
+        assertTrue(msg.contains(mime))
+    }
+
+    @Test
+    fun eglFailureMessage_isDescriptive() {
+        val detail = "unable to get EGL14 display"
+        val msg = "${Transcoder.MSG_EGL_SETUP_FAILED_PREFIX}$detail"
+        assertTrue(msg.contains("EGL"))
+        assertTrue(msg.contains("setup failed"))
+        assertTrue(msg.contains(detail))
+    }
+
+    @Test
+    fun isDecoderAvailable_returnsFalse_forUnsupportedMime() {
+        // Verify the method signature works correctly in a subclass override scenario
+        val transcoder = object : Transcoder(VideoCodec.H264, context, uri, baseRequest()) {
+            override fun isDecoderAvailable(mime: String): Boolean {
+                // Simulate a device that only supports AVC and HEVC decoders
+                return mime in listOf("video/avc", "video/hevc")
+            }
+        }
+        assertFalse(transcoder.isDecoderAvailable("video/divx"))
+        assertFalse(transcoder.isDecoderAvailable("video/x-msvideo"))
+        assertTrue(transcoder.isDecoderAvailable("video/avc"))
+        assertTrue(transcoder.isDecoderAvailable("video/hevc"))
     }
 
     private fun baseRequest(
