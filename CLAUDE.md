@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Fork of LightCompressor — an Android video compression library. Two modules:
+LightCompressor Enhanced — an Android video compression library. Two modules:
 - **lightcompressor** — the library (published via JitPack)
 - **app** — sample Jetpack Compose app demonstrating the library
 
@@ -19,7 +19,7 @@ Fork of LightCompressor — an Android video compression library. Two modules:
 ./gradlew :lightcompressor:testDebugUnitTest  # Run library tests only
 
 # Run a single test class
-./gradlew :lightcompressor:testDebugUnitTest --tests "com.abedelazizshe.lightcompressorlibrary.config.VideoResizerTest"
+./gradlew :lightcompressor:testDebugUnitTest --tests "com.davotoula.lightcompressor.config.VideoResizerTest"
 ```
 
 CI runs: `./gradlew assembleDebug testDebugUnitTest` (JDK 17).
@@ -39,7 +39,7 @@ Git hooks auto-install on build. Pre-commit runs ktlint, pre-push runs detekt.
 
 ### Library (`lightcompressor/`)
 
-Package: `com.abedelazizshe.lightcompressorlibrary`
+Package: `com.davotoula.lightcompressor`
 
 **Public API:**
 - `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines, `cancel()` aborts.
