@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.compressor
+package com.davotoula.lightcompressor.compressor
 
 import android.content.Context
 import android.media.MediaCodec
@@ -11,16 +11,16 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.view.Surface
-import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
-import com.abedelazizshe.lightcompressorlibrary.VideoCodec
-import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.findTrack
-import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.hasQTI
-import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.printException
-import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.setOutputFileParameters
-import com.abedelazizshe.lightcompressorlibrary.utils.StreamableVideo
-import com.abedelazizshe.lightcompressorlibrary.video.InputSurface
-import com.abedelazizshe.lightcompressorlibrary.video.OutputSurface
-import com.abedelazizshe.lightcompressorlibrary.video.Result
+import com.davotoula.lightcompressor.CompressionProgressListener
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.utils.CompressorUtils.findTrack
+import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
+import com.davotoula.lightcompressor.utils.CompressorUtils.printException
+import com.davotoula.lightcompressor.utils.CompressorUtils.setOutputFileParameters
+import com.davotoula.lightcompressor.utils.StreamableVideo
+import com.davotoula.lightcompressor.video.InputSurface
+import com.davotoula.lightcompressor.video.OutputSurface
+import com.davotoula.lightcompressor.video.Result
 import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer

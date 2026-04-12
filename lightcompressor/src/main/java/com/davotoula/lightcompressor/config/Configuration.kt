@@ -1,12 +1,12 @@
-package com.abedelazizshe.lightcompressorlibrary.config
+package com.davotoula.lightcompressor.config
 
 import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.util.Log
-import com.abedelazizshe.lightcompressorlibrary.VideoCodec
-import com.abedelazizshe.lightcompressorlibrary.VideoQuality
-import com.abedelazizshe.lightcompressorlibrary.utils.saveVideoInExternal
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.VideoQuality
+import com.davotoula.lightcompressor.utils.saveVideoInExternal
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException

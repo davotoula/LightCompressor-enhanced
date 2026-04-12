@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.data
+package com.davotoula.lightcompressor.data
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

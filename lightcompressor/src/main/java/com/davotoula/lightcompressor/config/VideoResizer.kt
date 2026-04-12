@@ -1,6 +1,6 @@
-package com.abedelazizshe.lightcompressorlibrary.config
+package com.davotoula.lightcompressor.config
 
-import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils
+import com.davotoula.lightcompressor.utils.CompressorUtils
 
 fun interface VideoResizer {
     companion object {

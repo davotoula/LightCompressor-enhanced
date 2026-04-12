@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.utils
+package com.davotoula.lightcompressor.utils
 
 private const val CODEC_ALIGNMENT = 16
 

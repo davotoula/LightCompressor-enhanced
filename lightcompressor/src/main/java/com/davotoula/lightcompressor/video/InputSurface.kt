@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.video
+package com.davotoula.lightcompressor.video
 
 import android.opengl.EGL14
 import android.opengl.EGLConfig

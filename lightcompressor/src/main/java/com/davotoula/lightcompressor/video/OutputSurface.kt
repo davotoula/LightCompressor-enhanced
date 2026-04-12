@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.video
+package com.davotoula.lightcompressor.video
 
 import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener

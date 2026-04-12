@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary
+package com.davotoula.lightcompressor
 
 import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread

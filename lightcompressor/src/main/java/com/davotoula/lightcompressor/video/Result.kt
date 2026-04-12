@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.video
+package com.davotoula.lightcompressor.video
 
 data class Result(
     val index: Int,

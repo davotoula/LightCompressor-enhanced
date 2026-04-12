@@ -1,14 +1,14 @@
-package com.abedelazizshe.lightcompressorlibrary
+package com.davotoula.lightcompressor
 
 import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
-import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.compressVideo
-import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.isRunning
-import com.abedelazizshe.lightcompressorlibrary.config.Configuration
-import com.abedelazizshe.lightcompressorlibrary.config.StorageConfiguration
-import com.abedelazizshe.lightcompressorlibrary.video.Result
+import com.davotoula.lightcompressor.compressor.Compressor.compressVideo
+import com.davotoula.lightcompressor.compressor.Compressor.isRunning
+import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.StorageConfiguration
+import com.davotoula.lightcompressor.video.Result
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

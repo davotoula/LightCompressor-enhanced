@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.utils
+package com.davotoula.lightcompressor.utils
 
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
@@ -7,7 +7,7 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
-import com.abedelazizshe.lightcompressorlibrary.VideoQuality
+import com.davotoula.lightcompressor.VideoQuality
 import kotlin.math.roundToInt
 
 object CompressorUtils {

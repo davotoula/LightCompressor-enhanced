@@ -1,4 +1,4 @@
-package com.abedelazizshe.lightcompressorlibrary.utils
+package com.davotoula.lightcompressor.utils
 
 import android.content.ContentValues
 import android.content.Context

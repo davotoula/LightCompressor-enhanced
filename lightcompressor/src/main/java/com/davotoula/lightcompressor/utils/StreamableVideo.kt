@@ -1,12 +1,12 @@
-package com.abedelazizshe.lightcompressorlibrary.utils
+package com.davotoula.lightcompressor.utils
 
 import android.util.Log
-import com.abedelazizshe.lightcompressorlibrary.data.CMOV_ATOM
-import com.abedelazizshe.lightcompressorlibrary.data.CO64_ATOM
-import com.abedelazizshe.lightcompressorlibrary.data.FTYP_ATOM
-import com.abedelazizshe.lightcompressorlibrary.data.MDAT_ATOM
-import com.abedelazizshe.lightcompressorlibrary.data.MOOV_ATOM
-import com.abedelazizshe.lightcompressorlibrary.data.STCO_ATOM
+import com.davotoula.lightcompressor.data.CMOV_ATOM
+import com.davotoula.lightcompressor.data.CO64_ATOM
+import com.davotoula.lightcompressor.data.FTYP_ATOM
+import com.davotoula.lightcompressor.data.MDAT_ATOM
+import com.davotoula.lightcompressor.data.MOOV_ATOM
+import com.davotoula.lightcompressor.data.STCO_ATOM
 import java.io.Closeable
 import java.io.File
 import java.io.FileInputStream

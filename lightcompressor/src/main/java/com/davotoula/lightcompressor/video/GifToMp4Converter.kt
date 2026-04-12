@@ -23,7 +23,7 @@
  * this version integrates with the LightCompressor library by using android.util.Log
  * and returning a [GifToMp4Result] instead of MediaCompressorResult.
  */
-package com.abedelazizshe.lightcompressorlibrary.video
+package com.davotoula.lightcompressor.video
 
 import android.content.Context
 import android.graphics.Bitmap
