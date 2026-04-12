@@ -7,7 +7,6 @@ import com.google.firebase.analytics.logEvent
 import com.google.firebase.crashlytics.crashlytics
 
 object AnalyticsTracker {
-
     private const val PARAM_SOURCE = "source"
     private const val PARAM_COUNT = "count"
     private const val PARAM_CODEC = "codec"
@@ -21,7 +20,10 @@ object AnalyticsTracker {
         Firebase.analytics.logEvent(FirebaseAnalytics.Event.APP_OPEN, null)
     }
 
-    fun logVideoSelection(source: String, count: Int) {
+    fun logVideoSelection(
+        source: String,
+        count: Int,
+    ) {
         Firebase.analytics.logEvent("video_selection") {
             param(PARAM_SOURCE, source)
             param(PARAM_COUNT, count.toLong())
@@ -60,7 +62,10 @@ object AnalyticsTracker {
         }
     }
 
-    fun logCompressionCancelled(source: String, videoCount: Int) {
+    fun logCompressionCancelled(
+        source: String,
+        videoCount: Int,
+    ) {
         Firebase.analytics.logEvent("compression_cancelled") {
             param(PARAM_SOURCE, source)
             param(PARAM_COUNT, videoCount.toLong())
@@ -114,6 +119,10 @@ object AnalyticsTracker {
     }
 }
 
-private class NoAudioException(message: String) : RuntimeException(message)
+private class NoAudioException(
+    message: String,
+) : RuntimeException(message)
 
-private class CompressionException(message: String) : RuntimeException(message)
+private class CompressionException(
+    message: String,
+) : RuntimeException(message)

@@ -20,24 +20,25 @@ fun SettingsSummary(
     codec: Codec,
     bitrateKbps: Int,
     isStreamable: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val resolutionText = customResolution?.let { "${it}p" } ?: resolution.label
     val codecText = codec.displayName
-    val bitrateText = "${bitrateKbps} kbps"
+    val bitrateText = "$bitrateKbps kbps"
     val streamableText = if (isStreamable) "Streamable" else "Not streamable"
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = listOf(resolutionText, codecText, bitrateText, streamableText).joinToString("  •  "),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

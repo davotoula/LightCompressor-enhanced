@@ -3,16 +3,21 @@ package com.davotoula.lce.ui.main
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
 
-enum class Resolution(val shortSide: Int, val label: String) {
+enum class Resolution(
+    val shortSide: Int,
+    val label: String,
+) {
     UHD_4K(2160, "4K"),
     FHD_1080(1080, "1080p"),
     HD_720(720, "720p"),
-    SD_540(540, "540p")
+    SD_540(540, "540p"),
 }
 
-enum class Codec(val displayName: String) {
+enum class Codec(
+    val displayName: String,
+) {
     H264("H.264"),
-    H265("H.265 (HEVC)")
+    H265("H.265 (HEVC)"),
 }
 
 data class MainUiState(
@@ -28,26 +33,59 @@ data class MainUiState(
     val pendingUris: List<Uri> = emptyList(),
     val errorMessage: String? = null,
     val toastMessage: String? = null,
-    val isSettingsExpanded: Boolean = true
+    val isSettingsExpanded: Boolean = true,
 )
 
 sealed class MainAction {
-    data class SelectVideos(val uris: List<Uri>) : MainAction()
-    data class SetResolution(val resolution: Resolution) : MainAction()
-    data class SetCustomResolution(val pixels: Int) : MainAction()
-    data class SetCustomResolutionInput(val value: String) : MainAction()
-    data class SetCodec(val codec: Codec) : MainAction()
-    data class SetStreamable(val enabled: Boolean) : MainAction()
-    data class SetBitrate(val kbps: Int) : MainAction()
-    data class SetBitrateInput(val value: String) : MainAction()
+    data class SelectVideos(
+        val uris: List<Uri>,
+    ) : MainAction()
+
+    data class SetResolution(
+        val resolution: Resolution,
+    ) : MainAction()
+
+    data class SetCustomResolution(
+        val pixels: Int,
+    ) : MainAction()
+
+    data class SetCustomResolutionInput(
+        val value: String,
+    ) : MainAction()
+
+    data class SetCodec(
+        val codec: Codec,
+    ) : MainAction()
+
+    data class SetStreamable(
+        val enabled: Boolean,
+    ) : MainAction()
+
+    data class SetBitrate(
+        val kbps: Int,
+    ) : MainAction()
+
+    data class SetBitrateInput(
+        val value: String,
+    ) : MainAction()
+
     object CalculateAutoBitrate : MainAction()
+
     object StartCompression : MainAction()
+
     object CancelCompression : MainAction()
-    data class PlayVideo(val path: String) : MainAction()
+
+    data class PlayVideo(
+        val path: String,
+    ) : MainAction()
+
     object ClearToast : MainAction()
+
     data object ToggleSettings : MainAction()
 }
 
 sealed class MainEvent {
-    data class NavigateToPlayer(val videoPath: String) : MainEvent()
+    data class NavigateToPlayer(
+        val videoPath: String,
+    ) : MainEvent()
 }

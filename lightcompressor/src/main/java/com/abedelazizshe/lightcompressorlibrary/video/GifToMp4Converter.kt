@@ -682,7 +682,9 @@ object GifToMp4Converter {
                 outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                     if (!endOfStream) return DrainState(currentTrackIndex, currentMuxerStarted)
                     if (++eosDrainIterations >= DRAIN_EOS_MAX_ITERATIONS) {
-                        throw RuntimeException("Encoder failed to drain after EOS within $DRAIN_EOS_MAX_ITERATIONS iterations")
+                        throw RuntimeException(
+                            "Encoder failed to drain after EOS within $DRAIN_EOS_MAX_ITERATIONS iterations",
+                        )
                     }
                 }
 

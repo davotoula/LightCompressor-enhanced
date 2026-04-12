@@ -15,18 +15,18 @@ fun saveVideoInExternal(
     context: Context,
     videoFileName: String,
     saveLocation: String,
-    videoFile: File
+    videoFile: File,
 ) {
-    val values = ContentValues().apply {
-
-        put(
-            MediaStore.Images.Media.DISPLAY_NAME,
-            videoFileName
-        )
-        put(MediaStore.Images.Media.MIME_TYPE, "video/mp4")
-        put(MediaStore.Images.Media.RELATIVE_PATH, saveLocation)
-        put(MediaStore.Images.Media.IS_PENDING, 1)
-    }
+    val values =
+        ContentValues().apply {
+            put(
+                MediaStore.Images.Media.DISPLAY_NAME,
+                videoFileName,
+            )
+            put(MediaStore.Images.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Images.Media.RELATIVE_PATH, saveLocation)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
 
     var collection =
         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -38,7 +38,8 @@ fun saveVideoInExternal(
     val fileUri = context.contentResolver.insert(collection, values)
 
     fileUri?.let {
-        context.contentResolver.openFileDescriptor(fileUri, "rw")
+        context.contentResolver
+            .openFileDescriptor(fileUri, "rw")
             .use { descriptor ->
                 descriptor?.let {
                     FileOutputStream(descriptor.fileDescriptor).use { out ->
@@ -59,4 +60,3 @@ fun saveVideoInExternal(
         context.contentResolver.update(fileUri, values, null, null)
     }
 }
-

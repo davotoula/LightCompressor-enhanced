@@ -40,29 +40,31 @@ import com.davotoula.lce.ui.components.SettingsSummary
 fun CollapsibleSettingsCard(
     uiState: MainUiState,
     onAction: (MainAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
     ) {
         Column {
             // Header row - always visible, clickable to toggle
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onAction(MainAction.ToggleSettings) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onAction(MainAction.ToggleSettings) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (uiState.isSettingsExpanded) {
                     Text(
                         text = "Settings",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     SettingsSummary(
@@ -71,16 +73,18 @@ fun CollapsibleSettingsCard(
                         codec = uiState.selectedCodec,
                         bitrateKbps = uiState.bitrateKbps,
                         isStreamable = uiState.isStreamableEnabled,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                 }
                 Icon(
-                    imageVector = if (uiState.isSettingsExpanded)
-                        Icons.Default.KeyboardArrowUp
-                    else
-                        Icons.Default.KeyboardArrowDown,
+                    imageVector =
+                        if (uiState.isSettingsExpanded) {
+                            Icons.Default.KeyboardArrowUp
+                        } else {
+                            Icons.Default.KeyboardArrowDown
+                        },
                     contentDescription = if (uiState.isSettingsExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -88,28 +92,28 @@ fun CollapsibleSettingsCard(
             AnimatedVisibility(
                 visible = uiState.isSettingsExpanded,
                 enter = expandVertically(),
-                exit = shrinkVertically()
+                exit = shrinkVertically(),
             ) {
                 Column(
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 ) {
                     // Resolution Section
                     Text(
                         text = stringResource(R.string.resize_label),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Resolution.entries.forEach { resolution ->
                             FilterChip(
                                 selected = uiState.selectedResolution == resolution && uiState.customResolution == null,
                                 onClick = { onAction(MainAction.SetResolution(resolution)) },
-                                label = { Text(resolution.label) }
+                                label = { Text(resolution.label) },
                             )
                         }
                     }
@@ -126,7 +130,7 @@ fun CollapsibleSettingsCard(
                         label = { Text(stringResource(R.string.resize_hint)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -135,21 +139,22 @@ fun CollapsibleSettingsCard(
                     Text(
                         text = stringResource(R.string.codec_label),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
                     SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Codec.entries.forEachIndexed { index, codec ->
                             SegmentedButton(
                                 selected = uiState.selectedCodec == codec,
                                 onClick = { onAction(MainAction.SetCodec(codec)) },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = Codec.entries.size
-                                )
+                                shape =
+                                    SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = Codec.entries.size,
+                                    ),
                             ) {
                                 Text(codec.displayName)
                             }
@@ -162,24 +167,24 @@ fun CollapsibleSettingsCard(
                     Text(
                         text = stringResource(R.string.streamable_label),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
                     SingleChoiceSegmentedButtonRow(
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         SegmentedButton(
                             selected = uiState.isStreamableEnabled,
                             onClick = { onAction(MainAction.SetStreamable(true)) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         ) {
                             Text(stringResource(R.string.streamable_yes))
                         }
                         SegmentedButton(
                             selected = !uiState.isStreamableEnabled,
                             onClick = { onAction(MainAction.SetStreamable(false)) },
-                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         ) {
                             Text(stringResource(R.string.streamable_no))
                         }
@@ -191,16 +196,16 @@ fun CollapsibleSettingsCard(
                     Text(
                         text = stringResource(R.string.bitrate_label),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         OutlinedButton(
-                            onClick = { onAction(MainAction.CalculateAutoBitrate) }
+                            onClick = { onAction(MainAction.CalculateAutoBitrate) },
                         ) {
                             Text(stringResource(R.string.bitrate_auto))
                         }
@@ -217,7 +222,7 @@ fun CollapsibleSettingsCard(
                             label = { Text(stringResource(R.string.bitrate_hint)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }

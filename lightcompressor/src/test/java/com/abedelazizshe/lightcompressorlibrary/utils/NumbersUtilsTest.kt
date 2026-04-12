@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class NumbersUtilsTest {
-
     @Test
     fun `roundDimension - 1080 stays 1080`() {
         assertEquals(1080, roundDimension(1080.0))

@@ -1,14 +1,22 @@
 package com.abedelazizshe.lightcompressorlibrary.utils
 
 import android.util.Log
-import com.abedelazizshe.lightcompressorlibrary.data.*
-import java.io.*
+import com.abedelazizshe.lightcompressorlibrary.data.CMOV_ATOM
+import com.abedelazizshe.lightcompressorlibrary.data.CO64_ATOM
+import com.abedelazizshe.lightcompressorlibrary.data.FTYP_ATOM
+import com.abedelazizshe.lightcompressorlibrary.data.MDAT_ATOM
+import com.abedelazizshe.lightcompressorlibrary.data.MOOV_ATOM
+import com.abedelazizshe.lightcompressorlibrary.data.STCO_ATOM
+import java.io.Closeable
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
 
 object StreamableVideo {
-
     private const val TAG = "StreamableVideo"
     private const val ATOM_PREAMBLE_SIZE = 8
 
@@ -19,7 +27,10 @@ object StreamableVideo {
      * @throws IOException
      */
     @Throws(IOException::class)
-    fun start(`in`: File?, out: File): Boolean {
+    fun start(
+        `in`: File?,
+        out: File,
+    ): Boolean {
         var ret = false
         var inStream: FileInputStream? = null
         var outStream: FileOutputStream? = null
@@ -39,7 +50,10 @@ object StreamableVideo {
     }
 
     @Throws(IOException::class)
-    private fun convert(infile: FileChannel, outfile: FileChannel): Boolean {
+    private fun convert(
+        infile: FileChannel,
+        outfile: FileChannel,
+    ): Boolean {
         val atomBytes = ByteBuffer.allocate(ATOM_PREAMBLE_SIZE).order(ByteOrder.BIG_ENDIAN)
         var atomType: Int
         var atomSize: Long
@@ -155,7 +169,7 @@ object StreamableVideo {
                     val updatedOffset = currentOffsetUnsigned + if (needsShift) moovAtomSizeLong else 0L
                     if (updatedOffset > 0xFFFFFFFFL) {
                         throw Exception(
-                            "This is bug in original qt-faststart.c: stco atom should be extended to co64 atom as new offset value exceeds uint32, but is not implemented."
+                            "This is bug in original qt-faststart.c: stco atom should be extended to co64 atom as new offset value exceeds uint32, but is not implemented.",
                         )
                     }
                     moovAtom.putInt(updatedOffset.toInt())
@@ -217,7 +231,10 @@ object StreamableVideo {
     }
 
     @Throws(IOException::class)
-    private fun readAndFill(infile: FileChannel, buffer: ByteBuffer): Boolean {
+    private fun readAndFill(
+        infile: FileChannel,
+        buffer: ByteBuffer,
+    ): Boolean {
         buffer.clear()
         val size = infile.read(buffer)
         buffer.flip()
@@ -225,7 +242,11 @@ object StreamableVideo {
     }
 
     @Throws(IOException::class)
-    private fun readAndFill(infile: FileChannel, buffer: ByteBuffer, position: Long): Boolean {
+    private fun readAndFill(
+        infile: FileChannel,
+        buffer: ByteBuffer,
+        position: Long,
+    ): Boolean {
         buffer.clear()
         val size = infile.read(buffer, position)
         buffer.flip()

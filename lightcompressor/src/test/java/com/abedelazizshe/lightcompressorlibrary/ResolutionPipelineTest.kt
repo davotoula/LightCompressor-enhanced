@@ -10,7 +10,6 @@ import org.junit.Test
  * roundDimension floors to the nearest even number for codec compatibility.
  */
 class ResolutionPipelineTest {
-
     @Test
     fun `limitShortSide preserves portrait 1080x2400 exactly`() {
         val resizer = VideoResizer.limitShortSide(1080.0)

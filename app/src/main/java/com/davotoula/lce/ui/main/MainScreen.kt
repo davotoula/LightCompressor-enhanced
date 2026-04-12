@@ -6,12 +6,10 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.core.content.FileProvider
-import androidx.core.content.ContextCompat
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.davotoula.lce.BuildConfig
@@ -75,7 +75,7 @@ fun MainScreen(
     viewModel: MainViewModel = viewModel(),
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
-    onNavigateToPlayer: (String) -> Unit
+    onNavigateToPlayer: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -88,63 +88,68 @@ fun MainScreen(
     }
 
     // Video picker launcher
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onAction(MainAction.SelectVideos(uris))
+    val videoPickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickMultipleVisualMedia(),
+        ) { uris ->
+            if (uris.isNotEmpty()) {
+                viewModel.onAction(MainAction.SelectVideos(uris))
+            }
         }
-    }
 
     // GIF picker launcher (separate so we can constrain to image/gif)
-    val gifPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onAction(MainAction.SelectVideos(uris))
+    val gifPickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickMultipleVisualMedia(),
+        ) { uris ->
+            if (uris.isNotEmpty()) {
+                viewModel.onAction(MainAction.SelectVideos(uris))
+            }
         }
-    }
 
     val permissionRequiredMessage = stringResource(R.string.permission_required_pick_videos)
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions.any { it.value }
-        if (granted) {
-            videoPickerLauncher.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
-            )
-        } else {
-            Toast.makeText(context, permissionRequiredMessage, Toast.LENGTH_SHORT).show()
+    val permissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = RequestMultiplePermissions(),
+        ) { permissions ->
+            val granted = permissions.any { it.value }
+            if (granted) {
+                videoPickerLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
+                )
+            } else {
+                Toast.makeText(context, permissionRequiredMessage, Toast.LENGTH_SHORT).show()
+            }
         }
-    }
 
     // Video capture state and launcher
     var captureVideoUri by remember { mutableStateOf<Uri?>(null) }
 
-    val videoCaptureContract = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CaptureVideo()
-    ) { success ->
-        if (success) {
-            captureVideoUri?.let { uri ->
-                viewModel.onAction(MainAction.SelectVideos(listOf(uri)))
+    val videoCaptureContract =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.CaptureVideo(),
+        ) { success ->
+            if (success) {
+                captureVideoUri?.let { uri ->
+                    viewModel.onAction(MainAction.SelectVideos(listOf(uri)))
+                }
             }
         }
-    }
 
     val cameraPermissionMessage = stringResource(R.string.permission_required_camera)
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            launchVideoCapture(context) { uri ->
-                captureVideoUri = uri
-                videoCaptureContract.launch(uri)
+    val cameraPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (granted) {
+                launchVideoCapture(context) { uri ->
+                    captureVideoUri = uri
+                    videoCaptureContract.launch(uri)
+                }
+            } else {
+                Toast.makeText(context, cameraPermissionMessage, Toast.LENGTH_SHORT).show()
             }
-        } else {
-            Toast.makeText(context, cameraPermissionMessage, Toast.LENGTH_SHORT).show()
         }
-    }
 
     // Handle navigation events
     LaunchedEffect(Unit) {
@@ -168,63 +173,68 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(text = stringResource(R.string.home_title))
                         Spacer(modifier = Modifier.width(8.dp))
                         IconButton(onClick = onToggleTheme) {
-                            val icon = if (isDarkTheme) {
-                                Icons.Default.LightMode
-                            } else {
-                                Icons.Default.DarkMode
-                            }
-                            val description = if (isDarkTheme) {
-                                stringResource(R.string.switch_to_light_mode)
-                            } else {
-                                stringResource(R.string.switch_to_dark_mode)
-                            }
+                            val icon =
+                                if (isDarkTheme) {
+                                    Icons.Default.LightMode
+                                } else {
+                                    Icons.Default.DarkMode
+                                }
+                            val description =
+                                if (isDarkTheme) {
+                                    stringResource(R.string.switch_to_light_mode)
+                                } else {
+                                    stringResource(R.string.switch_to_dark_mode)
+                                }
                             Icon(
                                 imageVector = icon,
                                 contentDescription = description,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
                 actions = {
                     if (uiState.isCompressing) {
                         IconButton(onClick = { viewModel.onAction(MainAction.CancelCompression) }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.cancel_compression),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                         }
                     }
-                }
+                },
             )
-        }
+        },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
         ) {
             // Main content (scrollable)
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
             ) {
                 // Collapsible Settings Card
                 CollapsibleSettingsCard(
                     uiState = uiState,
-                    onAction = viewModel::onAction
+                    onAction = viewModel::onAction,
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -234,7 +244,7 @@ fun MainScreen(
                     Text(
                         text = stringResource(R.string.selected_videos),
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -252,7 +262,7 @@ fun MainScreen(
                                     shareVideo(context, path)
                                 }
                             },
-                            modifier = Modifier.padding(vertical = 4.dp)
+                            modifier = Modifier.padding(vertical = 4.dp),
                         )
                     }
                 }
@@ -260,16 +270,17 @@ fun MainScreen(
 
             // Bottom Buttons Section
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 // Start Compression Button (shown when videos are selected)
                 if (uiState.videos.isNotEmpty() && !uiState.isCompressing) {
                     Button(
                         onClick = { viewModel.onAction(MainAction.StartCompression) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(stringResource(R.string.start_compression))
                     }
@@ -277,20 +288,20 @@ fun MainScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
                         onClick = {
                             if (hasVideoPermission(context)) {
                                 videoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
                                 )
                             } else {
                                 permissionLauncher.launch(requiredVideoPermissions())
                             }
                         },
                         enabled = !uiState.isCompressing,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     ) {
                         Text(stringResource(R.string.pick_video))
                     }
@@ -307,7 +318,7 @@ fun MainScreen(
                             }
                         },
                         enabled = !uiState.isCompressing,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     ) {
                         Text(stringResource(R.string.record_video))
                     }
@@ -321,12 +332,12 @@ fun MainScreen(
                         // picker directly keeps the flow simple and works across versions.
                         gifPickerLauncher.launch(
                             PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.SingleMimeType("image/gif")
-                            )
+                                ActivityResultContracts.PickVisualMedia.SingleMimeType("image/gif"),
+                            ),
                         )
                     },
                     enabled = !uiState.isCompressing,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.pick_gif))
                 }
@@ -337,10 +348,11 @@ fun MainScreen(
                 text = "App v${BuildConfig.VERSION_NAME} • Lib v${BuildConfig.LIBRARY_VERSION}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
         }
     }
@@ -353,60 +365,67 @@ private fun hasVideoPermission(context: Context): Boolean {
     }
 }
 
-private fun requiredVideoPermissions(): Array<String> {
-    return when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
-            android.Manifest.permission.READ_MEDIA_VIDEO,
-            android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
-        )
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
-            android.Manifest.permission.READ_MEDIA_VIDEO
-        )
-        else -> arrayOf(
-            android.Manifest.permission.READ_EXTERNAL_STORAGE
-        )
+private fun requiredVideoPermissions(): Array<String> =
+    when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+            arrayOf(
+                android.Manifest.permission.READ_MEDIA_VIDEO,
+                android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+            )
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+            arrayOf(
+                android.Manifest.permission.READ_MEDIA_VIDEO,
+            )
+        else ->
+            arrayOf(
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            )
     }
-}
 
-private fun shareVideo(context: Context, videoPath: String) {
+private fun shareVideo(
+    context: Context,
+    videoPath: String,
+) {
     val videoFile = File(videoPath)
     if (!videoFile.exists()) {
         Toast.makeText(context, context.getString(R.string.video_file_not_found), Toast.LENGTH_SHORT).show()
         return
     }
 
-    val contentUri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        videoFile
-    )
+    val contentUri =
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            videoFile,
+        )
 
-    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-        type = "video/*"
-        putExtra(Intent.EXTRA_STREAM, contentUri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
+    val shareIntent =
+        Intent(Intent.ACTION_SEND).apply {
+            type = "video/*"
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
 
     val chooserTitle = context.getString(R.string.share_video)
     context.startActivity(Intent.createChooser(shareIntent, chooserTitle))
 }
 
-private fun hasCameraPermission(context: Context): Boolean {
-    return ContextCompat.checkSelfPermission(
+private fun hasCameraPermission(context: Context): Boolean =
+    ContextCompat.checkSelfPermission(
         context,
-        android.Manifest.permission.CAMERA
+        android.Manifest.permission.CAMERA,
     ) == PackageManager.PERMISSION_GRANTED
-}
 
 private fun launchVideoCapture(
     context: Context,
-    onUriCreated: (Uri) -> Unit
+    onUriCreated: (Uri) -> Unit,
 ) {
     val videoFile = File(context.cacheDir, "recorded_video_${System.currentTimeMillis()}.mp4")
-    val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        videoFile
-    )
+    val uri =
+        FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            videoFile,
+        )
     onUriCreated(uri)
 }

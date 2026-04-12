@@ -5,7 +5,6 @@ import android.graphics.SurfaceTexture.OnFrameAvailableListener
 import android.view.Surface
 
 class OutputSurface : OnFrameAvailableListener {
-
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
     private val mFrameSyncObject = Object()
@@ -74,7 +73,7 @@ class OutputSurface : OnFrameAvailableListener {
                         attempts++
                         if (attempts >= maxAttempts) {
                             throw RuntimeException(
-                                "Surface frame wait timed out after ${maxAttempts * timeOutMs}ms"
+                                "Surface frame wait timed out after ${maxAttempts * timeOutMs}ms",
                             )
                         }
                     }

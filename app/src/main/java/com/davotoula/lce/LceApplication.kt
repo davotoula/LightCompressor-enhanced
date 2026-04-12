@@ -9,8 +9,9 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.analytics
 import com.google.firebase.crashlytics.crashlytics
 
-class LceApplication : Application(), ImageLoaderFactory {
-
+class LceApplication :
+    Application(),
+    ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         if (FirebaseApp.getApps(this).isEmpty()) {
@@ -25,11 +26,10 @@ class LceApplication : Application(), ImageLoaderFactory {
         AnalyticsTracker.logAppOpen()
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader
+            .Builder(this)
             .components {
                 add(VideoFrameDecoder.Factory())
-            }
-            .build()
-    }
+            }.build()
 }

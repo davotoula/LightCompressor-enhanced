@@ -6,6 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.abedelazizshe.lightcompressorlibrary.CompressionListener
@@ -16,12 +17,12 @@ import com.abedelazizshe.lightcompressorlibrary.config.SaveLocation
 import com.abedelazizshe.lightcompressorlibrary.config.SharedStorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.config.VideoResizer
 import com.abedelazizshe.lightcompressorlibrary.video.GifToMp4Converter
-import kotlinx.coroutines.Job
 import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.getFileSize
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,10 +32,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import androidx.core.net.toUri
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
-
+class MainViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
@@ -60,7 +61,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     selectedCodec = settings.codec,
                     isStreamableEnabled = settings.isStreamableEnabled,
                     bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
-                    bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput
+                    bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput,
                 )
             }
             if (settings.bitrateKbps == null) {
@@ -76,7 +77,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 resolution = state.selectedResolution,
                 codec = state.selectedCodec,
                 isStreamableEnabled = state.isStreamableEnabled,
-                bitrateKbps = state.bitrateKbps
+                bitrateKbps = state.bitrateKbps,
             )
         }
     }
@@ -109,23 +110,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         AnalyticsTracker.logVideoSelection(
             source = "picker",
-            count = uris.size
+            count = uris.size,
         )
 
         originalVideoSizes.clear()
         _uiState.update { state ->
             state.copy(
                 pendingUris = uris,
-                videos = uris.map { uri ->
-                    VideoDetailsModel(
-                        playableVideoPath = null,
-                        uri = uri,
-                        newSize = "Pending...",
-                        progress = 0f
-                    )
-                },
+                videos =
+                    uris.map { uri ->
+                        VideoDetailsModel(
+                            playableVideoPath = null,
+                            uri = uri,
+                            newSize = "Pending...",
+                            progress = 0f,
+                        )
+                    },
                 errorMessage = null,
-                isSettingsExpanded = false
+                isSettingsExpanded = false,
             )
         }
 
@@ -138,7 +140,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             state.copy(
                 selectedResolution = resolution,
                 customResolution = null,
-                customResolutionInput = resolution.shortSide.toString()
+                customResolutionInput = resolution.shortSide.toString(),
             )
         }
         calculateAutoBitrate()
@@ -149,7 +151,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 customResolution = pixels,
-                customResolutionInput = pixels.toString()
+                customResolutionInput = pixels.toString(),
             )
         }
         calculateAutoBitrate()
@@ -160,7 +162,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 customResolutionInput = value,
-                customResolution = pixels
+                customResolution = pixels,
             )
         }
         if (pixels != null) {
@@ -169,12 +171,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleSetCodec(codec: Codec) {
-        val effectiveCodec = if (codec == Codec.H265 && !isH265Supported()) {
-            showToast(context.getString(R.string.h265_not_supported_fallback))
-            Codec.H264
-        } else {
-            codec
-        }
+        val effectiveCodec =
+            if (codec == Codec.H265 && !isH265Supported()) {
+                showToast(context.getString(R.string.h265_not_supported_fallback))
+                Codec.H264
+            } else {
+                codec
+            }
 
         _uiState.update { state ->
             state.copy(selectedCodec = effectiveCodec)
@@ -195,7 +198,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val clamped = kbps.coerceIn(100, 50000)
             state.copy(
                 bitrateKbps = clamped,
-                bitrateInput = clamped.toString()
+                bitrateInput = clamped.toString(),
             )
         }
         saveSettings()
@@ -206,7 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 bitrateInput = value,
-                bitrateKbps = kbps?.coerceIn(100, 50000) ?: state.bitrateKbps
+                bitrateKbps = kbps?.coerceIn(100, 50000) ?: state.bitrateKbps,
             )
         }
     }
@@ -217,13 +220,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Calculate recommended bitrate based on short side resolution and codec
         // H.265 typically achieves same quality at ~40% lower bitrate
-        val baseBitrate = when {
-            shortSide >= 2160 -> 8000  // 4K: 8 Mbps base
-            shortSide >= 1080 -> 4000  // 1080p: 4 Mbps base
-            shortSide >= 720 -> 2000   // 720p: 2 Mbps base
-            shortSide >= 540 -> 1500   // 540p: 1.5 Mbps base
-            else -> 1000               // Lower: 1 Mbps base
-        }
+        val baseBitrate =
+            when {
+                shortSide >= 2160 -> 8000 // 4K: 8 Mbps base
+                shortSide >= 1080 -> 4000 // 1080p: 4 Mbps base
+                shortSide >= 720 -> 2000 // 720p: 2 Mbps base
+                shortSide >= 540 -> 1500 // 540p: 1.5 Mbps base
+                else -> 1000 // Lower: 1 Mbps base
+            }
 
         // H.265 typically saves ~25% over H.264 at equivalent quality
         val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.75 else 1.0
@@ -232,14 +236,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 bitrateKbps = recommendedBitrate,
-                bitrateInput = recommendedBitrate.toString()
+                bitrateInput = recommendedBitrate.toString(),
             )
         }
     }
 
-    private fun parsePositiveInt(value: String): Int? {
-        return value.toIntOrNull()?.takeIf { it > 0 }
-    }
+    private fun parsePositiveInt(value: String): Int? = value.toIntOrNull()?.takeIf { it > 0 }
 
     private fun startCompression() {
         val state = _uiState.value
@@ -272,10 +274,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val videoUris = videoOriginalIndices.map { state.pendingUris[it] }
         val resolutionPixels = (state.customResolution ?: state.selectedResolution.shortSide).toDouble()
-        val videoCodec = when (state.selectedCodec) {
-            Codec.H264 -> VideoCodec.H264
-            Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
-        }
+        val videoCodec =
+            when (state.selectedCodec) {
+                Codec.H264 -> VideoCodec.H264
+                Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
+            }
 
         AnalyticsTracker.logCompressionStarted(
             bitrateKbps = state.bitrateKbps.toLong(),
@@ -283,7 +286,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             codec = videoCodec.name,
             streamable = state.isStreamableEnabled,
             videoCount = state.pendingUris.size,
-            source = "main_screen"
+            source = "main_screen",
         )
 
         _uiState.update { it.copy(isCompressing = true, errorMessage = null) }
@@ -293,9 +296,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         gifJobs.clear()
         for (originalIndex in gifOriginalIndices) {
             val uri = state.pendingUris[originalIndex]
-            val job = viewModelScope.launch {
-                runGifConversion(originalIndex, uri)
-            }
+            val job =
+                viewModelScope.launch {
+                    runGifConversion(originalIndex, uri)
+                }
             gifJobs += job
         }
 
@@ -304,157 +308,176 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val videoNames = List(videoUris.size) { subIndex ->
-            "compressed_${System.currentTimeMillis()}_${videoOriginalIndices[subIndex]}"
-        }
+        val videoNames =
+            List(videoUris.size) { subIndex ->
+                "compressed_${System.currentTimeMillis()}_${videoOriginalIndices[subIndex]}"
+            }
 
-        val configuration = Configuration.withBitrateInBps(
-            isMinBitrateCheckEnabled = false,
-            videoBitrateInBps = state.bitrateKbps.toLong() * 1000L,
-            resizer = VideoResizer.limitShortSide(resolutionPixels),
-            videoNames = videoNames,
-            videoCodec = videoCodec
-        )
+        val configuration =
+            Configuration.withBitrateInBps(
+                isMinBitrateCheckEnabled = false,
+                videoBitrateInBps = state.bitrateKbps.toLong() * 1000L,
+                resizer = VideoResizer.limitShortSide(resolutionPixels),
+                videoNames = videoNames,
+                videoCodec = videoCodec,
+            )
 
         VideoCompressor.start(
             context = context,
             uris = videoUris,
             isStreamable = state.isStreamableEnabled,
-            storageConfiguration = SharedStorageConfiguration(
-                saveAt = SaveLocation.MOVIES,
-                subFolderName = "lce-compressed"
-            ),
+            storageConfiguration =
+                SharedStorageConfiguration(
+                    saveAt = SaveLocation.MOVIES,
+                    subFolderName = "lce-compressed",
+                ),
             configureWith = configuration,
-            listener = object : CompressionListener {
-                override fun onStart(index: Int) {
-                    val originalIndex = videoOriginalIndices[index]
-                    viewModelScope.launch {
-                        val originalSize = getOriginalVideoSize(videoUris[index])
-                        originalVideoSizes[originalIndex] = originalSize
-                        Log.i(
-                            "MainViewModel",
-                            "Original video size for index $originalIndex: ${getFileSize(originalSize)}"
-                        )
-                        updateVideoProgress(originalIndex, 0f, "Compressing...")
-                    }
-                }
-
-                override fun onSuccess(index: Int, size: Long, path: String?) {
-                    val originalIndex = videoOriginalIndices[index]
-                    viewModelScope.launch {
-                        val originalSize = originalVideoSizes[originalIndex]
-                            ?: getOriginalVideoSize(videoUris[index])
-
-                        if (originalSize in 1..<size) {
-                            Log.w(
+            listener =
+                object : CompressionListener {
+                    override fun onStart(index: Int) {
+                        val originalIndex = videoOriginalIndices[index]
+                        viewModelScope.launch {
+                            val originalSize = getOriginalVideoSize(videoUris[index])
+                            originalVideoSizes[originalIndex] = originalSize
+                            Log.i(
                                 "MainViewModel",
-                                "Compressed video ($size bytes) is larger than original ($originalSize bytes). Not saving."
+                                "Original video size for index $originalIndex: ${getFileSize(originalSize)}",
                             )
-                            path?.let { deleteCompressedFile(it) }
-                            showToast(
-                                context.getString(
-                                    R.string.video_not_saved_larger_toast,
-                                    getFileSize(size),
-                                    getFileSize(originalSize)
-                                )
-                            )
-                            updateVideoNotSaved(originalIndex)
-                        } else {
-                            val sizeString = getFileSize(size)
-                            updateVideoComplete(originalIndex, path, sizeString)
+                            updateVideoProgress(originalIndex, 0f, "Compressing...")
+                        }
+                    }
 
-                            // Check if compressed video lost audio
-                            path?.let { compressedPath ->
-                                val compressedHasAudio = hasAudioTrack(compressedPath)
-                                if (!compressedHasAudio) {
-                                    val originalUri = videoUris[index]
-                                    val originalHasAudio = hasAudioTrack(originalUri)
-                                    Log.w(
-                                        "MainViewModel",
-                                        "Compressed video has no audio. Original had audio: $originalHasAudio"
-                                    )
-                                    AnalyticsTracker.logVideoWithoutSound(
-                                        codec = videoCodec.name,
-                                        source = "main_screen",
-                                        originalHasAudio = originalHasAudio
-                                    )
+                    override fun onSuccess(
+                        index: Int,
+                        size: Long,
+                        path: String?,
+                    ) {
+                        val originalIndex = videoOriginalIndices[index]
+                        viewModelScope.launch {
+                            val originalSize =
+                                originalVideoSizes[originalIndex]
+                                    ?: getOriginalVideoSize(videoUris[index])
+
+                            if (originalSize in 1..<size) {
+                                Log.w(
+                                    "MainViewModel",
+                                    "Compressed video ($size bytes) is larger than original ($originalSize bytes). Not saving.",
+                                )
+                                path?.let { deleteCompressedFile(it) }
+                                showToast(
+                                    context.getString(
+                                        R.string.video_not_saved_larger_toast,
+                                        getFileSize(size),
+                                        getFileSize(originalSize),
+                                    ),
+                                )
+                                updateVideoNotSaved(originalIndex)
+                            } else {
+                                val sizeString = getFileSize(size)
+                                updateVideoComplete(originalIndex, path, sizeString)
+
+                                // Check if compressed video lost audio
+                                path?.let { compressedPath ->
+                                    val compressedHasAudio = hasAudioTrack(compressedPath)
+                                    if (!compressedHasAudio) {
+                                        val originalUri = videoUris[index]
+                                        val originalHasAudio = hasAudioTrack(originalUri)
+                                        Log.w(
+                                            "MainViewModel",
+                                            "Compressed video has no audio. Original had audio: $originalHasAudio",
+                                        )
+                                        AnalyticsTracker.logVideoWithoutSound(
+                                            codec = videoCodec.name,
+                                            source = "main_screen",
+                                            originalHasAudio = originalHasAudio,
+                                        )
+                                    }
                                 }
                             }
+                            checkCompressionComplete()
+
+                            AnalyticsTracker.logCompressionResult(
+                                status = "success",
+                                codec = videoCodec.name,
+                                source = "main_screen",
+                                videoCount = state.pendingUris.size,
+                            )
                         }
-                        checkCompressionComplete()
-
-                        AnalyticsTracker.logCompressionResult(
-                            status = "success",
-                            codec = videoCodec.name,
-                            source = "main_screen",
-                            videoCount = state.pendingUris.size
-                        )
                     }
-                }
 
-                override fun onFailure(index: Int, failureMessage: String) {
-                    val originalIndex = videoOriginalIndices[index]
-                    viewModelScope.launch {
-                        updateVideoError(originalIndex, failureMessage)
-                        checkCompressionComplete()
+                    override fun onFailure(
+                        index: Int,
+                        failureMessage: String,
+                    ) {
+                        val originalIndex = videoOriginalIndices[index]
+                        viewModelScope.launch {
+                            updateVideoError(originalIndex, failureMessage)
+                            checkCompressionComplete()
 
-                        AnalyticsTracker.recordCompressionFailure(
-                            message = failureMessage,
-                            codec = videoCodec.name,
-                            bitrateKbps = state.bitrateKbps.toLong(),
-                            streamable = state.isStreamableEnabled,
-                            source = "main_screen"
-                        )
+                            AnalyticsTracker.recordCompressionFailure(
+                                message = failureMessage,
+                                codec = videoCodec.name,
+                                bitrateKbps = state.bitrateKbps.toLong(),
+                                streamable = state.isStreamableEnabled,
+                                source = "main_screen",
+                            )
 
-                        AnalyticsTracker.logCompressionResult(
-                            status = "failure",
-                            codec = videoCodec.name,
-                            source = "main_screen",
-                            videoCount = state.pendingUris.size
-                        )
+                            AnalyticsTracker.logCompressionResult(
+                                status = "failure",
+                                codec = videoCodec.name,
+                                source = "main_screen",
+                                videoCount = state.pendingUris.size,
+                            )
+                        }
                     }
-                }
 
-                override fun onProgress(index: Int, percent: Float) {
-                    val originalIndex = videoOriginalIndices[index]
-                    viewModelScope.launch {
-                        updateVideoProgress(originalIndex, percent / 100f, "Compressing... ${percent.toInt()}%")
+                    override fun onProgress(
+                        index: Int,
+                        percent: Float,
+                    ) {
+                        val originalIndex = videoOriginalIndices[index]
+                        viewModelScope.launch {
+                            updateVideoProgress(originalIndex, percent / 100f, "Compressing... ${percent.toInt()}%")
+                        }
                     }
-                }
 
-                override fun onCancelled(index: Int) {
-                    val originalIndex = videoOriginalIndices[index]
-                    viewModelScope.launch {
-                        updateVideoError(originalIndex, "Cancelled")
-                        _uiState.update { it.copy(isCompressing = false) }
+                    override fun onCancelled(index: Int) {
+                        val originalIndex = videoOriginalIndices[index]
+                        viewModelScope.launch {
+                            updateVideoError(originalIndex, "Cancelled")
+                            _uiState.update { it.copy(isCompressing = false) }
 
-                        AnalyticsTracker.logCompressionCancelled(
-                            source = "main_screen",
-                            videoCount = state.pendingUris.size
-                        )
+                            AnalyticsTracker.logCompressionCancelled(
+                                source = "main_screen",
+                                videoCount = state.pendingUris.size,
+                            )
+                        }
                     }
-                }
-            }
+                },
         )
     }
 
-    private suspend fun runGifConversion(originalIndex: Int, uri: Uri) {
+    private suspend fun runGifConversion(
+        originalIndex: Int,
+        uri: Uri,
+    ) {
         updateVideoProgress(
             originalIndex,
             0f,
-            context.getString(R.string.gif_converting_status)
+            context.getString(R.string.gif_converting_status),
         )
-        val result = try {
-            GifToMp4Converter.convert(uri, context)
-        } catch (e: Exception) {
-            Log.e("MainViewModel", "GIF conversion error for $uri", e)
-            null
-        }
+        val result =
+            try {
+                GifToMp4Converter.convert(uri, context)
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "GIF conversion error for $uri", e)
+                null
+            }
 
         if (result == null) {
             updateVideoError(
                 originalIndex,
-                context.getString(R.string.gif_conversion_failed)
+                context.getString(R.string.gif_conversion_failed),
             )
             checkCompressionComplete()
             return
@@ -462,33 +485,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Save the MP4 to MOVIES/lce-compressed using the library's shared
         // storage helper, matching the VideoCompressor output location.
-        val savedFile = try {
-            val fileName = "compressed_${System.currentTimeMillis()}_$originalIndex.mp4"
-            val storage = SharedStorageConfiguration(
-                saveAt = SaveLocation.MOVIES,
-                subFolderName = "lce-compressed"
-            )
-            storage.createFileToSave(context, result.file, fileName, shouldSave = true)
-        } catch (e: Exception) {
-            Log.e("MainViewModel", "Failed to save converted GIF", e)
-            null
-        } finally {
-            // The cache-dir intermediate is no longer needed regardless of outcome.
-            if (!result.file.delete() && result.file.exists()) {
-                Log.w("MainViewModel", "Failed to delete GIF cache file: ${result.file.absolutePath}")
+        val savedFile =
+            try {
+                val fileName = "compressed_${System.currentTimeMillis()}_$originalIndex.mp4"
+                val storage =
+                    SharedStorageConfiguration(
+                        saveAt = SaveLocation.MOVIES,
+                        subFolderName = "lce-compressed",
+                    )
+                storage.createFileToSave(context, result.file, fileName, shouldSave = true)
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Failed to save converted GIF", e)
+                null
+            } finally {
+                // The cache-dir intermediate is no longer needed regardless of outcome.
+                if (!result.file.delete() && result.file.exists()) {
+                    Log.w("MainViewModel", "Failed to delete GIF cache file: ${result.file.absolutePath}")
+                }
             }
-        }
 
         if (savedFile == null) {
             updateVideoError(
                 originalIndex,
-                context.getString(R.string.gif_conversion_failed)
+                context.getString(R.string.gif_conversion_failed),
             )
         } else {
             updateVideoComplete(
                 originalIndex,
                 savedFile.path,
-                getFileSize(savedFile.length())
+                getFileSize(savedFile.length()),
             )
         }
         checkCompressionComplete()
@@ -501,7 +526,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             state.copy(
                 isCompressing = false,
-                toastMessage = context.getString(R.string.compression_cancelled)
+                toastMessage = context.getString(R.string.compression_cancelled),
             )
         }
     }
@@ -521,28 +546,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(toastMessage = message) }
     }
 
-    private fun updateVideoProgress(index: Int, progress: Float, status: String) {
+    private fun updateVideoProgress(
+        index: Int,
+        progress: Float,
+        status: String,
+    ) {
         _uiState.update { state ->
             val updatedVideos = state.videos.toMutableList()
             if (index < updatedVideos.size) {
-                updatedVideos[index] = updatedVideos[index].copy(
-                    progress = progress,
-                    newSize = status
-                )
+                updatedVideos[index] =
+                    updatedVideos[index].copy(
+                        progress = progress,
+                        newSize = status,
+                    )
             }
             state.copy(videos = updatedVideos)
         }
     }
 
-    private fun updateVideoComplete(index: Int, path: String?, sizeString: String) {
+    private fun updateVideoComplete(
+        index: Int,
+        path: String?,
+        sizeString: String,
+    ) {
         _uiState.update { state ->
             val updatedVideos = state.videos.toMutableList()
             if (index < updatedVideos.size) {
-                updatedVideos[index] = updatedVideos[index].copy(
-                    playableVideoPath = path,
-                    progress = 1f,
-                    newSize = sizeString
-                )
+                updatedVideos[index] =
+                    updatedVideos[index].copy(
+                        playableVideoPath = path,
+                        progress = 1f,
+                        newSize = sizeString,
+                    )
             }
             state.copy(videos = updatedVideos)
         }
@@ -553,31 +588,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             val updatedVideos = state.videos.toMutableList()
             if (index < updatedVideos.size) {
-                updatedVideos[index] = updatedVideos[index].copy(
-                    playableVideoPath = null,
-                    progress = 1f,
-                    newSize = status
-                )
+                updatedVideos[index] =
+                    updatedVideos[index].copy(
+                        playableVideoPath = null,
+                        progress = 1f,
+                        newSize = status,
+                    )
             }
             state.copy(videos = updatedVideos)
         }
     }
 
-    private fun updateVideoError(index: Int, errorMessage: String) {
+    private fun updateVideoError(
+        index: Int,
+        errorMessage: String,
+    ) {
         _uiState.update { state ->
             val updatedVideos = state.videos.toMutableList()
             if (index < updatedVideos.size) {
-                updatedVideos[index] = updatedVideos[index].copy(
-                    newSize = "Error: $errorMessage",
-                    progress = 0f
-                )
+                updatedVideos[index] =
+                    updatedVideos[index].copy(
+                        newSize = "Error: $errorMessage",
+                        progress = 0f,
+                    )
             }
             state.copy(videos = updatedVideos, errorMessage = errorMessage)
         }
     }
 
-    private fun getOriginalVideoSize(uri: Uri): Long {
-        return try {
+    private fun getOriginalVideoSize(uri: Uri): Long =
+        try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
                 descriptor.statSize
             } ?: 0L
@@ -585,7 +625,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Log.e("MainViewModel", "Failed to get original video size for $uri", e)
             0L
         }
-    }
 
     private fun deleteCompressedFile(path: String) {
         try {
@@ -610,9 +649,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun checkCompressionComplete() {
         val state = _uiState.value
-        val allComplete = state.videos.all { video ->
-            video.progress >= 1f || video.newSize.startsWith("Error:")
-        }
+        val allComplete =
+            state.videos.all { video ->
+                video.progress >= 1f || video.newSize.startsWith("Error:")
+            }
 
         if (allComplete) {
             _uiState.update { it.copy(isCompressing = false) }
@@ -624,19 +664,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun isH265Supported(): Boolean {
-        return try {
+    private fun isH265Supported(): Boolean =
+        try {
             val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
             codecList.codecInfos.any { codecInfo ->
-                codecInfo.isEncoder && codecInfo.supportedTypes.any { type ->
-                    type.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, ignoreCase = true)
-                }
+                codecInfo.isEncoder &&
+                    codecInfo.supportedTypes.any { type ->
+                        type.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, ignoreCase = true)
+                    }
             }
         } catch (e: Exception) {
             Log.d("MainViewModel", "Error checking H.265 support: ${e.message}")
             false
         }
-    }
 
     private fun hasAudioTrack(path: String): Boolean {
         val extractor = MediaExtractor()

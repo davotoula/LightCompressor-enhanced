@@ -19,7 +19,9 @@ import com.davotoula.lce.ui.player.PlayerScreen
  *
  * @property route The string representation of the route used by Navigation Compose
  */
-sealed class LceRoute(val route: String) {
+sealed class LceRoute(
+    val route: String,
+) {
     /**
      * Main screen route - the home screen of the app where users can
      * select videos and configure compression settings.
@@ -37,9 +39,7 @@ sealed class LceRoute(val route: String) {
          * @param videoPath The file path to the video to play
          * @return The complete route string with the encoded video path
          */
-        fun createRoute(videoPath: String): String {
-            return "player/${Uri.encode(videoPath)}"
-        }
+        fun createRoute(videoPath: String): String = "player/${Uri.encode(videoPath)}"
     }
 }
 
@@ -57,11 +57,11 @@ fun LceNavHost(
     navController: NavHostController,
     initialVideoUris: List<Uri> = emptyList(),
     isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
 ) {
     NavHost(
         navController = navController,
-        startDestination = LceRoute.Main.route
+        startDestination = LceRoute.Main.route,
     ) {
         composable(LceRoute.Main.route) {
             MainScreen(
@@ -70,23 +70,25 @@ fun LceNavHost(
                 onToggleTheme = onToggleTheme,
                 onNavigateToPlayer = { videoPath ->
                     navController.navigate(LceRoute.Player.createRoute(videoPath))
-                }
+                },
             )
         }
 
         composable(
             route = LceRoute.Player.route,
-            arguments = listOf(
-                navArgument("videoPath") { type = NavType.StringType }
-            )
+            arguments =
+                listOf(
+                    navArgument("videoPath") { type = NavType.StringType },
+                ),
         ) { backStackEntry ->
-            val videoPath = backStackEntry.arguments?.getString("videoPath")?.let {
-                Uri.decode(it)
-            } ?: return@composable
+            val videoPath =
+                backStackEntry.arguments?.getString("videoPath")?.let {
+                    Uri.decode(it)
+                } ?: return@composable
 
             PlayerScreen(
                 videoPath = videoPath,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
             )
         }
     }

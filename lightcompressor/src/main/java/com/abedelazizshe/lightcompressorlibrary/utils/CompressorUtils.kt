@@ -11,7 +11,6 @@ import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import kotlin.math.roundToInt
 
 object CompressorUtils {
-
     private const val MIN_HEIGHT = 640.0
     private const val MIN_WIDTH = 368.0
 
@@ -25,9 +24,7 @@ object CompressorUtils {
     private var hevcSupportCache: Boolean? = null
     private var qtiSupportCache: Boolean? = null
 
-    fun prepareVideoWidth(
-        mediaMetadataRetriever: MediaMetadataRetriever,
-    ): Double {
+    fun prepareVideoWidth(mediaMetadataRetriever: MediaMetadataRetriever): Double {
         val widthData =
             mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
         return if (widthData.isNullOrEmpty()) {
@@ -37,9 +34,7 @@ object CompressorUtils {
         }
     }
 
-    fun prepareVideoHeight(
-        mediaMetadataRetriever: MediaMetadataRetriever,
-    ): Double {
+    fun prepareVideoHeight(mediaMetadataRetriever: MediaMetadataRetriever): Double {
         val heightData =
             mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
         return if (heightData.isNullOrEmpty()) {
@@ -60,7 +55,6 @@ object CompressorUtils {
         val newFrameRate = getFrameRate(inputFormat)
         val iFrameInterval = getIFrameIntervalRate(inputFormat)
         outputFormat.apply {
-
             // according to https://developer.android.com/media/optimize/sharing#b-frames_and_encoding_profiles
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val type = outputFormat.getString(MediaFormat.KEY_MIME)
@@ -70,7 +64,7 @@ object CompressorUtils {
                 if (type == MIME_HEVC) {
                     setInteger(
                         MediaFormat.KEY_LEVEL,
-                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
+                        MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4,
                     )
                 }
             } else {
@@ -79,7 +73,7 @@ object CompressorUtils {
 
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface,
             )
 
             setInteger(MediaFormat.KEY_FRAME_RATE, newFrameRate)
@@ -88,14 +82,12 @@ object CompressorUtils {
             setInteger(MediaFormat.KEY_BIT_RATE, newBitrate.toInt())
             setInteger(
                 MediaFormat.KEY_BITRATE_MODE,
-                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
             )
 
-
-            //Only attempt changing colour range if device supports it
+            // Only attempt changing colour range if device supports it
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 getColorStandard(inputFormat)?.let {
-
                     setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
                 }
 
@@ -108,67 +100,82 @@ object CompressorUtils {
                 if (inputColorRange != null && inputColorRange != targetColorRange) {
                     Log.w(
                         LOG_TAG_OUTPUT_PARAMS,
-                        "Overriding input color range $inputColorRange with limited range $targetColorRange"
+                        "Overriding input color range $inputColorRange with limited range $targetColorRange",
                     )
                 }
                 setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
             }
 
-
             Log.i(
                 LOG_TAG_OUTPUT_PARAMS,
-                "videoFormat: $this"
+                "videoFormat: $this",
             )
         }
     }
 
-    private fun getFrameRate(format: MediaFormat): Int {
-        return if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) format.getInteger(MediaFormat.KEY_FRAME_RATE)
-        else 30
-    }
+    private fun getFrameRate(format: MediaFormat): Int =
+        if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+            format.getInteger(MediaFormat.KEY_FRAME_RATE)
+        } else {
+            30
+        }
 
-    private fun getIFrameIntervalRate(format: MediaFormat): Int {
-        return if (format.containsKey(MediaFormat.KEY_I_FRAME_INTERVAL)) format.getInteger(
-            MediaFormat.KEY_I_FRAME_INTERVAL
-        )
-        else I_FRAME_INTERVAL
-    }
-
-    private fun getColorStandard(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+    private fun getIFrameIntervalRate(format: MediaFormat): Int =
+        if (format.containsKey(MediaFormat.KEY_I_FRAME_INTERVAL)) {
             format.getInteger(
-                MediaFormat.KEY_COLOR_STANDARD
+                MediaFormat.KEY_I_FRAME_INTERVAL,
             )
         } else {
-            //should not be used on older devices
-            0
+            I_FRAME_INTERVAL
         }
-        else null
-    }
 
-    private fun getColorTransfer(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            format.getInteger(
-                MediaFormat.KEY_COLOR_TRANSFER
-            )
+    private fun getColorStandard(format: MediaFormat): Int? =
+        if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) {
+            if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.N
+            ) {
+                format.getInteger(
+                    MediaFormat.KEY_COLOR_STANDARD,
+                )
+            } else {
+                // should not be used on older devices
+                0
+            }
         } else {
-            //should not be used on older devices
-            0
+            null
         }
-        else null
-    }
 
-    private fun getColorRange(format: MediaFormat): Int? {
-        return if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            format.getInteger(
-                MediaFormat.KEY_COLOR_RANGE
-            )
+    private fun getColorTransfer(format: MediaFormat): Int? =
+        if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
+            if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.N
+            ) {
+                format.getInteger(
+                    MediaFormat.KEY_COLOR_TRANSFER,
+                )
+            } else {
+                // should not be used on older devices
+                0
+            }
         } else {
-            //should not be used on older devices
-            0
+            null
         }
-        else null
-    }
+
+    private fun getColorRange(format: MediaFormat): Int? =
+        if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) {
+            if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.N
+            ) {
+                format.getInteger(
+                    MediaFormat.KEY_COLOR_RANGE,
+                )
+            } else {
+                // should not be used on older devices
+                0
+            }
+        } else {
+            null
+        }
 
     /**
      * Counts the number of tracks (video, audio) found in the file source provided
@@ -209,15 +216,14 @@ object CompressorUtils {
     fun getBitrate(
         bitrate: Int,
         quality: VideoQuality,
-    ): Int {
-        return when (quality) {
+    ): Int =
+        when (quality) {
             VideoQuality.VERY_LOW -> (bitrate * 0.1).roundToInt()
             VideoQuality.LOW -> (bitrate * 0.2).roundToInt()
             VideoQuality.MEDIUM -> (bitrate * 0.3).roundToInt()
             VideoQuality.HIGH -> (bitrate * 0.4).roundToInt()
             VideoQuality.VERY_HIGH -> (bitrate * 0.6).roundToInt()
         }
-    }
 
     /**
      * Generate new width and height for source file
@@ -225,45 +231,48 @@ object CompressorUtils {
      * @param height file's original height
      * @return the scale factor to apply to the video's resolution
      */
-    fun autoResizePercentage(width: Double, height: Double): Double {
-        return when {
+    fun autoResizePercentage(
+        width: Double,
+        height: Double,
+    ): Double =
+        when {
             width >= 1920 || height >= 1920 -> 0.5
             width >= 1280 || height >= 1280 -> 0.75
             width >= 960 || height >= 960 -> 0.95
             else -> 0.9
         }
-    }
 
-    fun hasQTI(): Boolean {
-        return qtiSupportCache ?: run {
-            val hasQti = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-                .codecInfos
-                .any { it.name.contains("qti.avc") }
+    fun hasQTI(): Boolean =
+        qtiSupportCache ?: run {
+            val hasQti =
+                MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                    .codecInfos
+                    .any { it.name.contains("qti.avc") }
             Log.i("Codec Detection", "QTI codec support: $hasQti")
             qtiSupportCache = hasQti
             hasQti
         }
-    }
 
     /**
      * Check if the device supports HEVC (H.265) encoding.
      * Result is cached after first check for performance.
      * @return true if HEVC encoding is supported, false otherwise
      */
-    fun isHevcEncodingSupported(): Boolean {
-        return hevcSupportCache ?: run {
-            val isSupported = MediaCodecList(MediaCodecList.REGULAR_CODECS)
-                .codecInfos
-                .any { codec ->
-                    codec.isEncoder && codec.supportedTypes.any {
-                        it.equals(MIME_HEVC, ignoreCase = true)
+    fun isHevcEncodingSupported(): Boolean =
+        hevcSupportCache ?: run {
+            val isSupported =
+                MediaCodecList(MediaCodecList.REGULAR_CODECS)
+                    .codecInfos
+                    .any { codec ->
+                        codec.isEncoder &&
+                            codec.supportedTypes.any {
+                                it.equals(MIME_HEVC, ignoreCase = true)
+                            }
                     }
-                }
             Log.i("HEVC Support", if (isSupported) "HEVC encoder found" else "No HEVC encoder found")
             hevcSupportCache = isSupported
             isSupported
         }
-    }
 
     /**
      * Get the highest profile level supported by the encoder
@@ -276,36 +285,39 @@ object CompressorUtils {
         if (type == null) return defaultProfile
 
         val codecInfos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
-        val supportedProfiles = codecInfos
-            .filter { codec -> type in codec.supportedTypes && codec.name.contains("encoder") }
-            .firstNotNullOfOrNull { codec -> codec.getCapabilitiesForType(type) }
-            ?.profileLevels
-            ?.map { it.profile }
-            ?: return defaultProfile
+        val supportedProfiles =
+            codecInfos
+                .filter { codec -> type in codec.supportedTypes && codec.name.contains("encoder") }
+                .firstNotNullOfOrNull { codec -> codec.getCapabilitiesForType(type) }
+                ?.profileLevels
+                ?.map { it.profile }
+                ?: return defaultProfile
 
         return selectBestProfile(type, supportedProfiles)
     }
 
-    private fun getDefaultProfileForType(type: String?): Int {
-        return when (type) {
+    private fun getDefaultProfileForType(type: String?): Int =
+        when (type) {
             MIME_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
-    }
 
-    private fun selectBestProfile(type: String, supportedProfiles: List<Int>): Int {
-        return when (type) {
-            "video/avc" -> when {
-                MediaCodecInfo.CodecProfileLevel.AVCProfileHigh in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
-                MediaCodecInfo.CodecProfileLevel.AVCProfileMain in supportedProfiles ->
-                    MediaCodecInfo.CodecProfileLevel.AVCProfileMain
-                else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
-            }
+    private fun selectBestProfile(
+        type: String,
+        supportedProfiles: List<Int>,
+    ): Int =
+        when (type) {
+            "video/avc" ->
+                when {
+                    MediaCodecInfo.CodecProfileLevel.AVCProfileHigh in supportedProfiles ->
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
+                    MediaCodecInfo.CodecProfileLevel.AVCProfileMain in supportedProfiles ->
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileMain
+                    else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+                }
             MIME_HEVC -> MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
             else -> MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
         }
-    }
 }
 
 /*
