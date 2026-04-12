@@ -113,11 +113,13 @@ object CompressorUtils {
         }
     }
 
+    private const val DEFAULT_FRAME_RATE = 30
+
     private fun getFrameRate(format: MediaFormat): Int =
         if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
             format.getInteger(MediaFormat.KEY_FRAME_RATE)
         } else {
-            30
+            DEFAULT_FRAME_RATE
         }
 
     private fun getIFrameIntervalRate(format: MediaFormat): Int =
@@ -183,6 +185,9 @@ object CompressorUtils {
      * @param isVideo to determine whether we are processing video or audio at time of call
      * @return index of the requested track
      */
+    private const val TRACK_NOT_FOUND = -5
+
+    @Suppress("ReturnCount")
     fun findTrack(
         extractor: MediaExtractor,
         isVideo: Boolean,
@@ -197,7 +202,7 @@ object CompressorUtils {
                 if (mime?.startsWith("audio/")!!) return i
             }
         }
-        return -5
+        return TRACK_NOT_FOUND
     }
 
     fun printException(exception: Exception) {
@@ -213,16 +218,22 @@ object CompressorUtils {
      * @param bitrate file's current bitrate
      * @return new smaller bitrate value
      */
+    private const val QUALITY_VERY_LOW = 0.1
+    private const val QUALITY_LOW = 0.2
+    private const val QUALITY_MEDIUM = 0.3
+    private const val QUALITY_HIGH = 0.4
+    private const val QUALITY_VERY_HIGH = 0.6
+
     fun getBitrate(
         bitrate: Int,
         quality: VideoQuality,
     ): Int =
         when (quality) {
-            VideoQuality.VERY_LOW -> (bitrate * 0.1).roundToInt()
-            VideoQuality.LOW -> (bitrate * 0.2).roundToInt()
-            VideoQuality.MEDIUM -> (bitrate * 0.3).roundToInt()
-            VideoQuality.HIGH -> (bitrate * 0.4).roundToInt()
-            VideoQuality.VERY_HIGH -> (bitrate * 0.6).roundToInt()
+            VideoQuality.VERY_LOW -> (bitrate * QUALITY_VERY_LOW).roundToInt()
+            VideoQuality.LOW -> (bitrate * QUALITY_LOW).roundToInt()
+            VideoQuality.MEDIUM -> (bitrate * QUALITY_MEDIUM).roundToInt()
+            VideoQuality.HIGH -> (bitrate * QUALITY_HIGH).roundToInt()
+            VideoQuality.VERY_HIGH -> (bitrate * QUALITY_VERY_HIGH).roundToInt()
         }
 
     /**
@@ -231,15 +242,23 @@ object CompressorUtils {
      * @param height file's original height
      * @return the scale factor to apply to the video's resolution
      */
+    private const val RESOLUTION_FULL_HD = 1920
+    private const val RESOLUTION_HD = 1280
+    private const val RESOLUTION_SD = 960
+    private const val SCALE_FULL_HD = 0.5
+    private const val SCALE_HD = 0.75
+    private const val SCALE_SD = 0.95
+    private const val SCALE_DEFAULT = 0.9
+
     fun autoResizePercentage(
         width: Double,
         height: Double,
     ): Double =
         when {
-            width >= 1920 || height >= 1920 -> 0.5
-            width >= 1280 || height >= 1280 -> 0.75
-            width >= 960 || height >= 960 -> 0.95
-            else -> 0.9
+            width >= RESOLUTION_FULL_HD || height >= RESOLUTION_FULL_HD -> SCALE_FULL_HD
+            width >= RESOLUTION_HD || height >= RESOLUTION_HD -> SCALE_HD
+            width >= RESOLUTION_SD || height >= RESOLUTION_SD -> SCALE_SD
+            else -> SCALE_DEFAULT
         }
 
     fun hasQTI(): Boolean =
@@ -279,6 +298,7 @@ object CompressorUtils {
      * For AVC (H.264): High > Main > Baseline
      * For HEVC (H.265): Main > Main Still Picture
      */
+    @Suppress("ReturnCount")
     private fun getHighestCodecProfileLevel(type: String?): Int {
         val defaultProfile = getDefaultProfileForType(type)
 

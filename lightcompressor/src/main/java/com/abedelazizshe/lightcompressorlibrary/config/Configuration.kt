@@ -3,6 +3,7 @@ package com.abedelazizshe.lightcompressorlibrary.config
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.util.Log
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.VideoQuality
 import com.abedelazizshe.lightcompressorlibrary.utils.saveVideoInExternal
@@ -23,7 +24,8 @@ data class Configuration(
     @Deprecated(
         "Use VideoResizer to override the output video dimensions.",
         ReplaceWith(
-            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)",
+            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                "resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)",
         ),
     )
     constructor(
@@ -47,7 +49,8 @@ data class Configuration(
     @Deprecated(
         "Use VideoResizer to override the output video dimensions.",
         ReplaceWith(
-            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)",
+            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                "resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)",
         ),
     )
     constructor(
@@ -82,12 +85,14 @@ data class Configuration(
             }
             videoBitrateInMbps != null -> {
                 require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
-                videoBitrateInMbps!! * 1000000L
+                videoBitrateInMbps!! * BPS_PER_MBPS
             }
             else -> null
         }
 
     companion object {
+        private const val BPS_PER_MBPS = 1_000_000L
+
         /**
          * Creates a Configuration with bitrate specified in bps for granular control
          */
@@ -137,6 +142,8 @@ data class Configuration(
             )
     }
 }
+
+private const val COPY_BUFFER_SIZE = 4096
 
 private fun getVideoResizer(
     keepOriginalResolution: Boolean,
@@ -193,6 +200,7 @@ class SharedStorageConfiguration(
     private val saveAt: SaveLocation? = null,
     private val subFolderName: String? = null,
 ) : StorageConfiguration {
+    @Suppress("ReturnCount", "NestedBlockDepth")
     override fun createFileToSave(
         context: Context,
         videoFile: File,
@@ -214,6 +222,7 @@ class SharedStorageConfiguration(
                 }
             }
 
+        @Suppress("MagicNumber")
         if (Build.VERSION.SDK_INT >= 29) {
             val fullPath =
                 if (subFolderName != null) {
@@ -244,7 +253,7 @@ class SharedStorageConfiguration(
                 try {
                     desFile.parentFile?.mkdirs()
                 } catch (e: IOException) {
-                    e.printStackTrace()
+                    Log.w("SharedStorage", "Failed to create parent directories", e)
                 }
             }
 
@@ -253,7 +262,7 @@ class SharedStorageConfiguration(
                     .openFileOutput(fileName, Context.MODE_PRIVATE)
                     .use { outputStream ->
                         FileInputStream(videoFile).use { inputStream ->
-                            val buf = ByteArray(4096)
+                            val buf = ByteArray(COPY_BUFFER_SIZE)
                             while (true) {
                                 val sz = inputStream.read(buf)
                                 if (sz <= 0) break

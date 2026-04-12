@@ -19,6 +19,12 @@ import java.nio.channels.FileChannel
 object StreamableVideo {
     private const val TAG = "StreamableVideo"
     private const val ATOM_PREAMBLE_SIZE = 8
+    private const val CMOV_ATOM_OFFSET = 12
+    private const val ATOM_HEAD_TYPE_OFFSET = 4
+    private const val STCO_ENTRY_SIZE = 4
+    private const val CO64_ENTRY_SIZE = 8
+    private const val STCO_HEADER_SIZE = 12
+    private const val UNSIGNED_INT_MASK = 0xFFFFFFFFL
 
     /**
      * @param in  Input file.
@@ -28,14 +34,14 @@ object StreamableVideo {
      */
     @Throws(IOException::class)
     fun start(
-        `in`: File?,
+        inputFile: File?,
         out: File,
     ): Boolean {
         var ret = false
         var inStream: FileInputStream? = null
         var outStream: FileOutputStream? = null
         return try {
-            inStream = FileInputStream(`in`)
+            inStream = FileInputStream(inputFile)
             val infile = inStream.channel
             outStream = FileOutputStream(out)
             val outfile = outStream.channel
@@ -49,6 +55,13 @@ object StreamableVideo {
         }
     }
 
+    @Suppress(
+        "ReturnCount",
+        "ThrowsCount",
+        "CyclomaticComplexMethod",
+        "LongMethod",
+        "TooGenericExceptionThrown",
+    )
     @Throws(IOException::class)
     private fun convert(
         infile: FileChannel,
@@ -65,6 +78,7 @@ object StreamableVideo {
         var startOffset: Long = 0
 
         infile.position(0)
+        @Suppress("LoopWithTooManyJumpStatements")
         while (true) {
             atomOffset = infile.position()
             if (!readAndFill(infile, atomBytes)) {
@@ -136,13 +150,13 @@ object StreamableVideo {
             throw Exception("failed to read moov atom")
         }
 
-        if (moovAtom.getInt(12) == CMOV_ATOM) {
+        if (moovAtom.getInt(CMOV_ATOM_OFFSET) == CMOV_ATOM) {
             throw Exception("this utility does not support compressed moov atoms yet")
         }
 
-        while (moovAtom.remaining() >= 8) {
+        while (moovAtom.remaining() >= ATOM_PREAMBLE_SIZE) {
             val atomHead = moovAtom.position()
-            atomType = moovAtom.getInt(atomHead + 4)
+            atomType = moovAtom.getInt(atomHead + ATOM_HEAD_TYPE_OFFSET)
             if (atomType != STCO_ATOM && atomType != CO64_ATOM) {
                 moovAtom.position(moovAtom.position() + 1)
                 continue
@@ -151,32 +165,34 @@ object StreamableVideo {
             if (atomSize > moovAtom.remaining()) {
                 throw Exception("bad atom size")
             }
-            moovAtom.position(atomHead + 12)
-            if (moovAtom.remaining() < 4) {
+            moovAtom.position(atomHead + STCO_HEADER_SIZE)
+            if (moovAtom.remaining() < STCO_ENTRY_SIZE) {
                 throw Exception("malformed atom")
             }
             val offsetCount = uInt32ToInt(moovAtom.int)
             if (atomType == STCO_ATOM) {
                 Log.i(TAG, "patching stco atom...")
-                if (moovAtom.remaining() < offsetCount * 4) {
+                if (moovAtom.remaining() < offsetCount * STCO_ENTRY_SIZE) {
                     throw Exception("bad atom size/element count")
                 }
                 repeat(offsetCount) {
                     val entryPosition = moovAtom.position()
                     val currentOffset = moovAtom.getInt(entryPosition)
-                    val currentOffsetUnsigned = currentOffset.toLong() and 0xFFFFFFFFL
+                    val currentOffsetUnsigned = currentOffset.toLong() and UNSIGNED_INT_MASK
                     val needsShift = currentOffsetUnsigned < moovOffset
                     val updatedOffset = currentOffsetUnsigned + if (needsShift) moovAtomSizeLong else 0L
-                    if (updatedOffset > 0xFFFFFFFFL) {
+                    if (updatedOffset > UNSIGNED_INT_MASK) {
                         throw Exception(
-                            "This is bug in original qt-faststart.c: stco atom should be extended to co64 atom as new offset value exceeds uint32, but is not implemented.",
+                            "This is bug in original qt-faststart.c: stco atom should be " +
+                                "extended to co64 atom as new offset value exceeds " +
+                                "uint32, but is not implemented.",
                         )
                     }
                     moovAtom.putInt(updatedOffset.toInt())
                 }
             } else {
                 Log.wtf(TAG, "patching co64 atom...")
-                if (moovAtom.remaining() < offsetCount * 8) {
+                if (moovAtom.remaining() < offsetCount * CO64_ENTRY_SIZE) {
                     throw Exception("bad atom size/element count")
                 }
                 repeat(offsetCount) {

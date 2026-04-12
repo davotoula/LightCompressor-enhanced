@@ -1,3 +1,5 @@
+@file:Suppress("MatchingDeclarationName")
+
 package com.davotoula.lce.navigation
 
 import android.net.Uri

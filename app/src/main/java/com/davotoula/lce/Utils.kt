@@ -14,6 +14,10 @@ import java.text.DecimalFormat
 import kotlin.math.log10
 import kotlin.math.pow
 
+private const val COPY_BUFFER_SIZE = 4096
+private const val FILE_SIZE_BASE = 1024.0
+
+@Suppress("NestedBlockDepth")
 fun getMediaPath(
     context: Context,
     uri: Uri,
@@ -41,7 +45,7 @@ fun getMediaPath(
 
             resolver.openInputStream(uri)?.use { inputStream ->
                 FileOutputStream(file).use { outputStream ->
-                    val buf = ByteArray(4096)
+                    val buf = ByteArray(COPY_BUFFER_SIZE)
                     var len: Int
                     while (inputStream.read(buf).also { len = it } > 0) {
                         outputStream.write(
@@ -65,7 +69,7 @@ fun getFileSize(size: Long): String {
     }
 
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
+    val digitGroups = (log10(size.toDouble()) / log10(FILE_SIZE_BASE)).toInt()
 
     return DecimalFormat("#,##0.#").format(
         size / 1024.0.pow(digitGroups.toDouble()),
@@ -134,12 +138,12 @@ private fun getVideoExtension(uriVideo: Uri): String {
 }
 
 private fun copy(
-    `in`: InputStream,
+    input: InputStream,
     out: OutputStream,
 ) {
-    val buffer = ByteArray(4 * 1024)
+    val buffer = ByteArray(COPY_BUFFER_SIZE)
     var bytesRead: Int
-    while (`in`.read(buffer).also { bytesRead = it } != -1) {
+    while (input.read(buffer).also { bytesRead = it } != -1) {
         out.write(buffer, 0, bytesRead)
     }
     out.flush()

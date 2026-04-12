@@ -28,7 +28,8 @@ fun interface VideoResizer {
         fun limitSize(limit: Double): VideoResizer = LimitDimension(limit, limit)
 
         /**
-         * Scale the video down if the width or height are greater than [maxWidth] or [maxHeight], retaining the video's aspect ratio.
+         * Scale the video down if the width or height are greater than [maxWidth] or [maxHeight],
+         * retaining the video's aspect ratio.
          * @param maxWidth The maximum width of the video
          * @param maxHeight The maximum height of the video
          */
@@ -49,7 +50,8 @@ fun interface VideoResizer {
         ): VideoResizer = MatchDimension(size, size, stretch)
 
         /**
-         * Scales the video so that the width matches [width] or the height matches [height], retaining the video's aspect ratio.
+         * Scales the video so that the width matches [width] or the height matches [height],
+         * retaining the video's aspect ratio.
          * @param width The target width of the video
          * @param height The target height of the video
          */

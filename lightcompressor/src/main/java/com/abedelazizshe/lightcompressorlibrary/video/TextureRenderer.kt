@@ -8,11 +8,22 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
+@Suppress("TooGenericExceptionThrown")
 class TextureRenderer {
-    private val floatSizeBytes = 4
-    private val triangleVerticesDataStrideBytes = 5 * floatSizeBytes
+    companion object {
+        private const val FLOAT_SIZE_BYTES = 4
+        private const val COMPONENTS_PER_VERTEX = 5
+        private const val POSITION_COMPONENTS = 3
+        private const val TEXCOORD_OFFSET = 3
+        private const val MATRIX_SIZE = 16
+        private const val QUAD_VERTEX_COUNT = 4
+        private const val TEXCOORD_COMPONENTS = 2
+        private const val INVALID_TEXTURE_ID = -12345
+    }
+
+    private val triangleVerticesDataStrideBytes = COMPONENTS_PER_VERTEX * FLOAT_SIZE_BYTES
     private val triangleVerticesDataPosOffset = 0
-    private val triangleVerticesDataUvOffset = 3
+    private val triangleVerticesDataUvOffset = TEXCOORD_OFFSET
     private var mTriangleVertices: FloatBuffer
 
     private val vertexShader = """uniform mat4 uMVPMatrix;
@@ -35,11 +46,11 @@ void main() {
 }
 """
 
-    private val mMVPMatrix = FloatArray(16)
-    private val mSTMatrix = FloatArray(16)
+    private val mMVPMatrix = FloatArray(MATRIX_SIZE)
+    private val mSTMatrix = FloatArray(MATRIX_SIZE)
 
     private var mProgram = 0
-    private var mTextureID = -12345
+    private var mTextureID = INVALID_TEXTURE_ID
     private var muMVPMatrixHandle = 0
     private var muSTMatrixHandle = 0
     private var maPositionHandle = 0
@@ -72,7 +83,7 @@ void main() {
         mTriangleVertices =
             ByteBuffer
                 .allocateDirect(
-                    mTriangleVerticesData.size * floatSizeBytes,
+                    mTriangleVerticesData.size * FLOAT_SIZE_BYTES,
                 ).order(ByteOrder.nativeOrder())
                 .asFloatBuffer()
         mTriangleVertices.put(mTriangleVerticesData).position(0)
@@ -98,7 +109,7 @@ void main() {
         mTriangleVertices.position(triangleVerticesDataPosOffset)
         GLES20.glVertexAttribPointer(
             maPositionHandle,
-            3,
+            POSITION_COMPONENTS,
             GLES20.GL_FLOAT,
             false,
             triangleVerticesDataStrideBytes,
@@ -111,7 +122,7 @@ void main() {
         mTriangleVertices.position(triangleVerticesDataUvOffset)
         GLES20.glVertexAttribPointer(
             maTextureHandle,
-            2,
+            TEXCOORD_COMPONENTS,
             GLES20.GL_FLOAT,
             false,
             triangleVerticesDataStrideBytes,
@@ -125,7 +136,7 @@ void main() {
         GLES20.glUniformMatrix4fv(muMVPMatrixHandle, 1, false, mMVPMatrix, 0)
         GLES20.glUniformMatrix4fv(muSTMatrixHandle, 1, false, mSTMatrix, 0)
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, QUAD_VERTEX_COUNT)
         checkGlError("glDrawArrays")
         GLES20.glFinish()
     }
@@ -133,6 +144,7 @@ void main() {
     /**
      * Initializes GL state.  Call this after the EGL surface has been created and made current.
      */
+    @Suppress("ThrowsCount")
     fun surfaceCreated() {
         mProgram = createProgram()
         if (mProgram == 0) {
@@ -207,6 +219,7 @@ void main() {
         return shader
     }
 
+    @Suppress("ReturnCount")
     private fun createProgram(): Int {
         val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexShader)
         if (vertexShader == 0) {

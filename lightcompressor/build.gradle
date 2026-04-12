@@ -74,10 +74,12 @@ detekt {
     config.setFrom(files("${rootProject.projectDir}/detekt.yml"))
     buildUponDefaultConfig = true
     allRules = false
+    source.setFrom(files("src/main/java", "src/test/java"))
 }
 
 tasks.withType(io.gitlab.arturbosch.detekt.Detekt).configureEach {
     jvmTarget = "11"
+    setSource(files("src/main/java", "src/test/java"))
 }
 
 dependencies {

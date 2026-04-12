@@ -10,6 +10,9 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
+private const val COPY_BUFFER_SIZE = 4096
+
+@Suppress("NestedBlockDepth")
 @RequiresApi(Build.VERSION_CODES.Q)
 fun saveVideoInExternal(
     context: Context,
@@ -44,7 +47,7 @@ fun saveVideoInExternal(
                 descriptor?.let {
                     FileOutputStream(descriptor.fileDescriptor).use { out ->
                         FileInputStream(videoFile).use { inputStream ->
-                            val buf = ByteArray(4096)
+                            val buf = ByteArray(COPY_BUFFER_SIZE)
                             while (true) {
                                 val sz = inputStream.read(buf)
                                 if (sz <= 0) break

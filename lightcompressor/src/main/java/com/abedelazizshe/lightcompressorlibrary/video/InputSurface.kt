@@ -8,11 +8,16 @@ import android.opengl.EGLExt
 import android.opengl.EGLSurface
 import android.view.Surface
 
+@Suppress("TooGenericExceptionThrown")
 class InputSurface(
     surface: Surface?,
 ) {
-    private val eglRecordableAndroid = 0x3142
-    private val eglOpenGlES2Bit = 4
+    companion object {
+        private const val EGL_RECORDABLE_ANDROID = 0x3142
+        private const val EGL_OPENGL_ES2_BIT = 4
+        private const val EGL_COLOR_SIZE = 8
+    }
+
     private var mEGLDisplay: EGLDisplay? = null
     private var mEGLContext: EGLContext? = null
     private var mEGLSurface: EGLSurface? = null
@@ -20,12 +25,13 @@ class InputSurface(
 
     init {
         if (surface == null) {
-            throw NullPointerException()
+            throw NullPointerException("surface must not be null")
         }
         mSurface = surface
         eglSetup()
     }
 
+    @Suppress("ThrowsCount")
     private fun eglSetup() {
         mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         if (mEGLDisplay === EGL14.EGL_NO_DISPLAY) {
@@ -39,14 +45,14 @@ class InputSurface(
         val attribList =
             intArrayOf(
                 EGL14.EGL_RED_SIZE,
-                8,
+                EGL_COLOR_SIZE,
                 EGL14.EGL_GREEN_SIZE,
-                8,
+                EGL_COLOR_SIZE,
                 EGL14.EGL_BLUE_SIZE,
-                8,
+                EGL_COLOR_SIZE,
                 EGL14.EGL_RENDERABLE_TYPE,
-                eglOpenGlES2Bit,
-                eglRecordableAndroid,
+                EGL_OPENGL_ES2_BIT,
+                EGL_RECORDABLE_ANDROID,
                 1,
                 EGL14.EGL_NONE,
             )

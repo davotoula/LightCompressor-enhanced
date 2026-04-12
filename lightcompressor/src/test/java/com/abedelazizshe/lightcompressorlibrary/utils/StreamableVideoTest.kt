@@ -125,6 +125,7 @@ class StreamableVideoTest {
         val moovSize = ByteBuffer.wrap(bytes, moovOffset, 4).order(ByteOrder.BIG_ENDIAN).int
         var cursor = moovOffset + ATOM_HEADER_SIZE
         val end = moovOffset + moovSize
+        @Suppress("LoopWithTooManyJumpStatements")
         while (cursor + ATOM_HEADER_SIZE <= end) {
             val size = ByteBuffer.wrap(bytes, cursor, 4).order(ByteOrder.BIG_ENDIAN).int
             if (size <= 0 || cursor + size > end) {

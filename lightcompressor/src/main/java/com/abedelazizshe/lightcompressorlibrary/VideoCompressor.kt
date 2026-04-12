@@ -35,6 +35,8 @@ enum class VideoCodec(
     H265("video/hevc"),
 }
 
+private const val COPY_BUFFER_SIZE = 4096
+
 object VideoCompressor : CoroutineScope by MainScope() {
     private var job: Job? = null
 
@@ -236,6 +238,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
             )
         }
 
+    @Suppress("NestedBlockDepth", "TooGenericExceptionCaught", "SwallowedException")
     private fun getMediaPath(
         context: Context,
         uri: Uri,
@@ -250,6 +253,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
                 cursor.moveToFirst()
                 cursor.getString(columnIndex)
             } else {
+                @Suppress("TooGenericExceptionThrown", "ThrowingExceptionsWithoutMessageOrCause")
                 throw Exception()
             }
         } catch (e: Exception) {
@@ -262,7 +266,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
 
                 resolver.openInputStream(uri)?.use { inputStream ->
                     FileOutputStream(file).use { outputStream ->
-                        val buf = ByteArray(4096)
+                        val buf = ByteArray(COPY_BUFFER_SIZE)
                         var len: Int
                         while (inputStream.read(buf).also { len = it } > 0) {
                             outputStream.write(

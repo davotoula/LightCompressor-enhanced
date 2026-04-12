@@ -33,9 +33,27 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@Suppress("TooManyFunctions")
 class MainViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
+    companion object {
+        private const val BITRATE_MIN_KBPS = 100
+        private const val BITRATE_MAX_KBPS = 50000
+        private const val BITRATE_4K_KBPS = 8000
+        private const val BITRATE_1080P_KBPS = 4000
+        private const val BITRATE_720P_KBPS = 2000
+        private const val BITRATE_540P_KBPS = 1500
+        private const val BITRATE_LOW_KBPS = 1000
+        private const val RESOLUTION_4K = 2160
+        private const val RESOLUTION_1080P = 1080
+        private const val RESOLUTION_720P = 720
+        private const val RESOLUTION_540P = 540
+        private const val H265_BITRATE_MULTIPLIER = 0.75
+        private const val KBPS_TO_BPS = 1000L
+        private const val PERCENT_DIVISOR = 100f
+    }
+
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
@@ -195,7 +213,7 @@ class MainViewModel(
 
     private fun handleSetBitrate(kbps: Int) {
         _uiState.update { state ->
-            val clamped = kbps.coerceIn(100, 50000)
+            val clamped = kbps.coerceIn(BITRATE_MIN_KBPS, BITRATE_MAX_KBPS)
             state.copy(
                 bitrateKbps = clamped,
                 bitrateInput = clamped.toString(),
@@ -209,7 +227,7 @@ class MainViewModel(
         _uiState.update { state ->
             state.copy(
                 bitrateInput = value,
-                bitrateKbps = kbps?.coerceIn(100, 50000) ?: state.bitrateKbps,
+                bitrateKbps = kbps?.coerceIn(BITRATE_MIN_KBPS, BITRATE_MAX_KBPS) ?: state.bitrateKbps,
             )
         }
     }
@@ -222,15 +240,15 @@ class MainViewModel(
         // H.265 typically achieves same quality at ~40% lower bitrate
         val baseBitrate =
             when {
-                shortSide >= 2160 -> 8000 // 4K: 8 Mbps base
-                shortSide >= 1080 -> 4000 // 1080p: 4 Mbps base
-                shortSide >= 720 -> 2000 // 720p: 2 Mbps base
-                shortSide >= 540 -> 1500 // 540p: 1.5 Mbps base
-                else -> 1000 // Lower: 1 Mbps base
+                shortSide >= RESOLUTION_4K -> BITRATE_4K_KBPS
+                shortSide >= RESOLUTION_1080P -> BITRATE_1080P_KBPS
+                shortSide >= RESOLUTION_720P -> BITRATE_720P_KBPS
+                shortSide >= RESOLUTION_540P -> BITRATE_540P_KBPS
+                else -> BITRATE_LOW_KBPS
             }
 
         // H.265 typically saves ~25% over H.264 at equivalent quality
-        val codecMultiplier = if (state.selectedCodec == Codec.H265) 0.75 else 1.0
+        val codecMultiplier = if (state.selectedCodec == Codec.H265) H265_BITRATE_MULTIPLIER else 1.0
         val recommendedBitrate = (baseBitrate * codecMultiplier).toInt()
 
         _uiState.update {
@@ -243,6 +261,7 @@ class MainViewModel(
 
     private fun parsePositiveInt(value: String): Int? = value.toIntOrNull()?.takeIf { it > 0 }
 
+    @Suppress("ReturnCount")
     private fun startCompression() {
         val state = _uiState.value
 
@@ -316,7 +335,7 @@ class MainViewModel(
         val configuration =
             Configuration.withBitrateInBps(
                 isMinBitrateCheckEnabled = false,
-                videoBitrateInBps = state.bitrateKbps.toLong() * 1000L,
+                videoBitrateInBps = state.bitrateKbps.toLong() * KBPS_TO_BPS,
                 resizer = VideoResizer.limitShortSide(resolutionPixels),
                 videoNames = videoNames,
                 videoCodec = videoCodec,
@@ -361,7 +380,8 @@ class MainViewModel(
                             if (originalSize in 1..<size) {
                                 Log.w(
                                     "MainViewModel",
-                                    "Compressed video ($size bytes) is larger than original ($originalSize bytes). Not saving.",
+                                    "Compressed video ($size bytes) is larger than" +
+                                        " original ($originalSize bytes). Not saving.",
                                 )
                                 path?.let { deleteCompressedFile(it) }
                                 showToast(
@@ -437,7 +457,11 @@ class MainViewModel(
                     ) {
                         val originalIndex = videoOriginalIndices[index]
                         viewModelScope.launch {
-                            updateVideoProgress(originalIndex, percent / 100f, "Compressing... ${percent.toInt()}%")
+                            updateVideoProgress(
+                                originalIndex,
+                                percent / PERCENT_DIVISOR,
+                                "Compressing... ${percent.toInt()}%",
+                            )
                         }
                     }
 

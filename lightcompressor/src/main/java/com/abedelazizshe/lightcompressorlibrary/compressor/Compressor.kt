@@ -26,7 +26,12 @@ import java.io.File
  */
 object Compressor {
     // 2Mbps
-    private const val MIN_BITRATE = 2000000
+    private const val MIN_BITRATE = 2_000_000
+
+    private const val ROTATION_90 = 90
+    private const val ROTATION_180 = 180
+    private const val ROTATION_270 = 270
+    private const val MS_PER_US = 1000
 
     private const val INVALID_BITRATE =
         "The provided bitrate is smaller than what is needed for compression " +
@@ -50,7 +55,9 @@ object Compressor {
 
             try {
                 mediaMetadataRetriever.setDataSource(context, srcUri)
-            } catch (exception: Exception) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") exception: Exception,
+            ) {
                 printException(exception)
                 return@withContext Result(
                     index,
@@ -87,7 +94,7 @@ object Compressor {
 
             var (rotation, bitrate, duration) =
                 try {
-                    Triple(rotationData.toInt(), bitrateData.toInt(), durationData.toLong() * 1000)
+                    Triple(rotationData.toInt(), bitrateData.toInt(), durationData.toLong() * MS_PER_US)
                 } catch (_: java.lang.Exception) {
                     return@withContext Result(
                         index,
@@ -133,14 +140,14 @@ object Compressor {
             // Handle rotation values and swapping height and width if needed
             rotation =
                 when (rotation) {
-                    90, 270 -> {
+                    ROTATION_90, ROTATION_270 -> {
                         val tempHeight = newHeight
                         newHeight = newWidth
                         newWidth = tempHeight
                         0
                     }
 
-                    180 -> 0
+                    ROTATION_180 -> 0
                     else -> rotation
                 }
 
@@ -162,7 +169,7 @@ object Compressor {
             )
         }
 
-    @Suppress("DEPRECATION")
+    @Suppress("DEPRECATION", "LongParameterList")
     private fun start(
         id: Int,
         newWidth: Int,
@@ -205,13 +212,16 @@ object Compressor {
                 rotation,
                 videoCodec,
             )
-        } catch (e: Exception) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
             val fallback =
                 fallbackTo16Aligned(newWidth, newHeight)
                     ?: throw e // already 16-aligned or too small, nothing to retry
             Log.w(
                 "Compressor",
-                "Encoder failed with ${newWidth}x$newHeight, retrying with 16-aligned ${fallback.first}x${fallback.second}",
+                "Encoder failed with ${newWidth}x$newHeight, " +
+                    "retrying with 16-aligned ${fallback.first}x${fallback.second}",
                 e,
             )
             transcode(
@@ -232,6 +242,7 @@ object Compressor {
         }
     }
 
+    @Suppress("LongParameterList")
     private fun transcode(
         id: Int,
         width: Int,

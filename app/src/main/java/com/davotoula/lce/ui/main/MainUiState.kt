@@ -3,6 +3,7 @@ package com.davotoula.lce.ui.main
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
 
+@Suppress("MagicNumber")
 enum class Resolution(
     val shortSide: Int,
     val label: String,

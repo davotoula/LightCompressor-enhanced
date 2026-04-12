@@ -1,0 +1,23 @@
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - 'Composable'
+
+style:
+  MagicNumber:
+    ignorePropertyDeclaration: true
+    ignoreAnnotation: true
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+
+complexity:
+  LongMethod:
+    threshold: 250
+  CyclomaticComplexMethod:
+    threshold: 25
+  TooManyFunctions:
+    thresholdInClasses: 35
+  NestedBlockDepth:
+    threshold: 5
