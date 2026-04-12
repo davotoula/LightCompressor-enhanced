@@ -39,22 +39,23 @@ import java.io.File
 @Composable
 fun PlayerScreen(
     videoPath: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
 
     // Log video playback analytics
     AnalyticsTracker.logVideoPlayback(videoPath)
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            val file = File(videoPath)
-            val uri = Uri.fromFile(file)
-            setMediaItem(MediaItem.fromUri(uri))
-            prepare()
-            playWhenReady = true
+    val exoPlayer =
+        remember {
+            ExoPlayer.Builder(context).build().apply {
+                val file = File(videoPath)
+                val uri = Uri.fromFile(file)
+                setMediaItem(MediaItem.fromUri(uri))
+                prepare()
+                playWhenReady = true
+            }
         }
-    }
 
     // Cleanup player when leaving the screen
     DisposableEffect(Unit) {
@@ -72,12 +73,12 @@ fun PlayerScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
+                            contentDescription = stringResource(R.string.back),
                         )
                     }
-                }
+                },
             )
-        }
+        },
     ) { padding ->
         AndroidView(
             factory = { ctx ->
@@ -85,9 +86,10 @@ fun PlayerScreen(
                     player = exoPlayer
                 }
             },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
         )
     }
 }

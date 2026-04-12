@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "Running detekt..."
+./gradlew detekt --daemon

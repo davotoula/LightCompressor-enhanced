@@ -1,12 +1,23 @@
 package com.abedelazizshe.lightcompressorlibrary.video
 
-import android.opengl.*
+import android.opengl.EGL14
+import android.opengl.EGLConfig
+import android.opengl.EGLContext
+import android.opengl.EGLDisplay
+import android.opengl.EGLExt
+import android.opengl.EGLSurface
 import android.view.Surface
 
-class InputSurface(surface: Surface?) {
+@Suppress("TooGenericExceptionThrown")
+class InputSurface(
+    surface: Surface?,
+) {
+    companion object {
+        private const val EGL_RECORDABLE_ANDROID = 0x3142
+        private const val EGL_OPENGL_ES2_BIT = 4
+        private const val EGL_COLOR_SIZE = 8
+    }
 
-    private val eglRecordableAndroid = 0x3142
-    private val eglOpenGlES2Bit = 4
     private var mEGLDisplay: EGLDisplay? = null
     private var mEGLContext: EGLContext? = null
     private var mEGLSurface: EGLSurface? = null
@@ -14,12 +25,13 @@ class InputSurface(surface: Surface?) {
 
     init {
         if (surface == null) {
-            throw NullPointerException()
+            throw NullPointerException("surface must not be null")
         }
         mSurface = surface
         eglSetup()
     }
 
+    @Suppress("ThrowsCount")
     private fun eglSetup() {
         mEGLDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         if (mEGLDisplay === EGL14.EGL_NO_DISPLAY) {
@@ -30,45 +42,59 @@ class InputSurface(surface: Surface?) {
             mEGLDisplay = null
             throw RuntimeException("unable to initialize EGL14")
         }
-        val attribList = intArrayOf(
-            EGL14.EGL_RED_SIZE,
-            8,
-            EGL14.EGL_GREEN_SIZE,
-            8,
-            EGL14.EGL_BLUE_SIZE,
-            8,
-            EGL14.EGL_RENDERABLE_TYPE,
-            eglOpenGlES2Bit,
-            eglRecordableAndroid,
-            1,
-            EGL14.EGL_NONE,
-        )
+        val attribList =
+            intArrayOf(
+                EGL14.EGL_RED_SIZE,
+                EGL_COLOR_SIZE,
+                EGL14.EGL_GREEN_SIZE,
+                EGL_COLOR_SIZE,
+                EGL14.EGL_BLUE_SIZE,
+                EGL_COLOR_SIZE,
+                EGL14.EGL_RENDERABLE_TYPE,
+                EGL_OPENGL_ES2_BIT,
+                EGL_RECORDABLE_ANDROID,
+                1,
+                EGL14.EGL_NONE,
+            )
         val configs = arrayOfNulls<EGLConfig>(1)
         val numConfigs = IntArray(1)
         if (!EGL14.eglChooseConfig(
-                mEGLDisplay, attribList, 0, configs, 0, configs.size,
-                numConfigs, 0
+                mEGLDisplay,
+                attribList,
+                0,
+                configs,
+                0,
+                configs.size,
+                numConfigs,
+                0,
             )
         ) {
             throw RuntimeException("unable to find RGB888+recordable ES2 EGL config")
         }
-        val attrs = intArrayOf(
-            EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
-            EGL14.EGL_NONE
-        )
+        val attrs =
+            intArrayOf(
+                EGL14.EGL_CONTEXT_CLIENT_VERSION,
+                2,
+                EGL14.EGL_NONE,
+            )
         mEGLContext =
             EGL14.eglCreateContext(mEGLDisplay, configs[0], EGL14.EGL_NO_CONTEXT, attrs, 0)
         checkEglError()
         if (mEGLContext == null) {
             throw RuntimeException("null context")
         }
-        val surfaceAttrs = intArrayOf(
-            EGL14.EGL_NONE
-        )
-        mEGLSurface = EGL14.eglCreateWindowSurface(
-            mEGLDisplay, configs[0], mSurface,
-            surfaceAttrs, 0
-        )
+        val surfaceAttrs =
+            intArrayOf(
+                EGL14.EGL_NONE,
+            )
+        mEGLSurface =
+            EGL14.eglCreateWindowSurface(
+                mEGLDisplay,
+                configs[0],
+                mSurface,
+                surfaceAttrs,
+                0,
+            )
         checkEglError()
         if (mEGLSurface == null) {
             throw RuntimeException("surface was null")
@@ -81,7 +107,7 @@ class InputSurface(surface: Surface?) {
                 mEGLDisplay,
                 EGL14.EGL_NO_SURFACE,
                 EGL14.EGL_NO_SURFACE,
-                EGL14.EGL_NO_CONTEXT
+                EGL14.EGL_NO_CONTEXT,
             )
         }
         EGL14.eglDestroySurface(mEGLDisplay, mEGLSurface)
@@ -102,9 +128,7 @@ class InputSurface(surface: Surface?) {
         }
     }
 
-    fun swapBuffers(): Boolean =
-        EGL14.eglSwapBuffers(mEGLDisplay, mEGLSurface)
-
+    fun swapBuffers(): Boolean = EGL14.eglSwapBuffers(mEGLDisplay, mEGLSurface)
 
     fun setPresentationTime(nsecs: Long) {
         EGLExt.eglPresentationTimeANDROID(mEGLDisplay, mEGLSurface, nsecs)
@@ -119,5 +143,4 @@ class InputSurface(surface: Surface?) {
             throw RuntimeException("EGL error encountered (see log)")
         }
     }
-
 }

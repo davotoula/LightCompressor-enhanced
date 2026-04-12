@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class VideoResizerTest {
-
     private val delta = 0.01
 
     // -- limitSize (two-value) --

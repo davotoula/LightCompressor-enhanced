@@ -8,12 +8,22 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
+@Suppress("TooGenericExceptionThrown")
 class TextureRenderer {
+    companion object {
+        private const val FLOAT_SIZE_BYTES = 4
+        private const val COMPONENTS_PER_VERTEX = 5
+        private const val POSITION_COMPONENTS = 3
+        private const val TEXCOORD_OFFSET = 3
+        private const val MATRIX_SIZE = 16
+        private const val QUAD_VERTEX_COUNT = 4
+        private const val TEXCOORD_COMPONENTS = 2
+        private const val INVALID_TEXTURE_ID = -12345
+    }
 
-    private val floatSizeBytes = 4
-    private val triangleVerticesDataStrideBytes = 5 * floatSizeBytes
+    private val triangleVerticesDataStrideBytes = COMPONENTS_PER_VERTEX * FLOAT_SIZE_BYTES
     private val triangleVerticesDataPosOffset = 0
-    private val triangleVerticesDataUvOffset = 3
+    private val triangleVerticesDataUvOffset = TEXCOORD_OFFSET
     private var mTriangleVertices: FloatBuffer
 
     private val vertexShader = """uniform mat4 uMVPMatrix;
@@ -36,27 +46,46 @@ void main() {
 }
 """
 
-    private val mMVPMatrix = FloatArray(16)
-    private val mSTMatrix = FloatArray(16)
+    private val mMVPMatrix = FloatArray(MATRIX_SIZE)
+    private val mSTMatrix = FloatArray(MATRIX_SIZE)
 
     private var mProgram = 0
-    private var mTextureID = -12345
+    private var mTextureID = INVALID_TEXTURE_ID
     private var muMVPMatrixHandle = 0
     private var muSTMatrixHandle = 0
     private var maPositionHandle = 0
     private var maTextureHandle = 0
 
     init {
-        val mTriangleVerticesData = floatArrayOf( // X, Y, Z, U, V
-            -1.0f, -1.0f, 0f, 0f, 0f,
-            1.0f, -1.0f, 0f, 1f, 0f,
-            -1.0f, 1.0f, 0f, 0f, 1f,
-            1.0f, 1.0f, 0f, 1f, 1f
-        )
-        mTriangleVertices = ByteBuffer.allocateDirect(
-            mTriangleVerticesData.size * floatSizeBytes
-        )
-            .order(ByteOrder.nativeOrder()).asFloatBuffer()
+        val mTriangleVerticesData =
+            floatArrayOf( // X, Y, Z, U, V
+                -1.0f,
+                -1.0f,
+                0f,
+                0f,
+                0f,
+                1.0f,
+                -1.0f,
+                0f,
+                1f,
+                0f,
+                -1.0f,
+                1.0f,
+                0f,
+                0f,
+                1f,
+                1.0f,
+                1.0f,
+                0f,
+                1f,
+                1f,
+            )
+        mTriangleVertices =
+            ByteBuffer
+                .allocateDirect(
+                    mTriangleVerticesData.size * FLOAT_SIZE_BYTES,
+                ).order(ByteOrder.nativeOrder())
+                .asFloatBuffer()
         mTriangleVertices.put(mTriangleVerticesData).position(0)
 
         Matrix.setIdentityM(mSTMatrix, 0)
@@ -79,8 +108,12 @@ void main() {
 
         mTriangleVertices.position(triangleVerticesDataPosOffset)
         GLES20.glVertexAttribPointer(
-            maPositionHandle, 3, GLES20.GL_FLOAT, false,
-            triangleVerticesDataStrideBytes, mTriangleVertices
+            maPositionHandle,
+            POSITION_COMPONENTS,
+            GLES20.GL_FLOAT,
+            false,
+            triangleVerticesDataStrideBytes,
+            mTriangleVertices,
         )
         checkGlError("glVertexAttribPointer maPosition")
         GLES20.glEnableVertexAttribArray(maPositionHandle)
@@ -88,8 +121,12 @@ void main() {
 
         mTriangleVertices.position(triangleVerticesDataUvOffset)
         GLES20.glVertexAttribPointer(
-            maTextureHandle, 2, GLES20.GL_FLOAT, false,
-            triangleVerticesDataStrideBytes, mTriangleVertices
+            maTextureHandle,
+            TEXCOORD_COMPONENTS,
+            GLES20.GL_FLOAT,
+            false,
+            triangleVerticesDataStrideBytes,
+            mTriangleVertices,
         )
         checkGlError("glVertexAttribPointer maTextureHandle")
         GLES20.glEnableVertexAttribArray(maTextureHandle)
@@ -99,7 +136,7 @@ void main() {
         GLES20.glUniformMatrix4fv(muMVPMatrixHandle, 1, false, mMVPMatrix, 0)
         GLES20.glUniformMatrix4fv(muSTMatrixHandle, 1, false, mSTMatrix, 0)
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, QUAD_VERTEX_COUNT)
         checkGlError("glDrawArrays")
         GLES20.glFinish()
     }
@@ -107,6 +144,7 @@ void main() {
     /**
      * Initializes GL state.  Call this after the EGL surface has been created and made current.
      */
+    @Suppress("ThrowsCount")
     fun surfaceCreated() {
         mProgram = createProgram()
         if (mProgram == 0) {
@@ -142,25 +180,32 @@ void main() {
         checkGlError("glBindTexture mTextureID")
 
         GLES20.glTexParameterf(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER,
-            GLES20.GL_NEAREST.toFloat()
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GLES20.GL_TEXTURE_MIN_FILTER,
+            GLES20.GL_NEAREST.toFloat(),
         )
         GLES20.glTexParameterf(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER,
-            GLES20.GL_LINEAR.toFloat()
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GLES20.GL_TEXTURE_MAG_FILTER,
+            GLES20.GL_LINEAR.toFloat(),
         )
         GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S,
-            GLES20.GL_CLAMP_TO_EDGE
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GLES20.GL_TEXTURE_WRAP_S,
+            GLES20.GL_CLAMP_TO_EDGE,
         )
         GLES20.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T,
-            GLES20.GL_CLAMP_TO_EDGE
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES,
+            GLES20.GL_TEXTURE_WRAP_T,
+            GLES20.GL_CLAMP_TO_EDGE,
         )
         checkGlError("glTexParameter")
     }
 
-    private fun loadShader(shaderType: Int, source: String): Int {
+    private fun loadShader(
+        shaderType: Int,
+        source: String,
+    ): Int {
         var shader = GLES20.glCreateShader(shaderType)
         checkGlError("glCreateShader type=$shaderType")
         GLES20.glShaderSource(shader, source)
@@ -174,6 +219,7 @@ void main() {
         return shader
     }
 
+    @Suppress("ReturnCount")
     private fun createProgram(): Int {
         val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexShader)
         if (vertexShader == 0) {
@@ -210,5 +256,4 @@ void main() {
             throw RuntimeException("$op: glError $error")
         }
     }
-
 }

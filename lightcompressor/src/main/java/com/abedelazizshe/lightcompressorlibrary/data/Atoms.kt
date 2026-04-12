@@ -22,8 +22,8 @@ val FREE_ATOM =
             'f'.code.toByte(),
             'r'.code.toByte(),
             'e'.code.toByte(),
-            'e'.code.toByte()
-        )
+            'e'.code.toByte(),
+        ),
     )
 
 val JUNK_ATOM =
@@ -32,8 +32,8 @@ val JUNK_ATOM =
             'j'.code.toByte(),
             'u'.code.toByte(),
             'n'.code.toByte(),
-            'k'.code.toByte()
-        )
+            'k'.code.toByte(),
+        ),
     )
 
 // Movie sample data— media samples such as video frames and groups of audio samples. Usually this
@@ -44,8 +44,8 @@ val MDAT_ATOM =
             'm'.code.toByte(),
             'd'.code.toByte(),
             'a'.code.toByte(),
-            't'.code.toByte()
-        )
+            't'.code.toByte(),
+        ),
     )
 
 // Movie resource metadata about the movie (number and type of tracks, location of sample data,
@@ -56,8 +56,8 @@ val MOOV_ATOM =
             'm'.code.toByte(),
             'o'.code.toByte(),
             'o'.code.toByte(),
-            'v'.code.toByte()
-        )
+            'v'.code.toByte(),
+        ),
     )
 
 // Reference to movie preview data.
@@ -67,8 +67,8 @@ val PNOT_ATOM =
             'p'.code.toByte(),
             'n'.code.toByte(),
             'o'.code.toByte(),
-            't'.code.toByte()
-        )
+            't'.code.toByte(),
+        ),
     )
 
 // Unused space available in file.
@@ -78,8 +78,8 @@ val SKIP_ATOM =
             's'.code.toByte(),
             'k'.code.toByte(),
             'i'.code.toByte(),
-            'p'.code.toByte()
-        )
+            'p'.code.toByte(),
+        ),
     )
 
 // Reserved space—can be overwritten by an extended size field if the following atom exceeds 2^32
@@ -90,8 +90,8 @@ val WIDE_ATOM =
             'w'.code.toByte(),
             'i'.code.toByte(),
             'd'.code.toByte(),
-            'e'.code.toByte()
-        )
+            'e'.code.toByte(),
+        ),
     )
 
 val PICT_ATOM =
@@ -100,8 +100,8 @@ val PICT_ATOM =
             'P'.code.toByte(),
             'I'.code.toByte(),
             'C'.code.toByte(),
-            'T'.code.toByte()
-        )
+            'T'.code.toByte(),
+        ),
     )
 
 // File type compatibility— identifies the file type and differentiates it from similar file
@@ -112,8 +112,8 @@ val FTYP_ATOM =
             'f'.code.toByte(),
             't'.code.toByte(),
             'y'.code.toByte(),
-            'p'.code.toByte()
-        )
+            'p'.code.toByte(),
+        ),
     )
 
 val UUID_ATOM =
@@ -122,8 +122,8 @@ val UUID_ATOM =
             'u'.code.toByte(),
             'u'.code.toByte(),
             'i'.code.toByte(),
-            'd'.code.toByte()
-        )
+            'd'.code.toByte(),
+        ),
     )
 
 val CMOV_ATOM =
@@ -132,8 +132,8 @@ val CMOV_ATOM =
             'c'.code.toByte(),
             'm'.code.toByte(),
             'o'.code.toByte(),
-            'v'.code.toByte()
-        )
+            'v'.code.toByte(),
+        ),
     )
 
 val STCO_ATOM =
@@ -142,8 +142,8 @@ val STCO_ATOM =
             's'.code.toByte(),
             't'.code.toByte(),
             'c'.code.toByte(),
-            'o'.code.toByte()
-        )
+            'o'.code.toByte(),
+        ),
     )
 
 val CO64_ATOM =
@@ -152,6 +152,6 @@ val CO64_ATOM =
             'c'.code.toByte(),
             'o'.code.toByte(),
             '6'.code.toByte(),
-            '4'.code.toByte()
-        )
+            '4'.code.toByte(),
+        ),
     )

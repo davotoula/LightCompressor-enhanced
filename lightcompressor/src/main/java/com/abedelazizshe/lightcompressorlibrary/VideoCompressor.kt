@@ -6,24 +6,38 @@ import android.net.Uri
 import android.provider.MediaStore
 import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.compressVideo
 import com.abedelazizshe.lightcompressorlibrary.compressor.Compressor.isRunning
-import com.abedelazizshe.lightcompressorlibrary.config.*
+import com.abedelazizshe.lightcompressorlibrary.config.Configuration
+import com.abedelazizshe.lightcompressorlibrary.config.StorageConfiguration
 import com.abedelazizshe.lightcompressorlibrary.video.Result
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
-
 enum class VideoQuality {
-    VERY_HIGH, HIGH, MEDIUM, LOW, VERY_LOW
+    VERY_HIGH,
+    HIGH,
+    MEDIUM,
+    LOW,
+    VERY_LOW,
 }
 
-enum class VideoCodec(val mimeType: String) {
+enum class VideoCodec(
+    val mimeType: String,
+) {
     H264("video/avc"),
-    H265("video/hevc")
+    H265("video/hevc"),
 }
+
+private const val COPY_BUFFER_SIZE = 4096
 
 object VideoCompressor : CoroutineScope by MainScope() {
-
     private var job: Job? = null
 
     /**
@@ -103,66 +117,71 @@ object VideoCompressor : CoroutineScope by MainScope() {
     ) {
         var streamableFile: File? = null
         for (i in uris.indices) {
-
-            val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
-                listener.onFailure(i, throwable.message ?: "")
-            }
+            val coroutineExceptionHandler =
+                CoroutineExceptionHandler { _, throwable ->
+                    listener.onFailure(i, throwable.message ?: "")
+                }
             val coroutineScope = CoroutineScope(Job() + coroutineExceptionHandler)
 
-            job = coroutineScope.launch(Dispatchers.IO) {
+            job =
+                coroutineScope.launch(Dispatchers.IO) {
+                    val job = async { getMediaPath(context, uris[i]) }
+                    val path = job.await()
 
-                val job = async { getMediaPath(context, uris[i]) }
-                val path = job.await()
-
-                val desFile = saveVideoFile(
-                    context,
-                    path,
-                    storageConfiguration,
-                    isStreamable,
-                    configuration.videoNames[i],
-                    shouldSave = false
-                )
-
-                if (isStreamable)
-                    streamableFile = saveVideoFile(
-                        context,
-                        path,
-                        storageConfiguration,
-                        null,
-                        configuration.videoNames[i],
-                        shouldSave = false
-                    )
-
-                desFile?.let {
-                    isRunning = true
-                    listener.onStart(i)
-                    val result = startCompression(
-                        i,
-                        context,
-                        uris[i],
-                        desFile.path,
-                        streamableFile?.path,
-                        configuration,
-                        listener,
-                    )
-
-                    // Runs in Main(UI) Thread
-                    if (result.success) {
-                        val savedFile = saveVideoFile(
+                    val desFile =
+                        saveVideoFile(
                             context,
-                            result.path,
+                            path,
                             storageConfiguration,
                             isStreamable,
                             configuration.videoNames[i],
-                            shouldSave = true
+                            shouldSave = false,
                         )
 
-                        listener.onSuccess(i, result.size, savedFile?.path)
-                    } else {
-                        listener.onFailure(i, result.failureMessage ?: "An error has occurred!")
+                    if (isStreamable) {
+                        streamableFile =
+                            saveVideoFile(
+                                context,
+                                path,
+                                storageConfiguration,
+                                null,
+                                configuration.videoNames[i],
+                                shouldSave = false,
+                            )
+                    }
+
+                    desFile?.let {
+                        isRunning = true
+                        listener.onStart(i)
+                        val result =
+                            startCompression(
+                                i,
+                                context,
+                                uris[i],
+                                desFile.path,
+                                streamableFile?.path,
+                                configuration,
+                                listener,
+                            )
+
+                        // Runs in Main(UI) Thread
+                        if (result.success) {
+                            val savedFile =
+                                saveVideoFile(
+                                    context,
+                                    result.path,
+                                    storageConfiguration,
+                                    isStreamable,
+                                    configuration.videoNames[i],
+                                    shouldSave = true,
+                                )
+
+                            listener.onSuccess(i, result.size, savedFile?.path)
+                        } else {
+                            listener.onFailure(i, result.failureMessage ?: "An error has occurred!")
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -174,25 +193,29 @@ object VideoCompressor : CoroutineScope by MainScope() {
         streamableFile: String? = null,
         configuration: Configuration,
         listener: CompressionListener,
-    ): Result = withContext(Dispatchers.Default) {
-        return@withContext compressVideo(
-            index,
-            context,
-            srcUri,
-            destPath,
-            streamableFile,
-            configuration,
-            object : CompressionProgressListener {
-                override fun onProgressChanged(index: Int, percent: Float) {
-                    listener.onProgress(index, percent)
-                }
+    ): Result =
+        withContext(Dispatchers.Default) {
+            return@withContext compressVideo(
+                index,
+                context,
+                srcUri,
+                destPath,
+                streamableFile,
+                configuration,
+                object : CompressionProgressListener {
+                    override fun onProgressChanged(
+                        index: Int,
+                        percent: Float,
+                    ) {
+                        listener.onProgress(index, percent)
+                    }
 
-                override fun onProgressCancelled(index: Int) {
-                    listener.onCancelled(index)
-                }
-            },
-        )
-    }
+                    override fun onProgressCancelled(index: Int) {
+                        listener.onCancelled(index)
+                    }
+                },
+            )
+        }
 
     private fun saveVideoFile(
         context: Context,
@@ -200,24 +223,26 @@ object VideoCompressor : CoroutineScope by MainScope() {
         storageConfiguration: StorageConfiguration,
         isStreamable: Boolean?,
         videoName: String,
-        shouldSave: Boolean
-    ): File? {
-        return filePath?.let {
+        shouldSave: Boolean,
+    ): File? =
+        filePath?.let {
             val videoFile = File(filePath)
             storageConfiguration.createFileToSave(
                 context,
                 videoFile,
                 validatedFileName(
                     videoName,
-                    isStreamable
+                    isStreamable,
                 ),
-                shouldSave
+                shouldSave,
             )
         }
-    }
 
-    private fun getMediaPath(context: Context, uri: Uri): String {
-
+    @Suppress("NestedBlockDepth", "TooGenericExceptionCaught", "SwallowedException")
+    private fun getMediaPath(
+        context: Context,
+        uri: Uri,
+    ): String {
         val resolver = context.contentResolver
         val projection = arrayOf(MediaStore.Video.Media.DATA)
         var cursor: Cursor? = null
@@ -227,24 +252,29 @@ object VideoCompressor : CoroutineScope by MainScope() {
                 val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
                 cursor.moveToFirst()
                 cursor.getString(columnIndex)
-
-            } else throw Exception()
-
+            } else {
+                @Suppress("TooGenericExceptionThrown", "ThrowingExceptionsWithoutMessageOrCause")
+                throw Exception()
+            }
         } catch (e: Exception) {
             resolver.let {
-                val filePath = (context.applicationInfo.dataDir + File.separator
-                        + System.currentTimeMillis())
+                val filePath = (
+                    context.applicationInfo.dataDir + File.separator +
+                        System.currentTimeMillis()
+                )
                 val file = File(filePath)
 
                 resolver.openInputStream(uri)?.use { inputStream ->
                     FileOutputStream(file).use { outputStream ->
-                        val buf = ByteArray(4096)
+                        val buf = ByteArray(COPY_BUFFER_SIZE)
                         var len: Int
-                        while (inputStream.read(buf).also { len = it } > 0) outputStream.write(
-                            buf,
-                            0,
-                            len
-                        )
+                        while (inputStream.read(buf).also { len = it } > 0) {
+                            outputStream.write(
+                                buf,
+                                0,
+                                len,
+                            )
+                        }
                     }
                 }
                 return file.absolutePath
@@ -254,11 +284,18 @@ object VideoCompressor : CoroutineScope by MainScope() {
         }
     }
 
-    private fun validatedFileName(name: String, isStreamable: Boolean?): String {
-        val videoName = if (isStreamable == null || !isStreamable) name
-        else "${name}_temp"
+    private fun validatedFileName(
+        name: String,
+        isStreamable: Boolean?,
+    ): String {
+        val videoName =
+            if (isStreamable == null || !isStreamable) {
+                name
+            } else {
+                "${name}_temp"
+            }
 
-        if (!videoName.contains("mp4")) return "${videoName}.mp4"
+        if (!videoName.contains("mp4")) return "$videoName.mp4"
         return videoName
     }
 }

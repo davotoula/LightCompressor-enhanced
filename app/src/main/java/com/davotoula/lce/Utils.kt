@@ -14,8 +14,14 @@ import java.text.DecimalFormat
 import kotlin.math.log10
 import kotlin.math.pow
 
-fun getMediaPath(context: Context, uri: Uri): String {
+private const val COPY_BUFFER_SIZE = 4096
+private const val FILE_SIZE_BASE = 1024.0
 
+@Suppress("NestedBlockDepth")
+fun getMediaPath(
+    context: Context,
+    uri: Uri,
+): String {
     val resolver = context.contentResolver
     val projection = arrayOf(MediaStore.Video.Media.DATA)
     var cursor: Cursor? = null
@@ -25,25 +31,29 @@ fun getMediaPath(context: Context, uri: Uri): String {
             val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
             cursor.moveToFirst()
             cursor.getString(columnIndex)
-
-        } else ""
-
+        } else {
+            ""
+        }
     } catch (e: Exception) {
         Log.w("Utils", "Exceptions while getting media path, ${e.message}", e)
         resolver.let {
-            val filePath = (context.applicationInfo.dataDir + File.separator
-                    + System.currentTimeMillis())
+            val filePath = (
+                context.applicationInfo.dataDir + File.separator +
+                    System.currentTimeMillis()
+            )
             val file = File(filePath)
 
             resolver.openInputStream(uri)?.use { inputStream ->
                 FileOutputStream(file).use { outputStream ->
-                    val buf = ByteArray(4096)
+                    val buf = ByteArray(COPY_BUFFER_SIZE)
                     var len: Int
-                    while (inputStream.read(buf).also { len = it } > 0) outputStream.write(
-                        buf,
-                        0,
-                        len
-                    )
+                    while (inputStream.read(buf).also { len = it } > 0) {
+                        outputStream.write(
+                            buf,
+                            0,
+                            len,
+                        )
+                    }
                 }
             }
             return file.absolutePath
@@ -54,20 +64,24 @@ fun getMediaPath(context: Context, uri: Uri): String {
 }
 
 fun getFileSize(size: Long): String {
-    if (size <= 0)
+    if (size <= 0) {
         return "0"
+    }
 
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()
+    val digitGroups = (log10(size.toDouble()) / log10(FILE_SIZE_BASE)).toInt()
 
     return DecimalFormat("#,##0.#").format(
-        size / 1024.0.pow(digitGroups.toDouble())
+        size / 1024.0.pow(digitGroups.toDouble()),
     ) + " " + units[digitGroups]
 }
 
-//The following methods can be alternative to [getMediaPath].
+// The following methods can be alternative to [getMediaPath].
 // todo(abed): remove [getPathFromUri], [getVideoExtension], and [copy]
-fun getPathFromUri(context: Context, uri: Uri): String {
+fun getPathFromUri(
+    context: Context,
+    uri: Uri,
+): String {
     var file: File? = null
     var inputStream: InputStream? = null
     var outputStream: OutputStream? = null
@@ -117,16 +131,19 @@ private fun getVideoExtension(uriVideo: Uri): String {
         extension = null
     }
     if (extension.isNullOrEmpty()) {
-        //default extension for matches the previous behavior of the plugin
+        // default extension for matches the previous behavior of the plugin
         extension = "mp4"
     }
     return ".$extension"
 }
 
-private fun copy(`in`: InputStream, out: OutputStream) {
-    val buffer = ByteArray(4 * 1024)
+private fun copy(
+    input: InputStream,
+    out: OutputStream,
+) {
+    val buffer = ByteArray(COPY_BUFFER_SIZE)
     var bytesRead: Int
-    while (`in`.read(buffer).also { bytesRead = it } != -1) {
+    while (input.read(buffer).also { bytesRead = it } != -1) {
         out.write(buffer, 0, bytesRead)
     }
     out.flush()

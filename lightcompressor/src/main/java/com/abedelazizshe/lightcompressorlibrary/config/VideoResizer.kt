@@ -28,27 +28,39 @@ fun interface VideoResizer {
         fun limitSize(limit: Double): VideoResizer = LimitDimension(limit, limit)
 
         /**
-         * Scale the video down if the width or height are greater than [maxWidth] or [maxHeight], retaining the video's aspect ratio.
+         * Scale the video down if the width or height are greater than [maxWidth] or [maxHeight],
+         * retaining the video's aspect ratio.
          * @param maxWidth The maximum width of the video
          * @param maxHeight The maximum height of the video
          */
         @JvmStatic
-        fun limitSize(maxWidth: Double, maxHeight: Double): VideoResizer = LimitDimension(maxWidth, maxHeight)
+        fun limitSize(
+            maxWidth: Double,
+            maxHeight: Double,
+        ): VideoResizer = LimitDimension(maxWidth, maxHeight)
 
         /**
          * Scales the video so that the width and height matches [size], retaining the video's aspect ratio.
          * @param size The target width/height of the video
          */
         @JvmStatic
-        fun matchSize(size: Double, stretch: Boolean = false): VideoResizer = MatchDimension(size, size, stretch)
+        fun matchSize(
+            size: Double,
+            stretch: Boolean = false,
+        ): VideoResizer = MatchDimension(size, size, stretch)
 
         /**
-         * Scales the video so that the width matches [width] or the height matches [height], retaining the video's aspect ratio.
+         * Scales the video so that the width matches [width] or the height matches [height],
+         * retaining the video's aspect ratio.
          * @param width The target width of the video
          * @param height The target height of the video
          */
         @JvmStatic
-        fun matchSize(width: Double, height: Double, stretch: Boolean = false): VideoResizer = MatchDimension(width, height, stretch)
+        fun matchSize(
+            width: Double,
+            height: Double,
+            stretch: Boolean = false,
+        ): VideoResizer = MatchDimension(width, height, stretch)
 
         /**
          * Scale the video down if its short side (the smaller of width/height) exceeds [limit],
@@ -68,39 +80,82 @@ fun interface VideoResizer {
          * @param maxHeight One of the target dimensions
          */
         @JvmStatic
-        fun limitShortSide(maxWidth: Double, maxHeight: Double): VideoResizer =
-            limitShortSide(minOf(maxWidth, maxHeight))
+        fun limitShortSide(
+            maxWidth: Double,
+            maxHeight: Double,
+        ): VideoResizer = limitShortSide(minOf(maxWidth, maxHeight))
 
-        private fun keepAspect(width: Double, height: Double, newWidth: Double, newHeight: Double): Pair<Double, Double> {
+        private fun keepAspect(
+            width: Double,
+            height: Double,
+            newWidth: Double,
+            newHeight: Double,
+        ): Pair<Double, Double> {
             val desiredAspect = width / height
             val videoAspect = newWidth / newHeight
-            return if (videoAspect <= desiredAspect) Pair(newWidth, newWidth / desiredAspect) else Pair(newHeight * desiredAspect, newHeight)
+            return if (videoAspect <=
+                desiredAspect
+            ) {
+                Pair(newWidth, newWidth / desiredAspect)
+            } else {
+                Pair(newHeight * desiredAspect, newHeight)
+            }
         }
     }
 
-    fun resize(width: Double, height: Double): Pair<Double, Double>
+    fun resize(
+        width: Double,
+        height: Double,
+    ): Pair<Double, Double>
 
-    private class LimitDimension(private val width: Double, private val height: Double) : VideoResizer {
-        override fun resize(width: Double, height: Double): Pair<Double, Double> {
-            return if (width < this.width && height < this.height) Pair(width, height) else keepAspect(width, height, this.width, this.height)
-        }
+    private class LimitDimension(
+        private val width: Double,
+        private val height: Double,
+    ) : VideoResizer {
+        override fun resize(
+            width: Double,
+            height: Double,
+        ): Pair<Double, Double> =
+            if (width < this.width &&
+                height < this.height
+            ) {
+                Pair(width, height)
+            } else {
+                keepAspect(width, height, this.width, this.height)
+            }
     }
 
-    private class MatchDimension(private val width: Double, private val height: Double, private val stretch: Boolean) : VideoResizer {
-        override fun resize(width: Double, height: Double): Pair<Double, Double> {
-            return if (stretch) Pair(this.width, this.height) else keepAspect(width, height, this.width, this.height)
-        }
+    private class MatchDimension(
+        private val width: Double,
+        private val height: Double,
+        private val stretch: Boolean,
+    ) : VideoResizer {
+        override fun resize(
+            width: Double,
+            height: Double,
+        ): Pair<Double, Double> =
+            if (stretch) Pair(this.width, this.height) else keepAspect(width, height, this.width, this.height)
     }
 
-    private class ScaleResize(private val percentage: Double? = null) : VideoResizer {
-        override fun resize(width: Double, height: Double): Pair<Double, Double> {
+    private class ScaleResize(
+        private val percentage: Double? = null,
+    ) : VideoResizer {
+        override fun resize(
+            width: Double,
+            height: Double,
+        ): Pair<Double, Double> {
             val p = percentage ?: CompressorUtils.autoResizePercentage(width, height)
             return Pair(width * p, height * p)
         }
     }
 
-    private class LimitShortSide(private val limit: Double) : VideoResizer {
-        override fun resize(width: Double, height: Double): Pair<Double, Double> {
+    private class LimitShortSide(
+        private val limit: Double,
+    ) : VideoResizer {
+        override fun resize(
+            width: Double,
+            height: Double,
+        ): Pair<Double, Double> {
             val shortSide = minOf(width, height)
             if (shortSide <= limit) return Pair(width, height)
             val scale = limit / shortSide

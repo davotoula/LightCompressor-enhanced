@@ -30,6 +30,10 @@ androidx-datastore = "1.2.1"
 # Image Loading
 coil = "2.7.0"
 
+# Linting / Static Analysis
+ktlint-gradle = "14.2.0"
+detekt = "1.23.8"
+
 # Testing
 junit = "4.13.2"
 androidx-test-ext = "1.3.0"

@@ -24,6 +24,17 @@ Fork of LightCompressor — an Android video compression library. Two modules:
 
 CI runs: `./gradlew assembleDebug testDebugUnitTest` (JDK 17).
 
+## Static Analysis
+
+```bash
+./gradlew ktlintCheck                     # Check Kotlin style (both modules)
+./gradlew ktlintFormat                    # Auto-fix style violations
+./gradlew detekt                          # Run static analysis (both modules)
+./gradlew installGitHooks                 # Manually install git hooks
+```
+
+Git hooks auto-install on build. Pre-commit runs ktlint, pre-push runs detekt.
+
 ## Architecture
 
 ### Library (`lightcompressor/`)

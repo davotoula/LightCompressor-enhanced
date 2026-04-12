@@ -11,15 +11,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.davotoula.lce.navigation.LceNavHost
+import androidx.navigation.compose.rememberNavController
 import com.davotoula.lce.data.ThemePreferences
+import com.davotoula.lce.navigation.LceNavHost
 import com.davotoula.lce.ui.theme.LceTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -46,7 +45,7 @@ class MainActivity : ComponentActivity() {
                         scope.launch {
                             themePreferences.setDarkThemeOverride(nextTheme)
                         }
-                    }
+                    },
                 )
             }
         }

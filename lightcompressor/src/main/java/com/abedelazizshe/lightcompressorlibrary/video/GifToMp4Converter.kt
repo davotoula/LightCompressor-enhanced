@@ -91,12 +91,50 @@ object GifToMp4Converter {
     private const val I_FRAME_INTERVAL = 1
     private const val TIMEOUT_US = 10_000L
     private const val DEFAULT_BITRATE_BPS = 2_000_000
+    private const val BITRATE_1080P = 4_000_000
+    private const val BITRATE_480P = 1_000_000
+    private const val BITRATE_LOW = 500_000
+    private const val PIXELS_1080P = 1920 * 1080
+    private const val PIXELS_720P = 1280 * 720
+    private const val PIXELS_480P = 640 * 480
+    private const val EVEN_CHECK_DIVISOR = 2
     private const val DEFAULT_FRAME_DELAY_MS = 100
+    private const val DEFAULT_GIF_FPS = 10
+    private const val MIN_FPS = 1
+    private const val MAX_FPS = 50
+    private const val MS_PER_SECOND = 1000.0
     private const val US_PER_MS = 1000L
     private const val NS_PER_US = 1000L
     private const val MAX_GIF_SIZE_BYTES = 20 * 1024 * 1024
     private const val READ_CHUNK_BYTES = 8 * 1024
     private const val DRAIN_EOS_MAX_ITERATIONS = 500
+
+    private const val EGL_CONTEXT_VERSION = 2
+    private const val EGL_COLOR_BITS = 8
+    private const val GL_STRIDE_FLOATS = 4
+    private const val GL_POSITION_COMPONENTS = 2
+    private const val GL_TEXCOORD_OFFSET = 2
+    private const val GL_VERTEX_COUNT = 4
+    private const val CENTISECONDS_TO_MS = 10
+
+    // GIF binary format constants
+    private const val GIF_HEADER_SIZE = 13
+    private const val GIF_PACKED_BYTE_OFFSET = 10
+    private const val GIF_GLOBAL_COLOR_TABLE_FLAG = 0x80
+    private const val GIF_COLOR_TABLE_SIZE_MASK = 0x07
+    private const val GIF_COLOR_TABLE_ENTRY_SIZE = 3
+    private const val GIF_BYTE_MASK = 0xFF
+    private const val GIF_EXTENSION_INTRODUCER = 0x21
+    private const val GIF_GRAPHIC_CONTROL_LABEL = 0xF9
+    private const val GIF_GRAPHIC_CONTROL_SIZE = 5
+    private const val GIF_GRAPHIC_CONTROL_BLOCK_SIZE = 4
+    private const val GIF_DELAY_LOW_OFFSET = 2
+    private const val GIF_DELAY_HIGH_OFFSET = 3
+    private const val GIF_BYTE_SHIFT = 8
+    private const val GIF_IMAGE_SEPARATOR = 0x2C
+    private const val GIF_IMAGE_DESCRIPTOR_SIZE = 10
+    private const val GIF_IMAGE_PACKED_OFFSET = 9
+    private const val GIF_TRAILER = 0x3B
 
     // Not exposed by android.opengl.EGL14; required so eglChooseConfig picks a
     // config whose pixel format is compatible with a MediaCodec input surface.
@@ -162,13 +200,21 @@ object GifToMp4Converter {
                 convertInternal(uri, context)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
                 Log.e(LOG_TAG, "GIF to MP4 conversion failed", e)
                 null
             }
         }
 
-    @Suppress("deprecation") // android.graphics.Movie is deprecated but still the simplest GIF decoder available
+    @Suppress(
+        "deprecation",
+        "ReturnCount",
+        "CyclomaticComplexMethod",
+        "LongMethod",
+        "TooGenericExceptionCaught",
+    ) // android.graphics.Movie is deprecated but still the simplest GIF decoder available
     private fun convertInternal(
         uri: Uri,
         context: Context,
@@ -219,9 +265,9 @@ object GifToMp4Converter {
         val totalDelayMs = frameDelays.sum()
         val avgFps =
             if (totalDelayMs > 0) {
-                (frameDelays.size * 1000.0 / totalDelayMs).toInt().coerceIn(1, 50)
+                (frameDelays.size * MS_PER_SECOND / totalDelayMs).toInt().coerceIn(MIN_FPS, MAX_FPS)
             } else {
-                10
+                DEFAULT_GIF_FPS
             }
 
         val width = roundUpToEven(gifWidth)
@@ -355,6 +401,7 @@ object GifToMp4Converter {
 
     // region EGL
 
+    @Suppress("TooGenericExceptionCaught")
     private class EglHelper(
         surface: Surface,
     ) {
@@ -382,13 +429,13 @@ object GifToMp4Converter {
                 val configAttribs =
                     intArrayOf(
                         EGL14.EGL_RED_SIZE,
-                        8,
+                        EGL_COLOR_BITS,
                         EGL14.EGL_GREEN_SIZE,
-                        8,
+                        EGL_COLOR_BITS,
                         EGL14.EGL_BLUE_SIZE,
-                        8,
+                        EGL_COLOR_BITS,
                         EGL14.EGL_ALPHA_SIZE,
-                        8,
+                        EGL_COLOR_BITS,
                         EGL14.EGL_RENDERABLE_TYPE,
                         EGL14.EGL_OPENGL_ES2_BIT,
                         EGL14.EGL_SURFACE_TYPE,
@@ -405,7 +452,7 @@ object GifToMp4Converter {
                 check(numConfigs[0] > 0) { "eglChooseConfig returned no matching configs" }
                 val config = requireNotNull(configs[0]) { "eglChooseConfig returned null config" }
 
-                val contextAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
+                val contextAttribs = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, EGL_CONTEXT_VERSION, EGL14.EGL_NONE)
                 localContext = EGL14.eglCreateContext(localDisplay, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
                 check(localContext != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed" }
 
@@ -466,6 +513,7 @@ object GifToMp4Converter {
 
     // region GL helpers
 
+    @Suppress("TooGenericExceptionThrown")
     private fun createGlProgram(): Int {
         val vs = compileShader(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER)
         val fs = compileShader(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
@@ -486,6 +534,7 @@ object GifToMp4Converter {
         return program
     }
 
+    @Suppress("TooGenericExceptionThrown")
     private fun compileShader(
         type: Int,
         source: String,
@@ -517,7 +566,7 @@ object GifToMp4Converter {
 
     private fun createVertexBuffer(): FloatBuffer =
         ByteBuffer
-            .allocateDirect(QUAD_COORDS.size * 4)
+            .allocateDirect(QUAD_COORDS.size * GL_STRIDE_FLOATS)
             .order(ByteOrder.nativeOrder())
             .asFloatBuffer()
             .apply {
@@ -548,17 +597,17 @@ object GifToMp4Converter {
 
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "uTexture"), 0)
 
-        // stride = 4 floats per vertex (2 pos + 2 tex) * 4 bytes
-        val stride = 4 * 4
+        // stride = 4 floats per vertex (2 pos + 2 tex) * 4 bytes/float
+        val stride = GL_STRIDE_FLOATS * GL_STRIDE_FLOATS
         vertexBuffer.position(0)
         GLES20.glEnableVertexAttribArray(posHandle)
-        GLES20.glVertexAttribPointer(posHandle, 2, GLES20.GL_FLOAT, false, stride, vertexBuffer)
+        GLES20.glVertexAttribPointer(posHandle, GL_POSITION_COMPONENTS, GLES20.GL_FLOAT, false, stride, vertexBuffer)
 
-        vertexBuffer.position(2)
+        vertexBuffer.position(GL_TEXCOORD_OFFSET)
         GLES20.glEnableVertexAttribArray(texHandle)
-        GLES20.glVertexAttribPointer(texHandle, 2, GLES20.GL_FLOAT, false, stride, vertexBuffer)
+        GLES20.glVertexAttribPointer(texHandle, GL_TEXCOORD_OFFSET, GLES20.GL_FLOAT, false, stride, vertexBuffer)
 
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, GL_VERTEX_COUNT)
 
         GLES20.glDisableVertexAttribArray(posHandle)
         GLES20.glDisableVertexAttribArray(texHandle)
@@ -575,36 +624,42 @@ object GifToMp4Converter {
      * GIF delay values are in centiseconds (1/100s). Per browser convention,
      * delays of 0 or 1 centisecond are treated as 100ms (10fps).
      */
+    @Suppress("NestedBlockDepth", "CyclomaticComplexMethod")
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun parseGifFrameDelays(bytes: ByteArray): List<Int> {
-        if (bytes.size < 13) return emptyList()
+        if (bytes.size < GIF_HEADER_SIZE) return emptyList()
 
         val delays = mutableListOf<Int>()
 
-        var pos = 13
+        var pos = GIF_HEADER_SIZE
 
         // Skip Global Color Table if present
-        val packed = bytes[10].toInt() and 0xFF
-        if (packed and 0x80 != 0) {
-            pos += 3 * (1 shl ((packed and 0x07) + 1))
+        val packed = bytes[GIF_PACKED_BYTE_OFFSET].toInt() and GIF_BYTE_MASK
+        if (packed and GIF_GLOBAL_COLOR_TABLE_FLAG != 0) {
+            pos += GIF_COLOR_TABLE_ENTRY_SIZE * (1 shl ((packed and GIF_COLOR_TABLE_SIZE_MASK) + 1))
         }
 
+        @Suppress("LoopWithTooManyJumpStatements")
         while (pos < bytes.size) {
-            when (bytes[pos].toInt() and 0xFF) {
-                0x21 -> {
+            when (bytes[pos].toInt() and GIF_BYTE_MASK) {
+                GIF_EXTENSION_INTRODUCER -> {
                     pos++
                     if (pos >= bytes.size) break
-                    val label = bytes[pos].toInt() and 0xFF
+                    val label = bytes[pos].toInt() and GIF_BYTE_MASK
                     pos++
 
-                    if (label == 0xF9 && pos + 5 <= bytes.size) {
-                        val blockSize = bytes[pos].toInt() and 0xFF
-                        if (blockSize == 4) {
-                            val delayLow = bytes[pos + 2].toInt() and 0xFF
-                            val delayHigh = bytes[pos + 3].toInt() and 0xFF
-                            val delayCentiseconds = delayLow or (delayHigh shl 8)
+                    if (label == GIF_GRAPHIC_CONTROL_LABEL && pos + GIF_GRAPHIC_CONTROL_SIZE <= bytes.size) {
+                        val blockSize = bytes[pos].toInt() and GIF_BYTE_MASK
+                        if (blockSize == GIF_GRAPHIC_CONTROL_BLOCK_SIZE) {
+                            val delayLow = bytes[pos + GIF_DELAY_LOW_OFFSET].toInt() and GIF_BYTE_MASK
+                            val delayHigh = bytes[pos + GIF_DELAY_HIGH_OFFSET].toInt() and GIF_BYTE_MASK
+                            val delayCentiseconds = delayLow or (delayHigh shl GIF_BYTE_SHIFT)
                             val delayMs =
-                                if (delayCentiseconds <= 1) DEFAULT_FRAME_DELAY_MS else delayCentiseconds * 10
+                                if (delayCentiseconds <= 1) {
+                                    DEFAULT_FRAME_DELAY_MS
+                                } else {
+                                    delayCentiseconds * CENTISECONDS_TO_MS
+                                }
                             delays.add(delayMs)
                         }
                         pos = skipSubBlocks(bytes, pos)
@@ -613,13 +668,13 @@ object GifToMp4Converter {
                     }
                 }
 
-                0x2C -> {
-                    // Image Descriptor: 1 (separator, current pos) + 8 (L/T/W/H) + 1 (packed) = 10 bytes
-                    if (pos + 10 > bytes.size) break
-                    val imgPacked = bytes[pos + 9].toInt() and 0xFF
-                    pos += 10
-                    if (imgPacked and 0x80 != 0) {
-                        pos += 3 * (1 shl ((imgPacked and 0x07) + 1))
+                GIF_IMAGE_SEPARATOR -> {
+                    if (pos + GIF_IMAGE_DESCRIPTOR_SIZE > bytes.size) break
+                    val imgPacked = bytes[pos + GIF_IMAGE_PACKED_OFFSET].toInt() and GIF_BYTE_MASK
+                    pos += GIF_IMAGE_DESCRIPTOR_SIZE
+                    if (imgPacked and GIF_GLOBAL_COLOR_TABLE_FLAG != 0) {
+                        pos += GIF_COLOR_TABLE_ENTRY_SIZE *
+                            (1 shl ((imgPacked and GIF_COLOR_TABLE_SIZE_MASK) + 1))
                         if (pos >= bytes.size) break
                     }
                     pos++
@@ -627,7 +682,7 @@ object GifToMp4Converter {
                     pos = skipSubBlocks(bytes, pos)
                 }
 
-                0x3B -> {
+                GIF_TRAILER -> {
                     break
                 }
 
@@ -646,7 +701,7 @@ object GifToMp4Converter {
     ): Int {
         var pos = startPos
         while (pos < bytes.size) {
-            val blockSize = bytes[pos].toInt() and 0xFF
+            val blockSize = bytes[pos].toInt() and GIF_BYTE_MASK
             pos++
             if (blockSize == 0) break
             pos = minOf(pos + blockSize, bytes.size)
@@ -663,6 +718,7 @@ object GifToMp4Converter {
         val muxerStarted: Boolean,
     )
 
+    @Suppress("TooGenericExceptionThrown")
     private fun drainEncoder(
         codec: MediaCodec,
         muxer: MediaMuxer,
@@ -682,7 +738,9 @@ object GifToMp4Converter {
                 outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                     if (!endOfStream) return DrainState(currentTrackIndex, currentMuxerStarted)
                     if (++eosDrainIterations >= DRAIN_EOS_MAX_ITERATIONS) {
-                        throw RuntimeException("Encoder failed to drain after EOS within $DRAIN_EOS_MAX_ITERATIONS iterations")
+                        throw RuntimeException(
+                            "Encoder failed to drain after EOS within $DRAIN_EOS_MAX_ITERATIONS iterations",
+                        )
                     }
                 }
 
@@ -729,20 +787,20 @@ object GifToMp4Converter {
     ): Int {
         val pixels = width * height
         return when {
-            pixels >= 1920 * 1080 -> 4_000_000
-            pixels >= 1280 * 720 -> DEFAULT_BITRATE_BPS
-            pixels >= 640 * 480 -> 1_000_000
-            else -> 500_000
+            pixels >= PIXELS_1080P -> BITRATE_1080P
+            pixels >= PIXELS_720P -> DEFAULT_BITRATE_BPS
+            pixels >= PIXELS_480P -> BITRATE_480P
+            else -> BITRATE_LOW
         }
     }
 
     /**
      * H.264 requires even width/height. Rounds up odd non-negative values to
      * the next even integer; even values and non-positive values are returned
-     * unchanged (non-positive inputs never reach here — validated upstream).
+     * unchanged (non-positive inputs never reach here -- validated upstream).
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal fun roundUpToEven(value: Int): Int = if (value > 0 && value % 2 != 0) value + 1 else value
+    internal fun roundUpToEven(value: Int): Int = if (value > 0 && value % EVEN_CHECK_DIVISOR != 0) value + 1 else value
 
     // endregion
 }

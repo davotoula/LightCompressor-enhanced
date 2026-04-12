@@ -19,69 +19,71 @@ import androidx.core.view.WindowCompat
  * Light color scheme for the LCE app.
  * Uses a teal-based primary color with amber secondary and deep orange tertiary.
  */
-val LightColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = LightSecondary,
-    onSecondary = LightOnSecondary,
-    secondaryContainer = LightSecondaryContainer,
-    onSecondaryContainer = LightOnSecondaryContainer,
-    tertiary = LightTertiary,
-    onTertiary = LightOnTertiary,
-    tertiaryContainer = LightTertiaryContainer,
-    onTertiaryContainer = LightOnTertiaryContainer,
-    background = LightBackground,
-    onBackground = LightOnBackground,
-    surface = LightSurface,
-    onSurface = LightOnSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    error = LightError,
-    onError = LightOnError,
-    errorContainer = LightErrorContainer,
-    onErrorContainer = LightOnErrorContainer,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
-    inverseSurface = LightInverseSurface,
-    inverseOnSurface = LightInverseOnSurface,
-    inversePrimary = LightInversePrimary
-)
+val LightColorScheme =
+    lightColorScheme(
+        primary = LightPrimary,
+        onPrimary = LightOnPrimary,
+        primaryContainer = LightPrimaryContainer,
+        onPrimaryContainer = LightOnPrimaryContainer,
+        secondary = LightSecondary,
+        onSecondary = LightOnSecondary,
+        secondaryContainer = LightSecondaryContainer,
+        onSecondaryContainer = LightOnSecondaryContainer,
+        tertiary = LightTertiary,
+        onTertiary = LightOnTertiary,
+        tertiaryContainer = LightTertiaryContainer,
+        onTertiaryContainer = LightOnTertiaryContainer,
+        background = LightBackground,
+        onBackground = LightOnBackground,
+        surface = LightSurface,
+        onSurface = LightOnSurface,
+        surfaceVariant = LightSurfaceVariant,
+        onSurfaceVariant = LightOnSurfaceVariant,
+        error = LightError,
+        onError = LightOnError,
+        errorContainer = LightErrorContainer,
+        onErrorContainer = LightOnErrorContainer,
+        outline = LightOutline,
+        outlineVariant = LightOutlineVariant,
+        inverseSurface = LightInverseSurface,
+        inverseOnSurface = LightInverseOnSurface,
+        inversePrimary = LightInversePrimary,
+    )
 
 /**
  * Dark color scheme for the LCE app.
  * Uses lighter teal tones for visibility on dark backgrounds.
  */
-val DarkColorScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    primaryContainer = DarkPrimaryContainer,
-    onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DarkSecondary,
-    onSecondary = DarkOnSecondary,
-    secondaryContainer = DarkSecondaryContainer,
-    onSecondaryContainer = DarkOnSecondaryContainer,
-    tertiary = DarkTertiary,
-    onTertiary = DarkOnTertiary,
-    tertiaryContainer = DarkTertiaryContainer,
-    onTertiaryContainer = DarkOnTertiaryContainer,
-    background = DarkBackground,
-    onBackground = DarkOnBackground,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    error = DarkError,
-    onError = DarkOnError,
-    errorContainer = DarkErrorContainer,
-    onErrorContainer = DarkOnErrorContainer,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant,
-    inverseSurface = DarkInverseSurface,
-    inverseOnSurface = DarkInverseOnSurface,
-    inversePrimary = DarkInversePrimary
-)
+val DarkColorScheme =
+    darkColorScheme(
+        primary = DarkPrimary,
+        onPrimary = DarkOnPrimary,
+        primaryContainer = DarkPrimaryContainer,
+        onPrimaryContainer = DarkOnPrimaryContainer,
+        secondary = DarkSecondary,
+        onSecondary = DarkOnSecondary,
+        secondaryContainer = DarkSecondaryContainer,
+        onSecondaryContainer = DarkOnSecondaryContainer,
+        tertiary = DarkTertiary,
+        onTertiary = DarkOnTertiary,
+        tertiaryContainer = DarkTertiaryContainer,
+        onTertiaryContainer = DarkOnTertiaryContainer,
+        background = DarkBackground,
+        onBackground = DarkOnBackground,
+        surface = DarkSurface,
+        onSurface = DarkOnSurface,
+        surfaceVariant = DarkSurfaceVariant,
+        onSurfaceVariant = DarkOnSurfaceVariant,
+        error = DarkError,
+        onError = DarkOnError,
+        errorContainer = DarkErrorContainer,
+        onErrorContainer = DarkOnErrorContainer,
+        outline = DarkOutline,
+        outlineVariant = DarkOutlineVariant,
+        inverseSurface = DarkInverseSurface,
+        inverseOnSurface = DarkInverseOnSurface,
+        inversePrimary = DarkInversePrimary,
+    )
 
 /**
  * Main theme composable for the LCE app.
@@ -99,17 +101,18 @@ val DarkColorScheme = darkColorScheme(
 fun LceTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        // Use dynamic colors on Android 12+ if enabled
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val colorScheme =
+        when {
+            // Use dynamic colors on Android 12+ if enabled
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                val context = LocalContext.current
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            }
+            darkTheme -> DarkColorScheme
+            else -> LightColorScheme
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
 
     // Set status bar color based on theme
     val view = LocalView.current
@@ -125,6 +128,6 @@ fun LceTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = LceTypography,
-        content = content
+        content = content,
     )
 }

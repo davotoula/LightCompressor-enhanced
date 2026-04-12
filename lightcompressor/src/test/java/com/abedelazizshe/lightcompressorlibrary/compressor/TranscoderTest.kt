@@ -1,24 +1,28 @@
 package com.abedelazizshe.lightcompressorlibrary.compressor
 
 import android.content.Context
-import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
-import android.view.Surface
 import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.utils.StreamableVideo
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkAll
+import io.mockk.verify
+import io.mockk.verifySequence
 import org.junit.After
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 
 class TranscoderTest {
-
     private val context: Context = mockk(relaxed = true)
     private val uri: Uri = mockk()
     private val listener: CompressionProgressListener = mockk(relaxed = true)
@@ -35,9 +39,14 @@ class TranscoderTest {
 
     @Test
     fun tuneEncoderFormat_h264_setsAvcProfileAndLevel() {
-        val transcoder = object : Transcoder(VideoCodec.H264, context, uri, baseRequest()) {
-            override fun codecSupportsProfile(mime: String, profile: Int, level: Int) = true
-        }
+        val transcoder =
+            object : Transcoder(VideoCodec.H264, context, uri, baseRequest()) {
+                override fun codecSupportsProfile(
+                    mime: String,
+                    profile: Int,
+                    level: Int,
+                ) = true
+            }
         val format = mockk<MediaFormat>(relaxed = true)
         transcoder.tuneEncoderFormat(format)
         verify {
@@ -48,13 +57,23 @@ class TranscoderTest {
     @Test
     fun tuneEncoderFormat_h265_appliesProfileAndVendorHints() {
         val appliedKeys = mutableListOf<Pair<String, Int>>()
-        val transcoder = object : Transcoder(VideoCodec.H265, context, uri, baseRequest()) {
-            override fun codecSupportsProfile(mime: String, profile: Int, level: Int) = true
-            override fun trySetVendorKey(format: MediaFormat, key: String, value: Int) {
-                appliedKeys += key to value
-                format.setInteger(key, value)
+        val transcoder =
+            object : Transcoder(VideoCodec.H265, context, uri, baseRequest()) {
+                override fun codecSupportsProfile(
+                    mime: String,
+                    profile: Int,
+                    level: Int,
+                ) = true
+
+                override fun trySetVendorKey(
+                    format: MediaFormat,
+                    key: String,
+                    value: Int,
+                ) {
+                    appliedKeys += key to value
+                    format.setInteger(key, value)
+                }
             }
-        }
         val format = mockk<MediaFormat>(relaxed = true)
         transcoder.tuneEncoderFormat(format)
         verify {
@@ -70,12 +89,16 @@ class TranscoderTest {
 
     @Test
     fun finalizeOutput_withoutStreamable_renamesMuxerToDestination() {
-        val muxerOutput = File.createTempFile("transcoder_mux", ".mp4").apply {
-            deleteOnExit(); writeText("mux")
-        }
-        val destination = File.createTempFile("transcoder_dest", ".mp4").apply {
-            deleteOnExit(); writeText("dest-initial")
-        }
+        val muxerOutput =
+            File.createTempFile("transcoder_mux", ".mp4").apply {
+                deleteOnExit()
+                writeText("mux")
+            }
+        val destination =
+            File.createTempFile("transcoder_dest", ".mp4").apply {
+                deleteOnExit()
+                writeText("dest-initial")
+            }
         val transcoder = Transcoder(VideoCodec.H264, context, uri, baseRequest(destination = destination))
         val result = transcoder.finalizeOutput(muxerOutput, streamableRequested = false)
         assertTrue(destination.exists())
@@ -86,9 +109,11 @@ class TranscoderTest {
 
     @Test
     fun finalizeOutput_withoutStreamable_sameFileSkipsRename() {
-        val destination = File.createTempFile("transcoder_dest", ".mp4").apply {
-            deleteOnExit(); writeText("muxer-output")
-        }
+        val destination =
+            File.createTempFile("transcoder_dest", ".mp4").apply {
+                deleteOnExit()
+                writeText("muxer-output")
+            }
         val transcoder = Transcoder(VideoCodec.H264, context, uri, baseRequest(destination = destination))
         val result = transcoder.finalizeOutput(destination, streamableRequested = false)
         assertTrue(destination.exists())
@@ -99,25 +124,36 @@ class TranscoderTest {
 
     @Test
     fun finalizeOutput_withStreamable_prefersSecondaryOutput() {
-        val muxerOutput = File.createTempFile("transcoder_mux", ".mp4").apply {
-            deleteOnExit(); writeText("mux")
-        }
-        val destination = File.createTempFile("transcoder_dest", ".mp4").apply {
-            deleteOnExit(); delete()
-        }
-        val streamable = File.createTempFile("transcoder_stream", ".mp4").apply {
-            deleteOnExit(); delete()
-        }
+        val muxerOutput =
+            File.createTempFile("transcoder_mux", ".mp4").apply {
+                deleteOnExit()
+                writeText("mux")
+            }
+        val destination =
+            File.createTempFile("transcoder_dest", ".mp4").apply {
+                deleteOnExit()
+                delete()
+            }
+        val streamable =
+            File.createTempFile("transcoder_stream", ".mp4").apply {
+                deleteOnExit()
+                delete()
+            }
         every { StreamableVideo.start(muxerOutput, destination) } answers {
-            destination.writeText("fast-start"); true
+            destination.writeText("fast-start")
+            true
         }
         every { StreamableVideo.start(destination, streamable) } answers {
-            streamable.writeText("streamable"); true
+            streamable.writeText("streamable")
+            true
         }
-        val transcoder = Transcoder(
-            VideoCodec.H264, context, uri,
-            baseRequest(destination = destination, streamablePath = streamable.path)
-        )
+        val transcoder =
+            Transcoder(
+                VideoCodec.H264,
+                context,
+                uri,
+                baseRequest(destination = destination, streamablePath = streamable.path),
+            )
         val result = transcoder.finalizeOutput(muxerOutput, streamableRequested = true)
         assertTrue(streamable.exists())
         assertEquals("streamable", streamable.readText())
@@ -163,12 +199,13 @@ class TranscoderTest {
     @Test
     fun isDecoderAvailable_returnsFalse_forUnsupportedMime() {
         // Verify the method signature works correctly in a subclass override scenario
-        val transcoder = object : Transcoder(VideoCodec.H264, context, uri, baseRequest()) {
-            override fun isDecoderAvailable(mime: String): Boolean {
-                // Simulate a device that only supports AVC and HEVC decoders
-                return mime in listOf("video/avc", "video/hevc")
+        val transcoder =
+            object : Transcoder(VideoCodec.H264, context, uri, baseRequest()) {
+                override fun isDecoderAvailable(mime: String): Boolean {
+                    // Simulate a device that only supports AVC and HEVC decoders
+                    return mime in listOf("video/avc", "video/hevc")
+                }
             }
-        }
         assertFalse(transcoder.isDecoderAvailable("video/divx"))
         assertFalse(transcoder.isDecoderAvailable("video/x-msvideo"))
         assertTrue(transcoder.isDecoderAvailable("video/avc"))
@@ -176,14 +213,22 @@ class TranscoderTest {
     }
 
     private fun baseRequest(
-        destination: File = File.createTempFile("transcoder_dest", ".mp4").apply {
-            deleteOnExit(); delete()
-        },
-        streamablePath: String? = null
+        destination: File =
+            File.createTempFile("transcoder_dest", ".mp4").apply {
+                deleteOnExit()
+                delete()
+            },
+        streamablePath: String? = null,
     ) = Transcoder.Request(
-        index = 0, width = 1280, height = 720, bitrate = 2_000_000L,
-        destination = destination, streamablePath = streamablePath,
-        disableAudio = true, rotation = 0, durationUs = 1_000_000L,
-        listener = listener
+        index = 0,
+        width = 1280,
+        height = 720,
+        bitrate = 2_000_000L,
+        destination = destination,
+        streamablePath = streamablePath,
+        disableAudio = true,
+        rotation = 0,
+        durationUs = 1_000_000L,
+        listener = listener,
     )
 }

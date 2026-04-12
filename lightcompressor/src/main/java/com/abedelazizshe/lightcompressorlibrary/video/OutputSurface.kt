@@ -4,13 +4,18 @@ import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener
 import android.view.Surface
 
+@Suppress("TooGenericExceptionThrown")
 class OutputSurface : OnFrameAvailableListener {
-
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
     private val mFrameSyncObject = Object()
     private var mFrameAvailable = false
     private var mTextureRender: TextureRenderer? = null
+
+    companion object {
+        private const val FRAME_WAIT_TIMEOUT_MS = 2500L
+        private const val FRAME_WAIT_MAX_ATTEMPTS = 3
+    }
 
     /**
      * Creates an OutputSurface using the current EGL context. This Surface will be
@@ -63,8 +68,8 @@ class OutputSurface : OnFrameAvailableListener {
      * data is available.
      */
     fun awaitNewImage() {
-        val timeOutMs = 2500L
-        val maxAttempts = 3
+        val timeOutMs = FRAME_WAIT_TIMEOUT_MS
+        val maxAttempts = FRAME_WAIT_MAX_ATTEMPTS
         synchronized(mFrameSyncObject) {
             var attempts = 0
             while (!mFrameAvailable) {
@@ -74,7 +79,7 @@ class OutputSurface : OnFrameAvailableListener {
                         attempts++
                         if (attempts >= maxAttempts) {
                             throw RuntimeException(
-                                "Surface frame wait timed out after ${maxAttempts * timeOutMs}ms"
+                                "Surface frame wait timed out after ${maxAttempts * timeOutMs}ms",
                             )
                         }
                     }

@@ -10,23 +10,26 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
+private const val COPY_BUFFER_SIZE = 4096
+
+@Suppress("NestedBlockDepth")
 @RequiresApi(Build.VERSION_CODES.Q)
 fun saveVideoInExternal(
     context: Context,
     videoFileName: String,
     saveLocation: String,
-    videoFile: File
+    videoFile: File,
 ) {
-    val values = ContentValues().apply {
-
-        put(
-            MediaStore.Images.Media.DISPLAY_NAME,
-            videoFileName
-        )
-        put(MediaStore.Images.Media.MIME_TYPE, "video/mp4")
-        put(MediaStore.Images.Media.RELATIVE_PATH, saveLocation)
-        put(MediaStore.Images.Media.IS_PENDING, 1)
-    }
+    val values =
+        ContentValues().apply {
+            put(
+                MediaStore.Images.Media.DISPLAY_NAME,
+                videoFileName,
+            )
+            put(MediaStore.Images.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Images.Media.RELATIVE_PATH, saveLocation)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
 
     var collection =
         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -38,12 +41,13 @@ fun saveVideoInExternal(
     val fileUri = context.contentResolver.insert(collection, values)
 
     fileUri?.let {
-        context.contentResolver.openFileDescriptor(fileUri, "rw")
+        context.contentResolver
+            .openFileDescriptor(fileUri, "rw")
             .use { descriptor ->
                 descriptor?.let {
                     FileOutputStream(descriptor.fileDescriptor).use { out ->
                         FileInputStream(videoFile).use { inputStream ->
-                            val buf = ByteArray(4096)
+                            val buf = ByteArray(COPY_BUFFER_SIZE)
                             while (true) {
                                 val sz = inputStream.read(buf)
                                 if (sz <= 0) break
@@ -59,4 +63,3 @@ fun saveVideoInExternal(
         context.contentResolver.update(fileUri, values, null, null)
     }
 }
-

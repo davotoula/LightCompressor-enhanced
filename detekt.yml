@@ -1,0 +1,21 @@
+style:
+  MagicNumber:
+    active: true
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+
+complexity:
+  LongMethod:
+    threshold: 100
+  CyclomaticComplexMethod:
+    threshold: 20
+  TooManyFunctions:
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInInterfaces: 20
+    thresholdInObjects: 20
+    thresholdInEnums: 20
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 8

@@ -9,8 +9,8 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.net.Uri
 import android.os.Build
-import android.view.Surface
 import android.util.Log
+import android.view.Surface
 import com.abedelazizshe.lightcompressorlibrary.CompressionProgressListener
 import com.abedelazizshe.lightcompressorlibrary.VideoCodec
 import com.abedelazizshe.lightcompressorlibrary.utils.CompressorUtils.findTrack
@@ -30,13 +30,13 @@ import kotlin.math.min
  * Unified video transcoder supporting both AVC/H.264 and HEVC/H.265 via [VideoCodec] parameter.
  * Uses native Android MediaCodec and MediaMuxer.
  */
+@Suppress("LargeClass")
 internal open class Transcoder(
     private val codec: VideoCodec,
     private val context: Context,
     private val srcUri: Uri,
-    private val request: Request
+    private val request: Request,
 ) {
-
     data class Request(
         val index: Int,
         val width: Int,
@@ -47,17 +47,19 @@ internal open class Transcoder(
         val disableAudio: Boolean,
         val rotation: Int,
         val durationUs: Long,
-        val listener: CompressionProgressListener
+        val listener: CompressionProgressListener,
     )
 
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod", "TooGenericExceptionCaught")
     fun transcode(): Result {
         val streamableRequested = request.streamablePath != null
         val parentDir = request.destination.parentFile ?: context.cacheDir
-        val muxerOutputFile = if (streamableRequested) {
-            File.createTempFile("transcode_", ".mp4", parentDir)
-        } else {
-            request.destination
-        }
+        val muxerOutputFile =
+            if (streamableRequested) {
+                File.createTempFile("transcode_", ".mp4", parentDir)
+            } else {
+                request.destination
+            }
 
         var muxer: MediaMuxer? = null
         var encoder: MediaCodec? = null
@@ -70,9 +72,10 @@ internal open class Transcoder(
         var decoderStarted = false
 
         return try {
-            videoExtractor = MediaExtractor().apply {
-                setDataSource(context, srcUri, null)
-            }
+            videoExtractor =
+                MediaExtractor().apply {
+                    setDataSource(context, srcUri, null)
+                }
             val videoTrackIndex = findTrack(videoExtractor, true)
             if (videoTrackIndex < 0) {
                 return failure("No video track found in source")
@@ -80,27 +83,30 @@ internal open class Transcoder(
             videoExtractor.selectTrack(videoTrackIndex)
             videoExtractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             val inputFormat = videoExtractor.getTrackFormat(videoTrackIndex)
-            val sourceMime = inputFormat.getString(MediaFormat.KEY_MIME)
-                ?: return failure("Source video mime type missing")
+            val sourceMime =
+                inputFormat.getString(MediaFormat.KEY_MIME)
+                    ?: return failure("Source video mime type missing")
 
             if (!isDecoderAvailable(sourceMime)) {
                 return failure(
-                    "Unsupported video codec: $sourceMime. This device cannot decode this video format."
+                    "Unsupported video codec: $sourceMime. This device cannot decode this video format.",
                 )
             }
 
-            val encoderFormat = MediaFormat.createVideoFormat(
-                codec.mimeType,
-                request.width,
-                request.height
-            )
+            val encoderFormat =
+                MediaFormat.createVideoFormat(
+                    codec.mimeType,
+                    request.width,
+                    request.height,
+                )
             setOutputFileParameters(inputFormat, encoderFormat, request.bitrate)
             tuneEncoderFormat(encoderFormat)
 
-            val encoderOrNull = createEncoderGuarded(encoderFormat)
-                ?: return failure(
-                    if (codec == VideoCodec.H265) MSG_ENCODER_FAILED_H265 else MSG_ENCODER_FAILED_H264
-                )
+            val encoderOrNull =
+                createEncoderGuarded(encoderFormat)
+                    ?: return failure(
+                        if (codec == VideoCodec.H265) MSG_ENCODER_FAILED_H265 else MSG_ENCODER_FAILED_H264,
+                    )
             encoder = encoderOrNull
             try {
                 inputSurface = InputSurface(encoder.createInputSurface())
@@ -112,8 +118,9 @@ internal open class Transcoder(
             encoderStarted = true
 
             outputSurface = OutputSurface()
-            val decoderOrNull = createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
-                ?: return failure("$MSG_DECODER_FAILED_PREFIX$sourceMime$MSG_DECODER_FAILED_SUFFIX")
+            val decoderOrNull =
+                createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
+                    ?: return failure("$MSG_DECODER_FAILED_PREFIX$sourceMime$MSG_DECODER_FAILED_SUFFIX")
             decoder = decoderOrNull
             decoder.start()
             decoderStarted = true
@@ -131,7 +138,7 @@ internal open class Transcoder(
                 inputSurface = inputSurface,
                 muxer = muxer,
                 audioTrack = audioTrackInfo,
-                sourceMime = sourceMime
+                sourceMime = sourceMime,
             )
 
             try {
@@ -147,11 +154,12 @@ internal open class Transcoder(
             muxer = null
 
             finalizeOutput(muxerOutputFile, streamableRequested)
-        } catch (throwable: Throwable) {
-            if (throwable is CancellationException) {
-                request.listener.onProgressCancelled(request.index)
-                return failure("Compression cancelled")
-            }
+        } catch (_: CancellationException) {
+            request.listener.onProgressCancelled(request.index)
+            failure("Compression cancelled")
+        } catch (
+            @Suppress("TooGenericExceptionCaught") throwable: Throwable,
+        ) {
             printException(Exception(throwable))
             failure(throwable.message ?: "${codec.name} transcoding failed")
         } finally {
@@ -201,7 +209,12 @@ internal open class Transcoder(
                 muxer?.release()
             } catch (_: Exception) {
             }
-            if (streamableRequested && muxerOutputFile != request.destination && muxerOutputFile.exists() && !muxerOutputFile.delete()) {
+            @Suppress("ComplexCondition")
+            if (streamableRequested &&
+                muxerOutputFile != request.destination &&
+                muxerOutputFile.exists() &&
+                !muxerOutputFile.delete()
+            ) {
                 Log.w(TAG, "Failed to delete temporary muxer file: ${muxerOutputFile.absolutePath}")
             }
         }
@@ -210,9 +223,10 @@ internal open class Transcoder(
     private data class AudioTrackInfo(
         val extractor: MediaExtractor,
         val muxerTrackIndex: Int,
-        val format: MediaFormat
+        val format: MediaFormat,
     )
 
+    @Suppress("TooGenericExceptionCaught")
     private fun prepareAudioTrack(muxer: MediaMuxer): AudioTrackInfo? {
         val extractor = MediaExtractor()
         return try {
@@ -228,7 +242,7 @@ internal open class Transcoder(
                 AudioTrackInfo(
                     extractor = extractor,
                     muxerTrackIndex = muxerTrackIndex,
-                    format = audioFormat
+                    format = audioFormat,
                 )
             }
         } catch (e: Exception) {
@@ -241,6 +255,14 @@ internal open class Transcoder(
         }
     }
 
+    @Suppress(
+        "ThrowsCount",
+        "CyclomaticComplexMethod",
+        "LongMethod",
+        "NestedBlockDepth",
+        "LongParameterList",
+        "TooGenericExceptionThrown",
+    )
     private fun drivePipeline(
         videoExtractor: MediaExtractor,
         decoder: MediaCodec,
@@ -249,7 +271,7 @@ internal open class Transcoder(
         inputSurface: InputSurface,
         muxer: MediaMuxer,
         audioTrack: AudioTrackInfo?,
-        sourceMime: String
+        sourceMime: String,
     ) {
         val timeoutUs = TIMEOUT_US
         val bufferInfo = MediaCodec.BufferInfo()
@@ -273,7 +295,7 @@ internal open class Transcoder(
                             0,
                             0,
                             0L,
-                            MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM,
                         )
                     } else {
                         val sampleSize = videoExtractor.readSampleData(inputBuffer, 0)
@@ -283,7 +305,7 @@ internal open class Transcoder(
                                 0,
                                 0,
                                 0L,
-                                MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM,
                             )
                             inputDone = true
                         } else {
@@ -294,7 +316,7 @@ internal open class Transcoder(
                                 0,
                                 sampleSize,
                                 sampleTimeUs,
-                                sampleFlags
+                                sampleFlags,
                             )
                             videoExtractor.advance()
                         }
@@ -305,6 +327,7 @@ internal open class Transcoder(
             var encoderOutputAvailable = true
             var decoderOutputAvailable = !decoderDone
 
+            @Suppress("LoopWithTooManyJumpStatements")
             loop@ while (encoderOutputAvailable || decoderOutputAvailable) {
                 var encoderStatus = MediaCodec.INFO_TRY_AGAIN_LATER
 
@@ -329,7 +352,9 @@ internal open class Transcoder(
                             val encodedData = encoder.getOutputBuffer(encoderStatus)
                             if (encodedData == null) {
                                 throw RuntimeException(
-                                    "Encoder produced null output buffer (index=$encoderStatus). The device encoder may be in a bad state."
+                                    "Encoder produced null output buffer " +
+                                        "(index=$encoderStatus). " +
+                                        "The device encoder may be in a bad state.",
                                 )
                             }
 
@@ -353,7 +378,7 @@ internal open class Transcoder(
 
                         else -> {
                             throw RuntimeException(
-                                "Unexpected encoder status $encoderStatus during ${codec.name} transcoding"
+                                "Unexpected encoder status $encoderStatus during ${codec.name} transcoding",
                             )
                         }
                     }
@@ -373,7 +398,7 @@ internal open class Transcoder(
 
                         decoderStatus < 0 -> {
                             throw RuntimeException(
-                                "Unexpected decoder status $decoderStatus while decoding $sourceMime"
+                                "Unexpected decoder status $decoderStatus while decoding $sourceMime",
                             )
                         }
 
@@ -388,7 +413,7 @@ internal open class Transcoder(
                                 outputSurface.drawImage()
 
                                 val presentationTimeUs = bufferInfo.presentationTimeUs
-                                inputSurface.setPresentationTime(presentationTimeUs * 1000)
+                                inputSurface.setPresentationTime(presentationTimeUs * NS_PER_US)
                                 inputSurface.swapBuffers()
 
                                 reportProgress(presentationTimeUs)
@@ -411,18 +436,20 @@ internal open class Transcoder(
 
     private fun copyAudioTrack(
         trackInfo: AudioTrackInfo,
-        muxer: MediaMuxer
+        muxer: MediaMuxer,
     ) {
         val bufferInfo = MediaCodec.BufferInfo()
         val extractor = trackInfo.extractor
         extractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-        val initialCapacity = if (trackInfo.format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
-            trackInfo.format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
-        } else {
-            64 * 1024
-        }
-        var buffer = ByteBuffer.allocateDirect(initialCapacity.coerceAtLeast(64 * 1024))
+        val initialCapacity =
+            if (trackInfo.format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
+                trackInfo.format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
+            } else {
+                AUDIO_BUFFER_SIZE
+            }
+        var buffer = ByteBuffer.allocateDirect(initialCapacity.coerceAtLeast(AUDIO_BUFFER_SIZE))
 
+        @Suppress("LoopWithTooManyJumpStatements")
         while (true) {
             buffer.clear()
             var sampleSize = extractor.readSampleData(buffer, 0)
@@ -430,7 +457,7 @@ internal open class Transcoder(
                 break
             }
             if (sampleSize > buffer.capacity()) {
-                val requiredCapacity = sampleSize.coerceAtLeast(64 * 1024)
+                val requiredCapacity = sampleSize.coerceAtLeast(AUDIO_BUFFER_SIZE)
                 buffer = ByteBuffer.allocateDirect(requiredCapacity)
                 buffer.clear()
                 sampleSize = extractor.readSampleData(buffer, 0)
@@ -455,7 +482,11 @@ internal open class Transcoder(
         }
     }
 
-    internal open fun finalizeOutput(muxerFile: File, streamableRequested: Boolean): Result {
+    @Suppress("ReturnCount")
+    internal open fun finalizeOutput(
+        muxerFile: File,
+        streamableRequested: Boolean,
+    ): Result {
         val destination = request.destination
         if (!streamableRequested) {
             if (muxerFile != destination) {
@@ -471,7 +502,7 @@ internal open class Transcoder(
                 success = true,
                 failureMessage = null,
                 size = destination.length(),
-                path = destination.path
+                path = destination.path,
             )
         }
 
@@ -479,12 +510,13 @@ internal open class Transcoder(
             Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
         }
 
-        val fastStartApplied = try {
-            StreamableVideo.start(muxerFile, destination)
-        } catch (ioe: IOException) {
-            Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
-            false
-        }
+        val fastStartApplied =
+            try {
+                StreamableVideo.start(muxerFile, destination)
+            } catch (ioe: IOException) {
+                Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
+                false
+            }
 
         if (!fastStartApplied) {
             muxerFile.copyTo(destination, overwrite = true)
@@ -495,12 +527,13 @@ internal open class Transcoder(
         val streamablePath = request.streamablePath
         if (streamablePath != null) {
             val streamableFile = File(streamablePath)
-            val converted = try {
-                StreamableVideo.start(destination, streamableFile)
-            } catch (ioe: IOException) {
-                Log.w(TAG, "Secondary fast-start copy failed: ${ioe.message}")
-                false
-            }
+            val converted =
+                try {
+                    StreamableVideo.start(destination, streamableFile)
+                } catch (ioe: IOException) {
+                    Log.w(TAG, "Secondary fast-start copy failed: ${ioe.message}")
+                    false
+                }
             if (converted && destination.exists()) {
                 if (!destination.delete()) {
                     Log.w(TAG, "Failed to delete destination file: ${destination.absolutePath}")
@@ -510,7 +543,7 @@ internal open class Transcoder(
                     success = true,
                     failureMessage = null,
                     size = streamableFile.length(),
-                    path = streamableFile.path
+                    path = streamableFile.path,
                 )
             }
         }
@@ -520,7 +553,7 @@ internal open class Transcoder(
             success = true,
             failureMessage = null,
             size = destination.length(),
-            path = destination.path
+            path = destination.path,
         )
     }
 
@@ -529,7 +562,7 @@ internal open class Transcoder(
         val duration = request.durationUs
         val progressNumerator = min(presentationTimeUs, duration)
         val progressDenominator = if (duration > 0) duration.toFloat() else 1f
-        val progress = progressNumerator.toFloat() / progressDenominator * 100f
+        val progress = progressNumerator.toFloat() / progressDenominator * PERCENT_MULTIPLIER
         listener.onProgressChanged(request.index, progress)
     }
 
@@ -537,8 +570,13 @@ internal open class Transcoder(
      * Wraps decoder creation and configuration in a try-catch, returning null on failure.
      * Override in tests to simulate decoder creation failure.
      */
-    internal open fun createDecoderGuarded(mime: String, format: MediaFormat, surface: Surface?): MediaCodec? {
-        return try {
+    @Suppress("TooGenericExceptionCaught")
+    internal open fun createDecoderGuarded(
+        mime: String,
+        format: MediaFormat,
+        surface: Surface?,
+    ): MediaCodec? =
+        try {
             val dec = MediaCodec.createDecoderByType(mime)
             dec.configure(format, surface, null, 0)
             dec
@@ -546,42 +584,43 @@ internal open class Transcoder(
             Log.w(TAG, "Decoder creation/configuration failed for $mime: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Wraps [createEncoder] in a try-catch, returning null on failure.
      * Override in tests to simulate encoder creation failure.
      */
-    internal open fun createEncoderGuarded(outputFormat: MediaFormat): MediaCodec? {
-        return try {
+    @Suppress("TooGenericExceptionCaught")
+    internal open fun createEncoderGuarded(outputFormat: MediaFormat): MediaCodec? =
+        try {
             createEncoder(outputFormat)
         } catch (e: Exception) {
             Log.w(TAG, "Encoder creation failed: ${e.message}", e)
             null
         }
-    }
 
     /**
      * Creates and configures the encoder for the given format.
      * H264: uses QTI-specific fallback logic.
      * H265: uses simple createEncoderByType.
      */
-    private fun createEncoder(outputFormat: MediaFormat): MediaCodec {
-        return when (codec) {
+    @Suppress("TooGenericExceptionCaught")
+    private fun createEncoder(outputFormat: MediaFormat): MediaCodec =
+        when (codec) {
             VideoCodec.H264 -> {
                 val hasQTI = hasQTI()
 
                 // On QTI devices, use c2.android.avc.encoder to avoid compatibility issues
-                var encoder = if (hasQTI) {
-                    try {
-                        MediaCodec.createByCodecName("c2.android.avc.encoder")
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to create c2.android.avc.encoder, falling back to generic", e)
+                var encoder =
+                    if (hasQTI) {
+                        try {
+                            MediaCodec.createByCodecName("c2.android.avc.encoder")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to create c2.android.avc.encoder, falling back to generic", e)
+                            MediaCodec.createEncoderByType(VideoCodec.H264.mimeType)
+                        }
+                    } else {
                         MediaCodec.createEncoderByType(VideoCodec.H264.mimeType)
                     }
-                } else {
-                    MediaCodec.createEncoderByType(VideoCodec.H264.mimeType)
-                }
 
                 try {
                     encoder.configure(outputFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -600,7 +639,6 @@ internal open class Transcoder(
                 encoder
             }
         }
-    }
 
     /**
      * Tunes the encoder format with codec-specific profile/level and vendor hints.
@@ -637,15 +675,19 @@ internal open class Transcoder(
         MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
     }
 
-    internal open fun isDecoderAvailable(mime: String): Boolean {
-        return codecInfos.any { codecInfo ->
-            !codecInfo.isEncoder && codecInfo.supportedTypes.any {
-                it.equals(mime, ignoreCase = true)
-            }
+    internal open fun isDecoderAvailable(mime: String): Boolean =
+        codecInfos.any { codecInfo ->
+            !codecInfo.isEncoder &&
+                codecInfo.supportedTypes.any {
+                    it.equals(mime, ignoreCase = true)
+                }
         }
-    }
 
-    internal open fun codecSupportsProfile(mime: String, profile: Int, level: Int): Boolean {
+    internal open fun codecSupportsProfile(
+        mime: String,
+        profile: Int,
+        level: Int,
+    ): Boolean {
         codecInfos.filter { it.isEncoder }.forEach { codecInfo ->
             val type = codecInfo.supportedTypes.firstOrNull { it.equals(mime, ignoreCase = true) } ?: return@forEach
             val profileLevel = codecInfo.getCapabilitiesForType(type).profileLevels
@@ -656,7 +698,11 @@ internal open class Transcoder(
         return false
     }
 
-    internal open fun trySetVendorKey(format: MediaFormat, key: String, value: Int) {
+    internal open fun trySetVendorKey(
+        format: MediaFormat,
+        key: String,
+        value: Int,
+    ) {
         try {
             format.setInteger(key, value)
             Log.d(TAG, "Applied vendor key $key=$value")
@@ -670,33 +716,39 @@ internal open class Transcoder(
         if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
             codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0
+        ) {
             codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
         }
         return codecFlags
     }
 
-    private fun failure(message: String): Result {
-        return Result(
+    private fun failure(message: String): Result =
+        Result(
             request.index,
             success = false,
-            failureMessage = message
+            failureMessage = message,
         )
-    }
 
     private class CancellationException : RuntimeException()
 
+    @Suppress("ktlint:standard:property-naming", "VariableNaming")
     private val TAG = "Transcoder-${codec.name}"
 
     internal companion object {
         private const val TIMEOUT_US = 100L
+        private const val NS_PER_US = 1000L
+        private const val AUDIO_BUFFER_SIZE = 64 * 1024
+        private const val PERCENT_MULTIPLIER = 100f
         private const val AVC_PROFILE_HIGH = MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
         private const val AVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.AVCLevel4
         private const val HEVC_PROFILE_MAIN = MediaCodecInfo.CodecProfileLevel.HEVCProfileMain
         private const val HEVC_LEVEL_4 = MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4
 
         internal const val MSG_ENCODER_FAILED_H265 = "Failed to create H265 encoder. Try using H.264 instead."
-        internal const val MSG_ENCODER_FAILED_H264 = "Failed to create H264 encoder. The device may not support this encoding format."
+        internal const val MSG_ENCODER_FAILED_H264 =
+            "Failed to create H264 encoder. The device may not support this encoding format."
         internal const val MSG_DECODER_FAILED_PREFIX = "Failed to create decoder for "
         internal const val MSG_DECODER_FAILED_SUFFIX = ". The device may not have a free decoder instance."
         internal const val MSG_EGL_SETUP_FAILED_PREFIX = "EGL/OpenGL setup failed: "

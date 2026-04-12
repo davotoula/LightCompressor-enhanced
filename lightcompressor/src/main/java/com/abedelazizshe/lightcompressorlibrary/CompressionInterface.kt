@@ -12,19 +12,33 @@ interface CompressionListener {
     fun onStart(index: Int)
 
     @MainThread
-    fun onSuccess(index: Int, size: Long, path: String?)
+    fun onSuccess(
+        index: Int,
+        size: Long,
+        path: String?,
+    )
 
     @MainThread
-    fun onFailure(index: Int, failureMessage: String)
+    fun onFailure(
+        index: Int,
+        failureMessage: String,
+    )
 
     @WorkerThread
-    fun onProgress(index: Int, percent: Float)
+    fun onProgress(
+        index: Int,
+        percent: Float,
+    )
 
     @WorkerThread
     fun onCancelled(index: Int)
 }
 
 interface CompressionProgressListener {
-    fun onProgressChanged(index: Int, percent: Float)
+    fun onProgressChanged(
+        index: Int,
+        percent: Float,
+    )
+
     fun onProgressCancelled(index: Int)
 }
