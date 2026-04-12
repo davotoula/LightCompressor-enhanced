@@ -56,7 +56,7 @@ android {
             withSourcesJar()
         }
     }
-    namespace = 'com.abedelazizshe.lightcompressorlibrary'
+    namespace = 'com.davotoula.lightcompressor'
     lint {
         targetSdk targetSdkVersion
     }

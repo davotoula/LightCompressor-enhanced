@@ -1,0 +1,286 @@
+package com.davotoula.lightcompressor.config
+
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.util.Log
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.VideoQuality
+import com.davotoula.lightcompressor.utils.saveVideoInExternal
+import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+
+data class Configuration(
+    var quality: VideoQuality = VideoQuality.MEDIUM,
+    var isMinBitrateCheckEnabled: Boolean = true,
+    var videoBitrateInMbps: Int? = null,
+    var videoBitrateInBps: Long? = null,
+    var disableAudio: Boolean = false,
+    val resizer: VideoResizer? = VideoResizer.auto,
+    var videoNames: List<String>,
+    var videoCodec: VideoCodec = VideoCodec.H264,
+) {
+    @Deprecated(
+        "Use VideoResizer to override the output video dimensions.",
+        ReplaceWith(
+            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                "resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)",
+        ),
+    )
+    constructor(
+        quality: VideoQuality = VideoQuality.MEDIUM,
+        isMinBitrateCheckEnabled: Boolean = true,
+        videoBitrateInMbps: Int? = null,
+        disableAudio: Boolean = false,
+        keepOriginalResolution: Boolean,
+        videoNames: List<String>,
+    ) : this(
+        quality,
+        isMinBitrateCheckEnabled,
+        videoBitrateInMbps,
+        null,
+        disableAudio,
+        getVideoResizer(keepOriginalResolution, null, null),
+        videoNames,
+        VideoCodec.H264,
+    )
+
+    @Deprecated(
+        "Use VideoResizer to override the output video dimensions.",
+        ReplaceWith(
+            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                "resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)",
+        ),
+    )
+    constructor(
+        quality: VideoQuality = VideoQuality.MEDIUM,
+        isMinBitrateCheckEnabled: Boolean = true,
+        videoBitrateInMbps: Int? = null,
+        disableAudio: Boolean = false,
+        keepOriginalResolution: Boolean = false,
+        videoHeight: Double? = null,
+        videoWidth: Double? = null,
+        videoNames: List<String>,
+    ) : this(
+        quality,
+        isMinBitrateCheckEnabled,
+        videoBitrateInMbps,
+        null,
+        disableAudio,
+        getVideoResizer(keepOriginalResolution, videoHeight, videoWidth),
+        videoNames,
+        VideoCodec.H264,
+    )
+
+    /**
+     * Validates the bitrate configuration to ensure only one bitrate field is used at a time
+     * for better clarity, though both can be specified with bps taking precedence.
+     */
+    internal fun getEffectiveBitrateInBps(): Long? =
+        when {
+            videoBitrateInBps != null -> {
+                require(videoBitrateInBps!! > 0) { "videoBitrateInBps must be positive" }
+                videoBitrateInBps
+            }
+            videoBitrateInMbps != null -> {
+                require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
+                videoBitrateInMbps!! * BPS_PER_MBPS
+            }
+            else -> null
+        }
+
+    companion object {
+        private const val BPS_PER_MBPS = 1_000_000L
+
+        /**
+         * Creates a Configuration with bitrate specified in bps for granular control
+         */
+        @JvmStatic
+        fun withBitrateInBps(
+            quality: VideoQuality = VideoQuality.MEDIUM,
+            isMinBitrateCheckEnabled: Boolean = true,
+            videoBitrateInBps: Long? = null,
+            disableAudio: Boolean = false,
+            resizer: VideoResizer? = VideoResizer.auto,
+            videoNames: List<String>,
+            videoCodec: VideoCodec = VideoCodec.H264,
+        ): Configuration =
+            Configuration(
+                quality = quality,
+                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                videoBitrateInMbps = null,
+                videoBitrateInBps = videoBitrateInBps,
+                disableAudio = disableAudio,
+                resizer = resizer,
+                videoNames = videoNames,
+                videoCodec = videoCodec,
+            )
+
+        /**
+         * Creates a Configuration with bitrate specified in Mbps (legacy approach)
+         */
+        @JvmStatic
+        fun withBitrateInMbps(
+            quality: VideoQuality = VideoQuality.MEDIUM,
+            isMinBitrateCheckEnabled: Boolean = true,
+            videoBitrateInMbps: Int? = null,
+            disableAudio: Boolean = false,
+            resizer: VideoResizer? = VideoResizer.auto,
+            videoNames: List<String>,
+            videoCodec: VideoCodec = VideoCodec.H264,
+        ): Configuration =
+            Configuration(
+                quality = quality,
+                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                videoBitrateInMbps = videoBitrateInMbps,
+                videoBitrateInBps = null,
+                disableAudio = disableAudio,
+                resizer = resizer,
+                videoNames = videoNames,
+                videoCodec = videoCodec,
+            )
+    }
+}
+
+private const val COPY_BUFFER_SIZE = 4096
+
+private fun getVideoResizer(
+    keepOriginalResolution: Boolean,
+    videoHeight: Double?,
+    videoWidth: Double?,
+): VideoResizer? =
+    if (keepOriginalResolution) {
+        null
+    } else if (videoWidth != null && videoHeight != null) {
+        VideoResizer.matchSize(videoWidth, videoHeight, true)
+    } else {
+        VideoResizer.auto
+    }
+
+interface StorageConfiguration {
+    fun createFileToSave(
+        context: Context,
+        videoFile: File,
+        fileName: String,
+        shouldSave: Boolean,
+    ): File
+}
+
+class AppSpecificStorageConfiguration(
+    private val subFolderName: String? = null,
+) : StorageConfiguration {
+    override fun createFileToSave(
+        context: Context,
+        videoFile: File,
+        fileName: String,
+        shouldSave: Boolean,
+    ): File {
+        val fullPath =
+            if (subFolderName != null) {
+                "$subFolderName/$fileName"
+            } else {
+                fileName
+            }
+
+        if (!File("${context.filesDir}/$fullPath").exists()) {
+            File("${context.filesDir}/$fullPath").parentFile?.mkdirs()
+        }
+        return File(context.filesDir, fullPath)
+    }
+}
+
+enum class SaveLocation {
+    PICTURES,
+    DOWNLOADS,
+    MOVIES,
+}
+
+class SharedStorageConfiguration(
+    private val saveAt: SaveLocation? = null,
+    private val subFolderName: String? = null,
+) : StorageConfiguration {
+    @Suppress("ReturnCount", "NestedBlockDepth")
+    override fun createFileToSave(
+        context: Context,
+        videoFile: File,
+        fileName: String,
+        shouldSave: Boolean,
+    ): File {
+        val saveLocation =
+            when (saveAt) {
+                SaveLocation.DOWNLOADS -> {
+                    Environment.DIRECTORY_DOWNLOADS
+                }
+
+                SaveLocation.PICTURES -> {
+                    Environment.DIRECTORY_PICTURES
+                }
+
+                else -> {
+                    Environment.DIRECTORY_MOVIES
+                }
+            }
+
+        @Suppress("MagicNumber")
+        if (Build.VERSION.SDK_INT >= 29) {
+            val fullPath =
+                if (subFolderName != null) {
+                    "$saveLocation/$subFolderName"
+                } else {
+                    saveLocation
+                }
+            if (shouldSave) {
+                saveVideoInExternal(context, fileName, fullPath, videoFile)
+                File(context.filesDir, fileName).delete()
+                return File("/storage/emulated/0/$fullPath", fileName)
+            }
+            return File(context.filesDir, fileName)
+        } else {
+            val savePath =
+                Environment.getExternalStoragePublicDirectory(saveLocation)
+
+            val fullPath =
+                if (subFolderName != null) {
+                    "$savePath/$subFolderName"
+                } else {
+                    savePath.path
+                }
+
+            val desFile = File(fullPath, fileName)
+
+            if (!desFile.exists()) {
+                try {
+                    desFile.parentFile?.mkdirs()
+                } catch (e: IOException) {
+                    Log.w("SharedStorage", "Failed to create parent directories", e)
+                }
+            }
+
+            if (shouldSave) {
+                context
+                    .openFileOutput(fileName, Context.MODE_PRIVATE)
+                    .use { outputStream ->
+                        FileInputStream(videoFile).use { inputStream ->
+                            val buf = ByteArray(COPY_BUFFER_SIZE)
+                            while (true) {
+                                val sz = inputStream.read(buf)
+                                if (sz <= 0) break
+                                outputStream.write(buf, 0, sz)
+                            }
+                        }
+                    }
+            }
+            return desFile
+        }
+    }
+}
+
+class CacheStorageConfiguration : StorageConfiguration {
+    override fun createFileToSave(
+        context: Context,
+        videoFile: File,
+        fileName: String,
+        shouldSave: Boolean,
+    ): File = File.createTempFile(videoFile.nameWithoutExtension, videoFile.extension)
+}
