@@ -55,30 +55,37 @@ object HlsPreparer : CoroutineScope by MainScope() {
         listener: HlsListener,
     ): Job {
         cancel() // Cancel any running preparation
+        // Use applicationContext to avoid retaining Activity across long suspensions.
+        val appContext = context.applicationContext
         val job =
             launch(Dispatchers.IO) {
-                prepareHls(context, uri, config, listener)
+                prepareHls(appContext, uri, config, listener)
             }
         currentJob = job
         return job
     }
 
-    /** Cancel any running HLS preparation. */
+    /**
+     * Cancel any running HLS preparation.
+     *
+     * This only requests cancellation; the coroutine's own `finally` block
+     * is responsible for clearing its `transcoder` slot so that a subsequent
+     * `start()` is not clobbered by the dying coroutine's cleanup.
+     */
     @JvmStatic
     fun cancel() {
         transcoder?.isCancelled = true
         currentJob?.cancel()
-        currentJob = null
-        transcoder = null
     }
 
-    @Suppress("TooGenericExceptionCaught", "NestedBlockDepth", "ReturnCount")
+    @Suppress("TooGenericExceptionCaught", "NestedBlockDepth", "ReturnCount", "LongMethod")
     private suspend fun prepareHls(
         context: Context,
         uri: Uri,
         config: HlsConfig,
         listener: HlsListener,
     ) {
+        var ownTranscoder: HlsTranscoder? = null
         try {
             // Extract source metadata
             val sourceInfo =
@@ -111,6 +118,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
             }
 
             val hlsTranscoder = HlsTranscoder(context, uri, config)
+            ownTranscoder = hlsTranscoder
             transcoder = hlsTranscoder
             val tempDir = File(context.cacheDir, "hls_temp_${System.currentTimeMillis()}")
             tempDir.mkdirs()
@@ -183,7 +191,11 @@ object HlsPreparer : CoroutineScope by MainScope() {
                 listener.onFailure(HlsError(e.message ?: "Unknown error", emptyList(), emptyList()))
             }
         } finally {
-            transcoder = null
+            // Only clear the slot if we still own it — a subsequent start() may
+            // have already assigned a new transcoder while we were cancelling.
+            if (transcoder === ownTranscoder) {
+                transcoder = null
+            }
         }
     }
 

@@ -106,6 +106,11 @@ internal class Mp4SegmentWriter(
                 sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
             }
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
+        // Anchor the audio track's tfdt to the first audio sample's own PTS, not the
+        // video segment's baseDecodeTimeUs. The two can differ for sources with a
+        // non-zero A/V start offset; anchoring to the audio stream keeps audio/video
+        // sync correct at the fragment boundary.
+        val audioBaseDecodeTimeUs = audioSamples.firstOrNull()?.presentationTimeUs ?: baseDecodeTimeUs
 
         // Measure moof by writing it once into a throwaway buffer with placeholder data
         // offsets. The real data offsets depend on the moof size, which in turn depends on
@@ -118,6 +123,7 @@ internal class Mp4SegmentWriter(
             audioSamples = audioSamples,
             sequenceNumber = sequenceNumber,
             baseDecodeTimeUs = baseDecodeTimeUs,
+            audioBaseDecodeTimeUs = audioBaseDecodeTimeUs,
             hasAudio = hasAudio,
             videoDataOffset = 0,
             audioDataOffset = 0,
@@ -133,6 +139,7 @@ internal class Mp4SegmentWriter(
             audioSamples = audioSamples,
             sequenceNumber = sequenceNumber,
             baseDecodeTimeUs = baseDecodeTimeUs,
+            audioBaseDecodeTimeUs = audioBaseDecodeTimeUs,
             hasAudio = hasAudio,
             videoDataOffset = videoDataOffset,
             audioDataOffset = audioDataOffset,
@@ -255,6 +262,7 @@ internal class Mp4SegmentWriter(
         audioSamples: List<EncodedSample>,
         sequenceNumber: Int,
         baseDecodeTimeUs: Long,
+        audioBaseDecodeTimeUs: Long,
         hasAudio: Boolean,
         videoDataOffset: Int,
         audioDataOffset: Int,
@@ -263,7 +271,7 @@ internal class Mp4SegmentWriter(
             writeMfhd(this, sequenceNumber)
             writeVideoTraf(this, videoSamples, baseDecodeTimeUs, videoDataOffset)
             if (hasAudio) {
-                writeAudioTraf(this, audioSamples, baseDecodeTimeUs, audioDataOffset)
+                writeAudioTraf(this, audioSamples, audioBaseDecodeTimeUs, audioDataOffset)
             }
         }
     }
