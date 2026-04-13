@@ -1,6 +1,5 @@
 package com.davotoula.lightcompressor.muxer
 
-import android.util.Log
 import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.buildHevcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
@@ -92,7 +91,6 @@ internal class Mp4SegmentWriter(
      * @param baseDecodeTimeUs decode timestamp of the first sample in this segment (microseconds)
      * @param output target stream
      */
-    @Suppress("MagicNumber")
     fun writeMediaSegment(
         videoSamples: List<EncodedSample>,
         audioSamples: List<EncodedSample>,
@@ -100,9 +98,6 @@ internal class Mp4SegmentWriter(
         baseDecodeTimeUs: Long,
         output: OutputStream,
     ) {
-        // Timing instrumentation
-        val annexBStart = System.nanoTime()
-
         // MediaCodec emits H.264/HEVC samples in Annex-B format (start codes), but the avcC/hvcC
         // we write declares lengthSizeMinusOne = 3, so the parser expects 4-byte big-endian length
         // prefixes inside mdat. Convert each video sample once, before computing offsets/sizes.
@@ -110,7 +105,6 @@ internal class Mp4SegmentWriter(
             videoSamples.map { sample ->
                 sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
             }
-        val annexBTimeUs = (System.nanoTime() - annexBStart) / 1000
 
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
         // Anchor the audio track's tfdt to the first audio sample's own PTS, not the
@@ -125,7 +119,6 @@ internal class Mp4SegmentWriter(
         val videoDataOffset = moofSize + 8 // 8 = mdat box header
         val audioDataOffset = videoDataOffset + convertedVideoSamples.sumOf { it.data.size }
 
-        val moofWriteStart = System.nanoTime()
         val writer = BoxWriter(output)
         writeMoof(
             writer = writer,
@@ -138,9 +131,6 @@ internal class Mp4SegmentWriter(
             videoDataOffset = videoDataOffset,
             audioDataOffset = audioDataOffset,
         )
-        val moofWriteTimeUs = (System.nanoTime() - moofWriteStart) / 1000
-
-        val mdatStart = System.nanoTime()
         writer.box("mdat") {
             for (sample in convertedVideoSamples) {
                 writeBytes(sample.data)
@@ -150,20 +140,6 @@ internal class Mp4SegmentWriter(
                     writeBytes(sample.data)
                 }
             }
-        }
-        val mdatTimeUs = (System.nanoTime() - mdatStart) / 1000
-
-        // Log timing (wrapped for unit test compatibility)
-        @Suppress("TooGenericExceptionCaught")
-        try {
-            Log.d(
-                PERF_TAG,
-                "Segment #$sequenceNumber: annexB=${annexBTimeUs}us, " +
-                    "moofWrite=${moofWriteTimeUs}us, mdat=${mdatTimeUs}us, " +
-                    "samples=${videoSamples.size}v/${audioSamples.size}a",
-            )
-        } catch (_: Exception) {
-            // Ignore in unit tests where android.util.Log is unavailable
         }
     }
 
@@ -638,7 +614,6 @@ internal class Mp4SegmentWriter(
     }
 
     companion object {
-        private const val PERF_TAG = "perf_timing"
         const val VIDEO_TRACK_ID = 1
         const val AUDIO_TRACK_ID = 2
         const val DEFAULT_VIDEO_TIMESCALE = 90000
