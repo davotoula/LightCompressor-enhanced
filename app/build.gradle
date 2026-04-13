@@ -84,6 +84,11 @@ android {
     lint {
         targetSdk libs.versions.targetSdk.get().toInteger()
     }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
 }
 
 ktlint {
@@ -144,5 +149,9 @@ dependencies {
 
     // Testing
     testImplementation libs.junit
+    testImplementation libs.mockk.android
+    testImplementation libs.robolectric
+    testImplementation libs.androidx.test.core
+    testImplementation libs.kotlinx.coroutines.test
     androidTestImplementation libs.bundles.androidx.testing
 }
