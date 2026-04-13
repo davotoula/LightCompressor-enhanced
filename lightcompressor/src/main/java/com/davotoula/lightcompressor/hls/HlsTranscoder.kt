@@ -61,6 +61,9 @@ internal class HlsTranscoder(
         listener: HlsListener,
         tempDir: File,
     ): RenditionResult? {
+        // Reset audio state for this rendition (instance is reused across renditions)
+        lastAudioLimitPtsUs = -1L
+
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
         val segments = mutableListOf<SegmentInfo>()
         var videoExtractor: MediaExtractor? = null
@@ -102,11 +105,17 @@ internal class HlsTranscoder(
                                 timescale = sampleRate,
                             )
                         audioFrameDurationUs = AAC_SAMPLES_PER_FRAME * 1_000_000L / sampleRate
+                        Log.d(TAG, "Audio track found: ${sampleRate}Hz, ${audioConfig.channelCount}ch")
+                    } else {
+                        Log.d(TAG, "Audio track has no csd-0, skipping audio")
                     }
                 } else {
+                    Log.d(TAG, "No audio track found in source")
                     audioExtractor.release()
                     audioExtractor = null
                 }
+            } else {
+                Log.d(TAG, "Audio disabled by config")
             }
 
             // Configure encoder
@@ -273,9 +282,32 @@ internal class HlsTranscoder(
                                         ),
                                     )
 
+                                    // Copy audio samples up to the current video PTS BEFORE checking
+                                    // for segment boundary. This ensures audio is included in the
+                                    // segment that gets flushed.
+                                    val videoPtsUs = encoderBufferInfo.presentationTimeUs
+                                    if (audioExtractor != null &&
+                                        audioConfig != null &&
+                                        videoPtsUs > lastAudioLimitPtsUs
+                                    ) {
+                                        copyAudioSamples(
+                                            audioExtractor,
+                                            accumulator,
+                                            limitPtsUs = videoPtsUs,
+                                            audioFrameDurationUs = audioFrameDurationUs,
+                                        )
+                                        lastAudioLimitPtsUs = videoPtsUs
+                                    }
+
                                     // Check for segment boundary
                                     val flushed = accumulator.flushIfReady()
                                     if (flushed != null && segmentWriter != null) {
+                                        Log.d(
+                                            TAG,
+                                            "Segment ${flushed.sequenceNumber}: " +
+                                                "${flushed.videoSamples.size} video, " +
+                                                "${flushed.audioSamples.size} audio samples",
+                                        )
                                         emitSegment(
                                             segmentWriter,
                                             flushed,
@@ -302,6 +334,12 @@ internal class HlsTranscoder(
                                     // Flush remaining samples as final segment
                                     val remaining = accumulator.flushRemaining()
                                     if (remaining != null && segmentWriter != null) {
+                                        Log.d(
+                                            TAG,
+                                            "Final segment ${remaining.sequenceNumber}: " +
+                                                "${remaining.videoSamples.size} video, " +
+                                                "${remaining.audioSamples.size} audio samples",
+                                        )
                                         emitSegment(
                                             segmentWriter,
                                             remaining,
@@ -345,19 +383,6 @@ internal class HlsTranscoder(
                             }
                         }
                     }
-                }
-
-                // Copy audio samples up to the current video encoding position.
-                // Skip when the video PTS hasn't advanced — saves a JNI probe per drain iteration.
-                val limitPtsUs = encoderBufferInfo.presentationTimeUs
-                if (audioExtractor != null && audioConfig != null && limitPtsUs > lastAudioLimitPtsUs) {
-                    copyAudioSamples(
-                        audioExtractor,
-                        accumulator,
-                        limitPtsUs = limitPtsUs,
-                        audioFrameDurationUs = audioFrameDurationUs,
-                    )
-                    lastAudioLimitPtsUs = limitPtsUs
                 }
             }
 
