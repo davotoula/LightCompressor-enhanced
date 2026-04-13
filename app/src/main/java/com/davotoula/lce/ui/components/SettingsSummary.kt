@@ -11,7 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.davotoula.lce.ui.main.Codec
-import com.davotoula.lce.ui.main.Resolution
+import com.davotoula.lightcompressor.Resolution
 
 @Composable
 fun SettingsSummary(

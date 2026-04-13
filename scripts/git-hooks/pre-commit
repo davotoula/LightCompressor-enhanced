@@ -1,3 +1,6 @@
 #!/bin/sh
-echo "Running ktlint..."
-./gradlew ktlintCheck --daemon
+echo "Running ktlintFormat..."
+./gradlew ktlintFormat --daemon || exit 1
+# Re-stage any already-staged files that ktlintFormat just rewrote so the
+# auto-fixes land in this commit instead of the working tree.
+git update-index --again

@@ -222,6 +222,96 @@ class MyStorageConfiguration : StorageConfiguration {
 <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
 ```
 
+## HLS Preparation
+
+`HlsPreparer` transcodes a local video into multiple HLS VOD renditions (fMP4 segments + m3u8 playlists) for adaptive-bitrate playback.
+
+### API
+
+- `HlsPreparer.start(context, uri, config, listener): Job` — kicks off preparation and returns a coroutine `Job`.
+- `HlsPreparer.cancel()` — cancels any running preparation.
+- `HlsConfig(ladder, codec, segmentDurationSeconds, disableAudio)` — configuration. Defaults: `HlsLadder.default()`, `VideoCodec.H264`, 6 s segments, audio enabled.
+- `HlsLadder` — ordered list of `Rendition`s. Use `HlsLadder.default()` (360p / 540p / 720p / 1080p / 4K) and chain `.drop("1080p", "4K")` or `.add(Rendition(Resolution.HD_720, 2500))` to customise. Renditions whose short side exceeds the source are automatically dropped at `start`.
+- `Rendition(resolution: Resolution, bitrateKbps: Int)` — a single ladder entry. `Resolution` is the same enum used by `VideoCompressor` (`SD_360`, `SD_540`, `HD_720`, `FHD_1080`, `UHD_4K`).
+- `HlsListener` — 8 callbacks: `onStart(renditionCount)`, `onRenditionStart(rendition)`, `onSegmentReady(rendition, segment)`, `onRenditionComplete(rendition, playlist)`, `onComplete(masterPlaylist)`, `onFailure(error)`, `onProgress(rendition, percent)`, `onCancelled()`.
+- `HlsSegment(file, index, durationSeconds, isInitSegment)` — one emitted segment. `file` is a temp file that is **valid only until `onSegmentReady` returns** — copy or upload it synchronously. `isInitSegment = true` for the per-rendition `init.mp4`.
+- `HlsError(message, failedRenditions, completedRenditions)` — delivered to `onFailure` when every rendition fails. Partial failures still trigger `onComplete`.
+
+**Threading:** `onSegmentReady` and `onProgress` are invoked on a background dispatcher (`Dispatchers.Default`); all other callbacks are on the main thread.
+
+**Output layout:** segments are identified by the rendition's `Resolution.label` (e.g. `720p`). Per rendition, `HlsPreparer` emits one `init.mp4` followed by `segment_000.m4s`, `segment_001.m4s`, … The per-rendition media playlist (`media.m3u8`) is delivered as a `String` via `onRenditionComplete`, and the master playlist (`master.m3u8`) is delivered as a `String` via `onComplete`. Persisting playlists and segments to their final destination (disk, CDN, object storage) is the caller's responsibility — a typical layout is `master.m3u8` at the root with one subdirectory per rendition label containing `media.m3u8`, `init.mp4`, and the `segment_NNN.m4s` files.
+
+### Usage
+
+```kotlin
+import com.davotoula.lightcompressor.HlsPreparer
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.hls.HlsConfig
+import com.davotoula.lightcompressor.hls.HlsError
+import com.davotoula.lightcompressor.hls.HlsLadder
+import com.davotoula.lightcompressor.hls.HlsListener
+import com.davotoula.lightcompressor.hls.HlsSegment
+import com.davotoula.lightcompressor.hls.Rendition
+import java.io.File
+
+val outputRoot = File(context.filesDir, "hls-out").apply { mkdirs() }
+
+val config = HlsConfig(
+    ladder = HlsLadder.default().drop("4K"),
+    codec = VideoCodec.H264,
+    segmentDurationSeconds = 6,
+    disableAudio = false,
+)
+
+HlsPreparer.start(
+    context = applicationContext,
+    uri = videoUri,
+    config = config,
+    listener = object : HlsListener {
+        override fun onStart(renditionCount: Int) { /* prep UI */ }
+
+        override fun onRenditionStart(rendition: Rendition) { /* optional */ }
+
+        override fun onSegmentReady(rendition: Rendition, segment: HlsSegment) {
+            // Called on a background thread. Copy synchronously — the temp
+            // file is deleted as soon as this method returns.
+            val dir = File(outputRoot, rendition.resolution.label).apply { mkdirs() }
+            val name = if (segment.isInitSegment) "init.mp4" else "segment_%03d.m4s".format(segment.index)
+            segment.file.copyTo(File(dir, name), overwrite = true)
+        }
+
+        override fun onRenditionComplete(rendition: Rendition, playlist: String) {
+            File(outputRoot, rendition.resolution.label).also { it.mkdirs() }
+                .resolve("media.m3u8")
+                .writeText(playlist)
+        }
+
+        override fun onComplete(masterPlaylist: String) {
+            val master = File(outputRoot, "master.m3u8").apply { writeText(masterPlaylist) }
+            // Hand off to ExoPlayer (requires androidx.media3:media3-exoplayer-hls):
+            //   val source = HlsMediaSource.Factory(DefaultDataSource.Factory(context))
+            //       .createMediaSource(MediaItem.fromUri(Uri.fromFile(master)))
+            //   exoPlayer.setMediaSource(source); exoPlayer.prepare()
+        }
+
+        override fun onFailure(error: HlsError) { /* handle error */ }
+
+        override fun onProgress(rendition: Rendition, percent: Float) { /* update UI */ }
+
+        override fun onCancelled() { /* cleanup */ }
+    },
+)
+
+// To cancel:
+HlsPreparer.cancel()
+```
+
+HLS playback on the consumer side requires the Media3 HLS module:
+
+```groovy
+implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
+```
+
 ## Sample App
 
 The `app/` module contains a Jetpack Compose sample app demonstrating the library. Install it via:

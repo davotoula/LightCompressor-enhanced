@@ -7,7 +7,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.davotoula.lce.ui.main.Codec
-import com.davotoula.lce.ui.main.Resolution
+import com.davotoula.lightcompressor.Resolution
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -18,6 +18,7 @@ data class VideoSettings(
     val codec: Codec = Codec.H264,
     val isStreamableEnabled: Boolean = true,
     val bitrateKbps: Int? = null,
+    val hlsCodec: Codec = Codec.H264,
 )
 
 class VideoSettingsPreferences(
@@ -27,6 +28,7 @@ class VideoSettingsPreferences(
     private val codecKey = stringPreferencesKey("codec")
     private val streamableKey = booleanPreferencesKey("streamable")
     private val bitrateKey = intPreferencesKey("bitrate_kbps")
+    private val hlsCodecKey = stringPreferencesKey("hls_codec")
 
     val settings: Flow<VideoSettings> =
         context.videoSettingsDataStore.data.map { prefs ->
@@ -41,6 +43,10 @@ class VideoSettingsPreferences(
                     } ?: Codec.H264,
                 isStreamableEnabled = prefs[streamableKey] ?: true,
                 bitrateKbps = prefs[bitrateKey],
+                hlsCodec =
+                    prefs[hlsCodecKey]?.let { name ->
+                        Codec.entries.find { it.name == name }
+                    } ?: Codec.H264,
             )
         }
 
@@ -55,6 +61,12 @@ class VideoSettingsPreferences(
             prefs[codecKey] = codec.name
             prefs[streamableKey] = isStreamableEnabled
             prefs[bitrateKey] = bitrateKbps
+        }
+    }
+
+    suspend fun saveHlsCodec(hlsCodec: Codec) {
+        context.videoSettingsDataStore.edit { prefs ->
+            prefs[hlsCodecKey] = hlsCodec.name
         }
     }
 }
