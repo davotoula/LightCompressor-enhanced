@@ -134,4 +134,48 @@ class PlaylistGeneratorTest {
         val idx720 = master.indexOf("720p/media.m3u8")
         assertTrue("360p should appear before 720p", idx360 < idx720)
     }
+
+    @Test
+    fun `master playlist includes audio codec in CODECS when present`() {
+        val master =
+            generator.buildMasterPlaylist(
+                renditions =
+                    listOf(
+                        RenditionResult(
+                            rendition = Rendition(Resolution.HD_720, 2500),
+                            actualWidth = 1280,
+                            actualHeight = 720,
+                            codecString = "avc1.640020,mp4a.40.2",
+                            playlistFilename = "720p/media.m3u8",
+                            mediaPlaylist = "",
+                        ),
+                    ),
+            )
+        assertTrue(
+            "CODECS should include both video and audio codec",
+            "CODECS=\"avc1.640020,mp4a.40.2\"" in master,
+        )
+    }
+
+    @Test
+    fun `master playlist works with HEVC and audio codec`() {
+        val master =
+            generator.buildMasterPlaylist(
+                renditions =
+                    listOf(
+                        RenditionResult(
+                            rendition = Rendition(Resolution.UHD_4K, 15000),
+                            actualWidth = 3840,
+                            actualHeight = 2160,
+                            codecString = "hev1.1.6.L150.B0,mp4a.40.2",
+                            playlistFilename = "4K/media.m3u8",
+                            mediaPlaylist = "",
+                        ),
+                    ),
+            )
+        assertTrue(
+            "CODECS should include HEVC and audio codec",
+            "CODECS=\"hev1.1.6.L150.B0,mp4a.40.2\"" in master,
+        )
+    }
 }

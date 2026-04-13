@@ -61,6 +61,9 @@ internal class HlsTranscoder(
         listener: HlsListener,
         tempDir: File,
     ): RenditionResult? {
+        // Reset audio state for this rendition (instance is reused across renditions)
+        lastAudioLimitPtsUs = -1L
+
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
         val segments = mutableListOf<SegmentInfo>()
         var videoExtractor: MediaExtractor? = null
@@ -102,11 +105,17 @@ internal class HlsTranscoder(
                                 timescale = sampleRate,
                             )
                         audioFrameDurationUs = AAC_SAMPLES_PER_FRAME * 1_000_000L / sampleRate
+                        Log.d(TAG, "Audio track found: ${sampleRate}Hz, ${audioConfig.channelCount}ch")
+                    } else {
+                        Log.d(TAG, "Audio track has no csd-0, skipping audio")
                     }
                 } else {
+                    Log.d(TAG, "No audio track found in source")
                     audioExtractor.release()
                     audioExtractor = null
                 }
+            } else {
+                Log.d(TAG, "Audio disabled by config")
             }
 
             // Configure encoder
@@ -161,6 +170,7 @@ internal class HlsTranscoder(
             val timeoutUs = TIMEOUT_US
             val bufferInfo = MediaCodec.BufferInfo()
             val encoderBufferInfo = MediaCodec.BufferInfo()
+            val frameDurationUs = 1_000_000L / getFrameRate(inputFormat)
             var inputDone = false
             var decoderDone = false
             var encoderDone = false
@@ -262,8 +272,6 @@ internal class HlsTranscoder(
                                     encodedData.position(encoderBufferInfo.offset)
                                     encodedData.get(data)
 
-                                    val frameDurationUs = 1_000_000L / getFrameRate(inputFormat)
-
                                     accumulator.addVideoSample(
                                         EncodedSample(
                                             data = data,
@@ -272,6 +280,23 @@ internal class HlsTranscoder(
                                             flags = encoderBufferInfo.flags,
                                         ),
                                     )
+
+                                    // Copy audio samples up to the current video PTS BEFORE checking
+                                    // for segment boundary. This ensures audio is included in the
+                                    // segment that gets flushed.
+                                    val videoPtsUs = encoderBufferInfo.presentationTimeUs
+                                    if (audioExtractor != null &&
+                                        audioConfig != null &&
+                                        videoPtsUs > lastAudioLimitPtsUs
+                                    ) {
+                                        copyAudioSamples(
+                                            audioExtractor,
+                                            accumulator,
+                                            limitPtsUs = videoPtsUs,
+                                            audioFrameDurationUs = audioFrameDurationUs,
+                                        )
+                                        lastAudioLimitPtsUs = videoPtsUs
+                                    }
 
                                     // Check for segment boundary
                                     val flushed = accumulator.flushIfReady()
@@ -346,25 +371,18 @@ internal class HlsTranscoder(
                         }
                     }
                 }
-
-                // Copy audio samples up to the current video encoding position.
-                // Skip when the video PTS hasn't advanced — saves a JNI probe per drain iteration.
-                val limitPtsUs = encoderBufferInfo.presentationTimeUs
-                if (audioExtractor != null && audioConfig != null && limitPtsUs > lastAudioLimitPtsUs) {
-                    copyAudioSamples(
-                        audioExtractor,
-                        accumulator,
-                        limitPtsUs = limitPtsUs,
-                        audioFrameDurationUs = audioFrameDurationUs,
-                    )
-                    lastAudioLimitPtsUs = limitPtsUs
-                }
             }
 
             // Build codec string from the SPS NAL unit inside csd-0. We must not use
             // MediaFormat.KEY_PROFILE/KEY_LEVEL here — MediaCodec exposes those as bit flags
             // that do not match H.264 profile_idc/level_idc, and KEY_LEVEL is often absent.
-            val codecString = buildCodecString(codecConfigBytes, config.codec)
+            val videoCodecString = buildCodecString(codecConfigBytes, config.codec)
+            val codecString =
+                if (audioConfig != null) {
+                    "$videoCodecString,$AAC_LC_CODEC_STRING"
+                } else {
+                    videoCodecString
+                }
             val targetDuration =
                 segments.maxOfOrNull { it.durationSeconds }?.toInt()?.plus(1)
                     ?: config.segmentDurationSeconds
@@ -476,5 +494,8 @@ internal class HlsTranscoder(
         private const val AUDIO_BUFFER_SIZE = 64 * 1024
         private const val PERCENT_MULTIPLIER = 100f
         private const val AAC_SAMPLES_PER_FRAME = 1024L
+
+        // AAC-LC codec string: mp4a.40.2 = MPEG-4 audio, Object Type 0x40 (AAC), AOT 2 (LC)
+        private const val AAC_LC_CODEC_STRING = "mp4a.40.2"
     }
 }

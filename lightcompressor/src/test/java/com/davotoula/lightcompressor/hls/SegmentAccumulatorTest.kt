@@ -94,6 +94,68 @@ class SegmentAccumulatorTest {
     }
 
     @Test
+    fun `audio samples included in flushed segment at keyframe boundary`() {
+        val acc = SegmentAccumulator(segmentDurationUs)
+        val frameDuration = 33_333L
+        val audioDuration = 21_333L // ~1024 samples at 48kHz
+        var videoPts = 0L
+        var audioPts = 0L
+
+        // Add first keyframe
+        acc.addVideoSample(keyframeSample(videoPts, frameDuration))
+        videoPts += frameDuration
+
+        // Add video and audio samples until segment duration
+        while (videoPts < segmentDurationUs) {
+            acc.addVideoSample(frameSample(videoPts, frameDuration))
+            videoPts += frameDuration
+            // Add audio samples up to video PTS (mimics the fix behavior)
+            while (audioPts < videoPts) {
+                acc.addAudioSample(audioSample(audioPts, audioDuration))
+                audioPts += audioDuration
+            }
+        }
+
+        // Trigger flush with next keyframe
+        acc.addVideoSample(keyframeSample(videoPts, frameDuration))
+        val flushed = acc.flushIfReady()!!
+
+        assertTrue("Flushed segment should contain video samples", flushed.videoSamples.isNotEmpty())
+        assertTrue("Flushed segment should contain audio samples", flushed.audioSamples.isNotEmpty())
+        assertTrue("Audio sample count should be reasonable", flushed.audioSamples.size > 100)
+    }
+
+    @Test
+    fun `audio samples cleared after flush`() {
+        val acc = SegmentAccumulator(1_000_000L) // 1 second for faster test
+        val frameDuration = 33_333L
+
+        // Build first segment
+        var pts = 0L
+        acc.addVideoSample(keyframeSample(pts, frameDuration))
+        acc.addAudioSample(audioSample(0L, 21_333L))
+        acc.addAudioSample(audioSample(21_333L, 21_333L))
+        pts += frameDuration
+        while (pts < 1_000_000L) {
+            acc.addVideoSample(frameSample(pts, frameDuration))
+            pts += frameDuration
+        }
+        acc.addVideoSample(keyframeSample(pts, frameDuration))
+        val first = acc.flushIfReady()!!
+        assertEquals(2, first.audioSamples.size)
+
+        // Second segment should start fresh (no audio added yet)
+        pts += frameDuration
+        while (pts < 2_000_000L) {
+            acc.addVideoSample(frameSample(pts, frameDuration))
+            pts += frameDuration
+        }
+        acc.addVideoSample(keyframeSample(pts, frameDuration))
+        val second = acc.flushIfReady()!!
+        assertEquals("Second segment should have no audio (none added)", 0, second.audioSamples.size)
+    }
+
+    @Test
     fun `sequenceNumber increments on each flush`() {
         val acc = SegmentAccumulator(1_000_000L) // 1 second segments for test speed
         val frameDuration = 33_333L
