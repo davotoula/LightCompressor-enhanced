@@ -35,22 +35,22 @@ data class HlsUiState(
     val testState: HlsTestState? = null,
 )
 
-sealed class HlsAction {
+sealed interface HlsAction {
     data class SetCodec(
         val codec: Codec,
-    ) : HlsAction()
+    ) : HlsAction
 
-    data object PickVideo : HlsAction()
+    data object PickVideo : HlsAction
 
     data class StartPreparation(
         val uri: Uri,
-    ) : HlsAction()
+    ) : HlsAction
 
-    data object CancelPreparation : HlsAction()
+    data object CancelPreparation : HlsAction
 
-    data object CloseTestState : HlsAction()
+    data object CloseTestState : HlsAction
 }
 
-sealed class HlsEvent {
-    data object LaunchPicker : HlsEvent()
+sealed interface HlsEvent {
+    data object LaunchPicker : HlsEvent
 }

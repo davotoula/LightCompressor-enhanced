@@ -53,6 +53,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.main.Codec
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 private const val HLS_PERCENT_DIVISOR = 100f
 
@@ -76,19 +77,20 @@ fun HlsScreen(
         }
 
     LaunchedEffect(Unit) {
-        viewModel.events.collectLatest { event ->
-            when (event) {
-                HlsEvent.LaunchPicker ->
-                    hlsVideoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
-                    )
+        launch {
+            viewModel.events.collectLatest { event ->
+                when (event) {
+                    HlsEvent.LaunchPicker ->
+                        hlsVideoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
+                        )
+                }
             }
         }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.toastMessages.collectLatest { message ->
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        launch {
+            viewModel.toastMessages.collectLatest { message ->
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

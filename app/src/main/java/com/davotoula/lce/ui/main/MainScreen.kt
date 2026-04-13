@@ -10,27 +10,24 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Stream
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -49,7 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -60,7 +56,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.davotoula.lce.BuildConfig
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.components.VideoListItem
-import com.davotoula.lce.ui.hls.HlsViewModel
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 
@@ -80,17 +75,15 @@ import java.io.File
 @Suppress("LongMethod")
 @Composable
 fun MainScreen(
-    initialVideoUris: List<Uri> = emptyList(),
-    viewModel: MainViewModel = viewModel(),
-    hlsViewModel: HlsViewModel,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    isHlsRunning: Boolean,
     onNavigateToHls: () -> Unit,
     onNavigateToPlayer: (String) -> Unit,
+    initialVideoUris: List<Uri> = emptyList(),
+    viewModel: MainViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val hlsUiState by hlsViewModel.uiState.collectAsStateWithLifecycle()
-    val isHlsRunning = hlsUiState.testState?.isRunning == true
     val context = LocalContext.current
 
     // Handle videos shared via "Share to" intent
@@ -453,22 +446,18 @@ private fun HlsTopBarIcon(
     onClick: () -> Unit,
 ) {
     IconButton(onClick = onClick) {
-        Box {
+        BadgedBox(
+            badge = {
+                if (isRunning) {
+                    Badge(containerColor = MaterialTheme.colorScheme.error)
+                }
+            },
+        ) {
             Icon(
                 imageVector = Icons.Default.Stream,
                 contentDescription = stringResource(R.string.hls_icon_description),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            if (isRunning) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(8.dp)
-                            .offset(x = 6.dp, y = (-2).dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error),
-                )
-            }
         }
     }
 }

@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -46,6 +48,8 @@ fun LceNavHost(
             "LceNavHost must be hosted inside a ComponentActivity"
         }
     val hlsViewModel: HlsViewModel = viewModel(viewModelStoreOwner = activity)
+    val hlsUiState by hlsViewModel.uiState.collectAsStateWithLifecycle()
+    val isHlsRunning = hlsUiState.testState?.isRunning == true
 
     NavHost(
         navController = navController,
@@ -56,7 +60,7 @@ fun LceNavHost(
                 initialVideoUris = initialVideoUris,
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme,
-                hlsViewModel = hlsViewModel,
+                isHlsRunning = isHlsRunning,
                 onNavigateToHls = { navController.navigate(LceRoute.Hls.route) },
                 onNavigateToPlayer = { videoPath ->
                     navController.navigate(LceRoute.Player.createRoute(videoPath))

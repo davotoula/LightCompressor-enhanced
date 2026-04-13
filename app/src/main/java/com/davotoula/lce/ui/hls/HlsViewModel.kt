@@ -1,10 +1,7 @@
 package com.davotoula.lce.ui.hls
 
 import android.app.Application
-import android.media.MediaCodecList
-import android.media.MediaFormat
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.davotoula.lce.R
@@ -14,7 +11,7 @@ import com.davotoula.lightcompressor.HlsPreparer
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsLadder
-import kotlinx.coroutines.Job
+import com.davotoula.lightcompressor.utils.CompressorUtils
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -40,7 +37,6 @@ class HlsViewModel(
 
     private val context get() = getApplication<Application>()
     private val videoSettingsPreferences = VideoSettingsPreferences(application)
-    private var collectorJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -61,7 +57,7 @@ class HlsViewModel(
 
     private fun handleSetCodec(codec: Codec) {
         val effectiveCodec =
-            if (codec == Codec.H265 && !isH265Supported()) {
+            if (codec == Codec.H265 && !CompressorUtils.isHevcEncodingSupported()) {
                 viewModelScope.launch {
                     _toastMessages.emit(context.getString(R.string.h265_not_supported_fallback))
                 }
@@ -102,38 +98,32 @@ class HlsViewModel(
                     status = HlsRenditionStatus.Pending,
                 )
             }
-        val testStateFlow =
-            MutableStateFlow<HlsTestState?>(
-                HlsTestState(
-                    isRunning = true,
-                    renditions = seededRows,
-                    terminal = null,
-                ),
+        _uiState.update {
+            it.copy(
+                testState =
+                    HlsTestState(
+                        isRunning = true,
+                        renditions = seededRows,
+                        terminal = null,
+                    ),
             )
-        _uiState.update { it.copy(testState = testStateFlow.value) }
-
-        // Mirror every update from testStateFlow into _uiState so HlsTestSession's
-        // thread-safe .update() calls stay the source of truth while the VM's
-        // aggregated UI state reflects them for the screen.
-        collectorJob?.cancel()
-        collectorJob =
-            viewModelScope.launch {
-                testStateFlow.collect { snapshot ->
-                    _uiState.update { it.copy(testState = snapshot) }
-                }
-            }
+        }
 
         val videoCodec =
             when (_uiState.value.hlsCodec) {
                 Codec.H264 -> VideoCodec.H264
-                Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
+                Codec.H265 -> if (CompressorUtils.isHevcEncodingSupported()) VideoCodec.H265 else VideoCodec.H264
             }
         val config = HlsConfig(ladder = ladder, codec = videoCodec)
 
         val session =
             HlsTestSession(
                 rootDir = rootDir,
-                state = testStateFlow,
+                updateState = { transform ->
+                    _uiState.update { current ->
+                        current.copy(testState = transform(current.testState))
+                    }
+                },
                 onIoFailure = { HlsPreparer.cancel() },
             )
 
@@ -154,23 +144,8 @@ class HlsViewModel(
         _uiState.update { it.copy(testState = null) }
     }
 
-    private fun isH265Supported(): Boolean =
-        try {
-            val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
-            codecList.codecInfos.any { codecInfo ->
-                codecInfo.isEncoder &&
-                    codecInfo.supportedTypes.any { type ->
-                        type.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, ignoreCase = true)
-                    }
-            }
-        } catch (e: Exception) {
-            Log.d("HlsViewModel", "Error checking H.265 support: ${e.message}")
-            false
-        }
-
     override fun onCleared() {
         super.onCleared()
-        collectorJob?.cancel()
         if (_uiState.value.testState?.isRunning == true) {
             HlsPreparer.cancel()
         }

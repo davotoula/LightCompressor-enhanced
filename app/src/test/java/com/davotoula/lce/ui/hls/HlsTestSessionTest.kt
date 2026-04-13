@@ -4,7 +4,6 @@ import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,7 +18,7 @@ class HlsTestSessionTest {
     val tempFolder = TemporaryFolder()
 
     private lateinit var rootDir: File
-    private lateinit var state: MutableStateFlow<HlsTestState?>
+    private var state: HlsTestState? = null
     private var ioFailureCount: Int = 0
     private lateinit var session: HlsTestSession
 
@@ -41,12 +40,12 @@ class HlsTestSessionTest {
     @Before
     fun setUp() {
         rootDir = tempFolder.newFolder("hls-current")
-        state = MutableStateFlow(seedPending(rendition360, rendition720))
+        state = seedPending(rendition360, rendition720)
         ioFailureCount = 0
         session =
             HlsTestSession(
                 rootDir = rootDir,
-                state = state,
+                updateState = { transform -> state = transform(state) },
                 onIoFailure = { ioFailureCount++ },
             )
     }
@@ -70,7 +69,7 @@ class HlsTestSessionTest {
     fun `onStart trims rendition rows to renditionCount and marks running`() {
         session.onStart(renditionCount = 1)
 
-        val current = state.value!!
+        val current = state!!
         assertTrue(current.isRunning)
         assertEquals(1, current.renditions.size)
         assertEquals("360p", current.renditions[0].label)
@@ -81,7 +80,7 @@ class HlsTestSessionTest {
         session.onStart(renditionCount = 2)
         session.onRenditionStart(rendition720)
 
-        val row = state.value!!.renditions.first { it.label == "720p" }
+        val row = state!!.renditions.first { it.label == "720p" }
         assertEquals(HlsRenditionStatus.Active, row.status)
         assertEquals(0, row.progressPercent)
     }
@@ -96,7 +95,7 @@ class HlsTestSessionTest {
         assertTrue("init.mp4 should exist", initFile.exists())
         assertEquals(3L, initFile.length())
 
-        val row = state.value!!.renditions.first { it.label == "360p" }
+        val row = state!!.renditions.first { it.label == "360p" }
         assertEquals(0, row.segmentCount)
     }
 
@@ -110,7 +109,7 @@ class HlsTestSessionTest {
         assertTrue(File(rootDir, "360p/segment_000.m4s").exists())
         assertTrue(File(rootDir, "360p/segment_001.m4s").exists())
 
-        val row = state.value!!.renditions.first { it.label == "360p" }
+        val row = state!!.renditions.first { it.label == "360p" }
         assertEquals(2, row.segmentCount)
     }
 
@@ -120,7 +119,7 @@ class HlsTestSessionTest {
         session.onRenditionStart(rendition360)
         session.onProgress(rendition360, percent = 47.0f)
 
-        val row = state.value!!.renditions.first { it.label == "360p" }
+        val row = state!!.renditions.first { it.label == "360p" }
         assertEquals(47, row.progressPercent)
     }
 
@@ -134,7 +133,7 @@ class HlsTestSessionTest {
         assertTrue(mediaFile.exists())
         assertEquals("#EXTM3U\n# fake\n", mediaFile.readText())
 
-        val row = state.value!!.renditions.first { it.label == "360p" }
+        val row = state!!.renditions.first { it.label == "360p" }
         assertEquals(HlsRenditionStatus.Complete, row.status)
         assertEquals(100, row.progressPercent)
     }
@@ -148,7 +147,7 @@ class HlsTestSessionTest {
         assertTrue(masterFile.exists())
         assertEquals("#EXTM3U\n# master\n", masterFile.readText())
 
-        val current = state.value!!
+        val current = state!!
         assertFalse(current.isRunning)
         val terminal = current.terminal as HlsTerminal.Succeeded
         assertEquals(masterFile.absolutePath, terminal.masterPlaylistPath)
@@ -166,7 +165,7 @@ class HlsTestSessionTest {
             ),
         )
 
-        val current = state.value!!
+        val current = state!!
         assertFalse(current.isRunning)
         val terminal = current.terminal as HlsTerminal.Failed
         assertEquals("encoder died", terminal.message)
@@ -180,7 +179,7 @@ class HlsTestSessionTest {
         session.onStart(renditionCount = 2)
         session.onCancelled()
 
-        val current = state.value!!
+        val current = state!!
         assertFalse(current.isRunning)
         assertEquals(HlsTerminal.Cancelled, current.terminal)
     }
@@ -196,10 +195,10 @@ class HlsTestSessionTest {
         session.onRenditionStart(rendition360)
         session.onSegmentReady(rendition360, makeSegment(index = 0, isInit = false))
 
-        val failedBefore = state.value!!.terminal as HlsTerminal.Failed
+        val failedBefore = state!!.terminal as HlsTerminal.Failed
         session.onCancelled()
 
-        val current = state.value!!
+        val current = state!!
         assertFalse(current.isRunning)
         val failedAfter = current.terminal as HlsTerminal.Failed
         assertEquals(failedBefore.message, failedAfter.message)
@@ -215,7 +214,7 @@ class HlsTestSessionTest {
         session.onSegmentReady(rendition360, makeSegment(index = 0, isInit = false))
 
         assertEquals(1, ioFailureCount)
-        val current = state.value!!
+        val current = state!!
         assertFalse(current.isRunning)
         assertTrue(current.terminal is HlsTerminal.Failed)
     }
