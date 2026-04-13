@@ -51,9 +51,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.davotoula.lce.R
-import com.davotoula.lce.ui.main.Codec
+import com.davotoula.lce.ui.Codec
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 private const val HLS_PERCENT_DIVISOR = 100f
 
@@ -77,20 +76,19 @@ fun HlsScreen(
         }
 
     LaunchedEffect(Unit) {
-        launch {
-            viewModel.events.collectLatest { event ->
-                when (event) {
-                    HlsEvent.LaunchPicker ->
-                        hlsVideoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
-                        )
-                }
+        viewModel.events.collectLatest { event ->
+            when (event) {
+                HlsEvent.LaunchPicker ->
+                    hlsVideoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
+                    )
             }
         }
-        launch {
-            viewModel.toastMessages.collectLatest { message ->
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-            }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.toastMessages.collectLatest { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -301,7 +299,10 @@ private fun HlsRenditionRow(row: HlsRenditionState) {
         ) {
             when (row.status) {
                 HlsRenditionStatus.Pending ->
-                    Text(text = "—", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.hls_rendition_pending),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 HlsRenditionStatus.Active ->
                     CircularProgressIndicator(
                         modifier = Modifier.width(16.dp).height(16.dp),

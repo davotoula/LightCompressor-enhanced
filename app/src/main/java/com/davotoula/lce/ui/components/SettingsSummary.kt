@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.davotoula.lce.ui.main.Codec
+import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
 
 @Composable
