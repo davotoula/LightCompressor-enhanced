@@ -243,25 +243,10 @@ fun MainScreen(
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 actions = {
-                    IconButton(onClick = onNavigateToHls) {
-                        Box {
-                            Icon(
-                                imageVector = Icons.Default.Stream,
-                                contentDescription = stringResource(R.string.hls_icon_description),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                            if (isHlsRunning) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .size(8.dp)
-                                            .offset(x = 6.dp, y = (-2).dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.error),
-                                )
-                            }
-                        }
-                    }
+                    HlsTopBarIcon(
+                        isRunning = isHlsRunning,
+                        onClick = onNavigateToHls,
+                    )
                     if (uiState.isCompressing) {
                         IconButton(onClick = { viewModel.onAction(MainAction.CancelCompression) }) {
                             Icon(
@@ -701,5 +686,31 @@ private fun HlsRenditionRow(row: HlsRenditionState) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun HlsTopBarIcon(
+    isRunning: Boolean,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick) {
+        Box {
+            Icon(
+                imageVector = Icons.Default.Stream,
+                contentDescription = stringResource(R.string.hls_icon_description),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            if (isRunning) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(8.dp)
+                            .offset(x = 6.dp, y = (-2).dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                )
+            }
+        }
     }
 }

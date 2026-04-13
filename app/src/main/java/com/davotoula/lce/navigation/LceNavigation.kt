@@ -41,7 +41,10 @@ fun LceNavHost(
 ) {
     // Scope the HLS ViewModel to the hosting Activity so a running HLS
     // preparation survives back-navigation between Main and the HLS screen.
-    val activity = LocalActivity.current as ComponentActivity
+    val activity =
+        checkNotNull(LocalActivity.current as? ComponentActivity) {
+            "LceNavHost must be hosted inside a ComponentActivity"
+        }
     val hlsViewModel: HlsViewModel = viewModel(viewModelStoreOwner = activity)
 
     NavHost(
