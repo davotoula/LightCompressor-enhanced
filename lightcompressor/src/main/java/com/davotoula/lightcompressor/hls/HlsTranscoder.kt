@@ -243,7 +243,9 @@ internal class HlsTranscoder(
                                     rendition,
                                     HlsSegment(initFile, 0, 0.0, isInitSegment = true),
                                 )
-                                initFile.delete()
+                                if (!initFile.delete()) {
+                                    Log.w(TAG, "Failed to delete init temp file: ${initFile.absolutePath}")
+                                }
                             }
                             encoderStatus >= 0 -> {
                                 val encodedData =
@@ -424,7 +426,9 @@ internal class HlsTranscoder(
             rendition,
             HlsSegment(segmentFile, flushed.sequenceNumber - 1, durationSeconds, isInitSegment = false),
         )
-        segmentFile.delete()
+        if (!segmentFile.delete()) {
+            Log.w(TAG, "Failed to delete segment temp file: ${segmentFile.absolutePath}")
+        }
     }
 
     private fun copyAudioSamples(
