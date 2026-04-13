@@ -7,4 +7,5 @@ data class VideoDetailsModel(
     val uri: Uri,
     val newSize: String,
     val progress: Float = 0F,
+    val isError: Boolean = false,
 )

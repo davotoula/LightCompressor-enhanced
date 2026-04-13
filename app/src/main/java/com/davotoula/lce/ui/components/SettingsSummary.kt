@@ -9,7 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.davotoula.lce.R
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
 
@@ -24,8 +26,13 @@ fun SettingsSummary(
 ) {
     val resolutionText = customResolution?.let { "${it}p" } ?: resolution.label
     val codecText = codec.displayName
-    val bitrateText = "$bitrateKbps kbps"
-    val streamableText = if (isStreamable) "Streamable" else "Not streamable"
+    val bitrateText = stringResource(R.string.summary_bitrate_kbps, bitrateKbps)
+    val streamableText =
+        if (isStreamable) {
+            stringResource(R.string.summary_streamable)
+        } else {
+            stringResource(R.string.summary_not_streamable)
+        }
 
     Row(
         modifier =

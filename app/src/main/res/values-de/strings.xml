@@ -31,6 +31,26 @@
     <string name="video_starting">Startet…</string>
     <string name="video_player_title">Videoplayer</string>
 
+    <!-- Settings card -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_collapse">Einklappen</string>
+    <string name="settings_expand">Ausklappen</string>
+
+    <!-- Settings summary -->
+    <string name="summary_streamable">Streambar</string>
+    <string name="summary_not_streamable">Nicht streambar</string>
+    <string name="summary_bitrate_kbps">%1$d kbps</string>
+
+    <!-- Version footer -->
+    <string name="version_info">App v%1$s • Bibliothek v%2$s</string>
+
+    <!-- Compression status -->
+    <string name="status_pending">Ausstehend…</string>
+    <string name="status_compressing">Komprimiere…</string>
+    <string name="status_compressing_percent">Komprimiere… %1$d%%</string>
+    <string name="status_cancelled">Abgebrochen</string>
+    <string name="status_error_format">Fehler: %1$s</string>
+
     <string name="permission_required_pick_videos">Berechtigung zum Auswählen von Videos erforderlich</string>
     <string name="permission_required_camera">Kameraberechtigung zum Aufnehmen von Videos erforderlich</string>
 
@@ -53,5 +73,19 @@
     <string name="share_video_description">Video teilen</string>
 
     <string name="back">Zurück</string>
+
+    <!-- HLS test affordance -->
+    <string name="hls_codec_label">HLS-Codec</string>
+    <string name="hls_prepare_button">HLS vorbereiten</string>
+    <string name="hls_preparation_title">HLS-Vorbereitung</string>
+    <string name="hls_close_description">Schließen</string>
+    <string name="hls_cancel_button">Abbrechen</string>
+    <string name="hls_play_button">HLS abspielen</string>
+    <string name="hls_cancelled_status">Abgebrochen</string>
+    <string name="hls_complete_description">Abgeschlossen</string>
+    <string name="hls_failed_description">Fehlgeschlagen</string>
+    <string name="hls_back_description">Zurück zur Komprimierung</string>
+    <string name="hls_icon_description">HLS-Vorbereitung öffnen</string>
+    <string name="hls_output_dir_failed">HLS-Ausgabeverzeichnis konnte nicht vorbereitet werden</string>
 
 </resources>

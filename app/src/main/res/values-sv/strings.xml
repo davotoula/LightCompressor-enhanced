@@ -31,6 +31,26 @@
     <string name="video_starting">Startar…</string>
     <string name="video_player_title">Videospelare</string>
 
+    <!-- Settings card -->
+    <string name="settings_title">Inställningar</string>
+    <string name="settings_collapse">Fäll ihop</string>
+    <string name="settings_expand">Expandera</string>
+
+    <!-- Settings summary -->
+    <string name="summary_streamable">Strömningsbar</string>
+    <string name="summary_not_streamable">Ej strömningsbar</string>
+    <string name="summary_bitrate_kbps">%1$d kbps</string>
+
+    <!-- Version footer -->
+    <string name="version_info">App v%1$s • Bibl. v%2$s</string>
+
+    <!-- Compression status -->
+    <string name="status_pending">Väntar…</string>
+    <string name="status_compressing">Komprimerar…</string>
+    <string name="status_compressing_percent">Komprimerar… %1$d%%</string>
+    <string name="status_cancelled">Avbruten</string>
+    <string name="status_error_format">Fel: %1$s</string>
+
     <string name="permission_required_pick_videos">Behörighet krävs för att välja videor</string>
     <string name="permission_required_camera">Kamerabehörighet krävs för att spela in video</string>
 
@@ -53,5 +73,19 @@
     <string name="share_video_description">Dela video</string>
 
     <string name="back">Tillbaka</string>
+
+    <!-- HLS test affordance -->
+    <string name="hls_codec_label">HLS-kodek</string>
+    <string name="hls_prepare_button">Förbered HLS</string>
+    <string name="hls_preparation_title">HLS-förberedelse</string>
+    <string name="hls_close_description">Stäng</string>
+    <string name="hls_cancel_button">Avbryt</string>
+    <string name="hls_play_button">Spela upp HLS</string>
+    <string name="hls_cancelled_status">Avbruten</string>
+    <string name="hls_complete_description">Klar</string>
+    <string name="hls_failed_description">Misslyckades</string>
+    <string name="hls_back_description">Tillbaka till komprimering</string>
+    <string name="hls_icon_description">Öppna HLS-förberedelse</string>
+    <string name="hls_output_dir_failed">Det gick inte att förbereda HLS-utdatakatalogen</string>
 
 </resources>

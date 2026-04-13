@@ -135,6 +135,7 @@ class MainViewModel(
         )
 
         originalVideoSizes.clear()
+        val pendingStatus = context.getString(R.string.status_pending)
         _uiState.update { state ->
             state.copy(
                 pendingUris = uris,
@@ -143,7 +144,7 @@ class MainViewModel(
                         VideoDetailsModel(
                             playableVideoPath = null,
                             uri = uri,
-                            newSize = "Pending...",
+                            newSize = pendingStatus,
                             progress = 0f,
                         )
                     },
@@ -365,7 +366,11 @@ class MainViewModel(
                                 "MainViewModel",
                                 "Original video size for index $originalIndex: ${getFileSize(originalSize)}",
                             )
-                            updateVideoProgress(originalIndex, 0f, "Compressing...")
+                            updateVideoProgress(
+                                originalIndex,
+                                0f,
+                                context.getString(R.string.status_compressing),
+                            )
                         }
                     }
 
@@ -463,7 +468,10 @@ class MainViewModel(
                             updateVideoProgress(
                                 originalIndex,
                                 percent / PERCENT_DIVISOR,
-                                "Compressing... ${percent.toInt()}%",
+                                context.getString(
+                                    R.string.status_compressing_percent,
+                                    percent.toInt(),
+                                ),
                             )
                         }
                     }
@@ -471,7 +479,10 @@ class MainViewModel(
                     override fun onCancelled(index: Int) {
                         val originalIndex = videoOriginalIndices[index]
                         viewModelScope.launch {
-                            updateVideoError(originalIndex, "Cancelled")
+                            updateVideoError(
+                                originalIndex,
+                                context.getString(R.string.status_cancelled),
+                            )
                             _uiState.update { it.copy(isCompressing = false) }
 
                             AnalyticsTracker.logCompressionCancelled(
@@ -635,8 +646,9 @@ class MainViewModel(
             if (index < updatedVideos.size) {
                 updatedVideos[index] =
                     updatedVideos[index].copy(
-                        newSize = "Error: $errorMessage",
+                        newSize = context.getString(R.string.status_error_format, errorMessage),
                         progress = 0f,
+                        isError = true,
                     )
             }
             state.copy(videos = updatedVideos, errorMessage = errorMessage)
@@ -678,7 +690,7 @@ class MainViewModel(
         val state = _uiState.value
         val allComplete =
             state.videos.all { video ->
-                video.progress >= 1f || video.newSize.startsWith("Error:")
+                video.progress >= 1f || video.isError
             }
 
         if (allComplete) {

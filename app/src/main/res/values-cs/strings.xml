@@ -31,6 +31,26 @@
     <string name="video_starting">Spouštění…</string>
     <string name="video_player_title">Přehrávač videa</string>
 
+    <!-- Settings card -->
+    <string name="settings_title">Nastavení</string>
+    <string name="settings_collapse">Sbalit</string>
+    <string name="settings_expand">Rozbalit</string>
+
+    <!-- Settings summary -->
+    <string name="summary_streamable">Streamovatelné</string>
+    <string name="summary_not_streamable">Nestreamovatelné</string>
+    <string name="summary_bitrate_kbps">%1$d kb/s</string>
+
+    <!-- Version footer -->
+    <string name="version_info">Aplikace v%1$s • Knihovna v%2$s</string>
+
+    <!-- Compression status -->
+    <string name="status_pending">Čeká…</string>
+    <string name="status_compressing">Komprese…</string>
+    <string name="status_compressing_percent">Komprese… %1$d%%</string>
+    <string name="status_cancelled">Zrušeno</string>
+    <string name="status_error_format">Chyba: %1$s</string>
+
     <string name="permission_required_pick_videos">Pro výběr videí je vyžadováno oprávnění</string>
     <string name="permission_required_camera">Pro nahrávání videa je vyžadováno oprávnění ke kameře</string>
 
@@ -43,9 +63,9 @@
 
     <string name="h265_not_supported_fallback">H.265 není na tomto zařízení podporován, používá se H.264</string>
     <string name="no_videos_selected">Nebyla vybrána žádná videa</string>
-    <string name="compression_in_progress">Kompresе již probíhá</string>
-    <string name="compression_cancelled">Kompresе zrušena</string>
-    <string name="compression_complete">Kompresе dokončena</string>
+    <string name="compression_in_progress">Komprese již probíhá</string>
+    <string name="compression_cancelled">Komprese zrušena</string>
+    <string name="compression_complete">Komprese dokončena</string>
 
     <string name="video_thumbnail">Náhled videa</string>
     <string name="status_compressed">Komprimováno</string>
@@ -53,5 +73,19 @@
     <string name="share_video_description">Sdílet video</string>
 
     <string name="back">Zpět</string>
+
+    <!-- HLS test affordance -->
+    <string name="hls_codec_label">HLS kodek</string>
+    <string name="hls_prepare_button">Připravit HLS</string>
+    <string name="hls_preparation_title">Příprava HLS</string>
+    <string name="hls_close_description">Zavřít</string>
+    <string name="hls_cancel_button">Zrušit</string>
+    <string name="hls_play_button">Přehrát HLS</string>
+    <string name="hls_cancelled_status">Zrušeno</string>
+    <string name="hls_complete_description">Dokončeno</string>
+    <string name="hls_failed_description">Selhalo</string>
+    <string name="hls_back_description">Zpět ke kompresi</string>
+    <string name="hls_icon_description">Otevřít přípravu HLS</string>
+    <string name="hls_output_dir_failed">Nepodařilo se připravit výstupní adresář HLS</string>
 
 </resources>

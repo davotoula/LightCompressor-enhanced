@@ -37,6 +37,26 @@
     <string name="video_starting">Starting…</string>
     <string name="video_player_title">Video Player</string>
 
+    <!-- Settings card -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_collapse">Collapse</string>
+    <string name="settings_expand">Expand</string>
+
+    <!-- Settings summary -->
+    <string name="summary_streamable">Streamable</string>
+    <string name="summary_not_streamable">Not streamable</string>
+    <string name="summary_bitrate_kbps">%1$d kbps</string>
+
+    <!-- Version footer -->
+    <string name="version_info">App v%1$s • Lib v%2$s</string>
+
+    <!-- Compression status -->
+    <string name="status_pending">Pending…</string>
+    <string name="status_compressing">Compressing…</string>
+    <string name="status_compressing_percent">Compressing… %1$d%%</string>
+    <string name="status_cancelled">Cancelled</string>
+    <string name="status_error_format">Error: %1$s</string>
+
     <!-- Permissions -->
     <string name="permission_required_pick_videos">Permission required to pick videos</string>
     <string name="permission_required_camera">Camera permission required to record video</string>
