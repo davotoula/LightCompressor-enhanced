@@ -16,9 +16,28 @@ plugins {
     id 'io.gitlab.arturbosch.detekt' version '1.23.8' apply false
 }
 
+// Resolve the real .git/hooks directory, handling git worktrees where .git is a file.
+def resolveGitHooksDir() {
+    def gitFile = file("${rootProject.rootDir}/.git")
+    if (gitFile.isDirectory()) {
+        return "${rootProject.rootDir}/.git/hooks"
+    }
+    // Worktree: .git is a file containing "gitdir: <path>"
+    def gitdir = gitFile.text.trim().replaceFirst(/^gitdir:\s*/, '')
+    def worktreeGitDir = gitdir.startsWith('/') ? new File(gitdir) : new File(rootProject.rootDir, gitdir)
+    // commondir points to the main repo's .git
+    def commondirFile = new File(worktreeGitDir, 'commondir')
+    if (commondirFile.exists()) {
+        def commondir = commondirFile.text.trim()
+        def mainGitDir = commondir.startsWith('/') ? new File(commondir) : new File(worktreeGitDir, commondir)
+        return mainGitDir.canonicalPath + '/hooks'
+    }
+    return worktreeGitDir.canonicalPath + '/hooks'
+}
+
 tasks.register('installGitHooks', Copy) {
     from("${rootProject.rootDir}/scripts/git-hooks")
-    into("${rootProject.rootDir}/.git/hooks")
+    into(resolveGitHooksDir())
     filePermissions {
         unix('rwxrwxr-x')
     }
