@@ -2,14 +2,8 @@ package com.davotoula.lce.ui.main
 
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
+import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
-
-enum class Codec(
-    val displayName: String,
-) {
-    H264("H.264"),
-    H265("H.265 (HEVC)"),
-}
 
 data class MainUiState(
     val videos: List<VideoDetailsModel> = emptyList(),

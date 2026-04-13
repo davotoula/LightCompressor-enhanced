@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.davotoula.lce.R
 import com.davotoula.lce.data.VideoSettingsPreferences
-import com.davotoula.lce.ui.main.Codec
+import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.HlsPreparer
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hls.HlsConfig

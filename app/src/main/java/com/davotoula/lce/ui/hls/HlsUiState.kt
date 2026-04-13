@@ -1,7 +1,7 @@
 package com.davotoula.lce.ui.hls
 
 import android.net.Uri
-import com.davotoula.lce.ui.main.Codec
+import com.davotoula.lce.ui.Codec
 
 enum class HlsRenditionStatus { Pending, Active, Complete, Failed }
 
