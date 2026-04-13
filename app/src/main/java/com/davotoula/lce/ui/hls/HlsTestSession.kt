@@ -1,15 +1,9 @@
-package com.davotoula.lce.hls
+package com.davotoula.lce.ui.hls
 
-import com.davotoula.lce.ui.main.HlsRenditionState
-import com.davotoula.lce.ui.main.HlsRenditionStatus
-import com.davotoula.lce.ui.main.HlsTerminal
-import com.davotoula.lce.ui.main.HlsTestState
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsListener
 import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import java.io.File
 import java.io.IOException
 
@@ -23,17 +17,18 @@ private const val SEGMENT_FILENAME_FORMAT = "segment_%03d.m4s"
  * reference (`<label>/init.mp4`, `<label>/segment_NNN.m4s`, `<label>/media.m3u8`,
  * `master.m3u8`) so the result is directly playable by `ExoPlayer`.
  *
- * State updates are pushed into [state] via thread-safe `MutableStateFlow.update` calls,
- * so no explicit dispatcher hop is needed even though `onSegmentReady` and `onProgress`
- * run on `Dispatchers.Default` while the rest run on Main.
+ * State mutations go through [updateState], which the caller wires to a thread-safe
+ * sink (e.g. `MutableStateFlow.update`). No explicit dispatcher hop is needed even
+ * though `onSegmentReady` and `onProgress` run on `Dispatchers.Default` while the rest
+ * run on Main.
  */
 class HlsTestSession(
     private val rootDir: File,
-    private val state: MutableStateFlow<HlsTestState?>,
+    private val updateState: ((HlsTestState?) -> HlsTestState?) -> Unit,
     private val onIoFailure: () -> Unit,
 ) : HlsListener {
     override fun onStart(renditionCount: Int) {
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 isRunning = true,
                 renditions = current.renditions.take(renditionCount),
@@ -115,7 +110,7 @@ class HlsTestSession(
             return
         }
 
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 isRunning = false,
                 terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
@@ -133,7 +128,7 @@ class HlsTestSession(
     }
 
     override fun onFailure(error: HlsError) {
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 isRunning = false,
                 terminal = HlsTerminal.Failed(error.message),
@@ -150,7 +145,7 @@ class HlsTestSession(
     }
 
     override fun onCancelled() {
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 isRunning = false,
                 terminal = current.terminal ?: HlsTerminal.Cancelled,
@@ -162,7 +157,7 @@ class HlsTestSession(
         rendition: Rendition,
         transform: (HlsRenditionState) -> HlsRenditionState,
     ) {
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 renditions =
                     current.renditions.map { row ->
@@ -173,7 +168,7 @@ class HlsTestSession(
     }
 
     private fun failWithIoError(message: String) {
-        state.update { current ->
+        updateState { current ->
             current?.copy(
                 isRunning = false,
                 terminal = HlsTerminal.Failed(message),

@@ -8,6 +8,7 @@
 .settings
 .cxx
 .env
+.superpowers/
 
 # Ignore all IDEA files
 .idea/*

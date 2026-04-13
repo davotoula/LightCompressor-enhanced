@@ -11,7 +11,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,24 +22,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Stream
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -82,11 +75,13 @@ import java.io.File
 @Suppress("LongMethod")
 @Composable
 fun MainScreen(
-    initialVideoUris: List<Uri> = emptyList(),
-    viewModel: MainViewModel = viewModel(),
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    isHlsRunning: Boolean,
+    onNavigateToHls: () -> Unit,
     onNavigateToPlayer: (String) -> Unit,
+    initialVideoUris: List<Uri> = emptyList(),
+    viewModel: MainViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -105,15 +100,6 @@ fun MainScreen(
         ) { uris ->
             if (uris.isNotEmpty()) {
                 viewModel.onAction(MainAction.SelectVideos(uris))
-            }
-        }
-
-    val hlsVideoPickerLauncher =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.PickVisualMedia(),
-        ) { uri ->
-            if (uri != null) {
-                viewModel.onAction(MainAction.StartHlsPreparation(uri))
             }
         }
 
@@ -176,10 +162,6 @@ fun MainScreen(
         viewModel.events.collectLatest { event ->
             when (event) {
                 is MainEvent.NavigateToPlayer -> onNavigateToPlayer(event.videoPath)
-                MainEvent.LaunchHlsPicker ->
-                    hlsVideoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
-                    )
             }
         }
     }
@@ -228,6 +210,10 @@ fun MainScreen(
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 actions = {
+                    HlsTopBarIcon(
+                        isRunning = isHlsRunning,
+                        onClick = onNavigateToHls,
+                    )
                     if (uiState.isCompressing) {
                         IconButton(onClick = { viewModel.onAction(MainAction.CancelCompression) }) {
                             Icon(
@@ -290,16 +276,6 @@ fun MainScreen(
                         )
                     }
                 }
-
-                uiState.hlsTestState?.let { hlsState ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HlsTestStatusCard(
-                        state = hlsState,
-                        onCancel = { viewModel.onAction(MainAction.CancelHlsPreparation) },
-                        onClose = { viewModel.onAction(MainAction.CloseHlsTestState) },
-                        onPlay = { path -> viewModel.onAction(MainAction.PlayVideo(path)) },
-                    )
-                }
             }
 
             // Bottom Buttons Section
@@ -310,13 +286,6 @@ fun MainScreen(
                         .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                HlsControlsRow(
-                    selectedCodec = uiState.hlsCodec,
-                    isRunning = uiState.hlsTestState?.isRunning == true,
-                    onSelectCodec = { codec -> viewModel.onAction(MainAction.SetHlsCodec(codec)) },
-                    onPrepareHls = { viewModel.onAction(MainAction.PickHlsVideo) },
-                )
-
                 // Start Compression Button (shown when videos are selected)
                 if (uiState.videos.isNotEmpty() && !uiState.isCompressing) {
                     Button(
@@ -471,201 +440,24 @@ private fun launchVideoCapture(
     onUriCreated(uri)
 }
 
-private const val HLS_PERCENT_DIVISOR = 100f
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HlsControlsRow(
-    selectedCodec: Codec,
+private fun HlsTopBarIcon(
     isRunning: Boolean,
-    onSelectCodec: (Codec) -> Unit,
-    onPrepareHls: () -> Unit,
+    onClick: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { if (!isRunning) expanded = !expanded },
-            modifier = Modifier.weight(1f),
+    IconButton(onClick = onClick) {
+        BadgedBox(
+            badge = {
+                if (isRunning) {
+                    Badge(containerColor = MaterialTheme.colorScheme.error)
+                }
+            },
         ) {
-            OutlinedTextField(
-                value = selectedCodec.displayName,
-                onValueChange = {},
-                readOnly = true,
-                enabled = !isRunning,
-                label = { Text(stringResource(R.string.hls_codec_label)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+            Icon(
+                imageVector = Icons.Default.Stream,
+                contentDescription = stringResource(R.string.hls_icon_description),
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                Codec.entries.forEach { codec ->
-                    DropdownMenuItem(
-                        text = { Text(codec.displayName) },
-                        onClick = {
-                            onSelectCodec(codec)
-                            expanded = false
-                        },
-                    )
-                }
-            }
         }
-
-        Button(
-            onClick = onPrepareHls,
-            enabled = !isRunning,
-            modifier = Modifier.weight(1f),
-        ) {
-            Text(stringResource(R.string.hls_prepare_button))
-        }
-    }
-}
-
-@Composable
-private fun HlsTestStatusCard(
-    state: HlsTestState,
-    onCancel: () -> Unit,
-    onClose: () -> Unit,
-    onPlay: (String) -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.hls_preparation_title),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                IconButton(
-                    onClick = onClose,
-                    enabled = !state.isRunning,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.hls_close_description),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            state.renditions.forEach { row ->
-                HlsRenditionRow(row)
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            when {
-                state.isRunning ->
-                    OutlinedButton(
-                        onClick = onCancel,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.hls_cancel_button))
-                    }
-                state.terminal is HlsTerminal.Succeeded -> {
-                    Button(
-                        onClick = { onPlay(state.terminal.masterPlaylistPath) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.hls_play_button))
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = state.terminal.masterPlaylistPath,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                state.terminal is HlsTerminal.Failed ->
-                    Text(
-                        text = state.terminal.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                state.terminal is HlsTerminal.Cancelled ->
-                    Text(
-                        text = stringResource(R.string.hls_cancelled_status),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                else -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun HlsRenditionRow(row: HlsRenditionState) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = row.label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(56.dp),
-        )
-
-        Box(
-            modifier = Modifier.width(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (row.status) {
-                HlsRenditionStatus.Pending ->
-                    Text(text = "—", style = MaterialTheme.typography.bodyMedium)
-                HlsRenditionStatus.Active ->
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(16.dp).height(16.dp),
-                        strokeWidth = 2.dp,
-                    )
-                HlsRenditionStatus.Complete ->
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = stringResource(R.string.hls_complete_description),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                HlsRenditionStatus.Failed ->
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.hls_failed_description),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-            }
-        }
-
-        if (row.status == HlsRenditionStatus.Active || row.status == HlsRenditionStatus.Complete) {
-            LinearProgressIndicator(
-                progress = { row.progressPercent / HLS_PERCENT_DIVISOR },
-                modifier = Modifier.weight(1f),
-            )
-        } else {
-            Spacer(modifier = Modifier.weight(1f))
-        }
-
-        Text(
-            text = "${row.segmentCount}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

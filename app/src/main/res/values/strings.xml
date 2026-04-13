@@ -76,5 +76,7 @@
     <string name="hls_cancelled_status">Cancelled</string>
     <string name="hls_complete_description">Complete</string>
     <string name="hls_failed_description">Failed</string>
+    <string name="hls_back_description">Back to compression</string>
+    <string name="hls_icon_description">Open HLS preparation</string>
     <string name="hls_output_dir_failed">Failed to prepare HLS output directory</string>
 </resources>
