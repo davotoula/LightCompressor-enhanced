@@ -54,6 +54,14 @@ Package: `com.davotoula.lightcompressor`
 3. `Transcoder` — unified MediaCodec-based encoding (H.264/H.265) with native `MediaMuxer`, parameterized by `VideoCodec`
 4. `InputSurface` / `OutputSurface` / `TextureRenderer` — OpenGL pipeline for frame processing
 
+**HLS preparation pipeline:**
+1. `HlsPreparer.start()` → extracts source metadata, filters encoding ladder
+2. `HlsTranscoder` — encodes each rendition sequentially (lowest-first) using Surface/GL pipeline
+3. `SegmentAccumulator` — detects keyframe-aligned segment boundaries in encoder output
+4. `Mp4SegmentWriter` / `BoxWriter` — writes fMP4 init and media segments (ISO 14496-12)
+5. `PlaylistGenerator` — builds VOD m3u8 playlists as strings
+6. Segments emitted via `HlsListener.onSegmentReady()` callback; temp files deleted after callback returns
+
 **Key design decisions:**
 - BPS bitrate takes precedence over Mbps when both specified in `Configuration`
 - H.265 support is runtime-detected via `CompressorUtils.isHevcEncodingSupported()` (cached)
@@ -67,6 +75,8 @@ Package: `com.davotoula.lce`
 
 Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 for playback, Coil for thumbnails, DataStore for preferences, Firebase for analytics/crashlytics. Resolution control uses `VideoResizer.limitShortSide()` for orientation-aware resizing.
 
+**HLS test affordance:** A "Prepare HLS" button on `MainScreen` (with an HLS codec dropdown) exercises `HlsPreparer` end-to-end against a single picked video. Output is written to `filesDir/hls/current/` (wiped before every run) by `HlsTestSession`, an `HlsListener` impl in `app/src/main/java/com/davotoula/lce/hls/`. The resulting `master.m3u8` plays back via the existing `PlayerScreen`, which uses Media3's HLS source (`media3-exoplayer-hls`).
+
 ## Testing
 
 Library tests use JUnit 4 + MockK. Test files mirror source structure under `lightcompressor/src/test/`. Key test classes:
@@ -74,6 +84,12 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `ResolutionPipelineTest` — end-to-end resolution pipeline
 - `TranscoderTest` — transcoder unit tests (H.264 and H.265)
 - `NumbersUtilsTest`, `StreamableVideoTest` — utility tests
+- `BoxWriterTest` — ISO BMFF box encoding
+- `Mp4SegmentWriterTest` — fMP4 init and media segment structure
+- `HlsConfigTest` — encoding ladder configuration
+- `PlaylistGeneratorTest` — m3u8 playlist generation
+- `PlaylistRewriterTest` — URL remapping
+- `SegmentAccumulatorTest` — keyframe boundary detection
 
 ## Dependencies
 
