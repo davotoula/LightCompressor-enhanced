@@ -170,6 +170,7 @@ internal class HlsTranscoder(
             val timeoutUs = TIMEOUT_US
             val bufferInfo = MediaCodec.BufferInfo()
             val encoderBufferInfo = MediaCodec.BufferInfo()
+            val frameDurationUs = 1_000_000L / getFrameRate(inputFormat)
             var inputDone = false
             var decoderDone = false
             var encoderDone = false
@@ -271,8 +272,6 @@ internal class HlsTranscoder(
                                     encodedData.position(encoderBufferInfo.offset)
                                     encodedData.get(data)
 
-                                    val frameDurationUs = 1_000_000L / getFrameRate(inputFormat)
-
                                     accumulator.addVideoSample(
                                         EncodedSample(
                                             data = data,
@@ -302,12 +301,6 @@ internal class HlsTranscoder(
                                     // Check for segment boundary
                                     val flushed = accumulator.flushIfReady()
                                     if (flushed != null && segmentWriter != null) {
-                                        Log.d(
-                                            TAG,
-                                            "Segment ${flushed.sequenceNumber}: " +
-                                                "${flushed.videoSamples.size} video, " +
-                                                "${flushed.audioSamples.size} audio samples",
-                                        )
                                         emitSegment(
                                             segmentWriter,
                                             flushed,
@@ -334,12 +327,6 @@ internal class HlsTranscoder(
                                     // Flush remaining samples as final segment
                                     val remaining = accumulator.flushRemaining()
                                     if (remaining != null && segmentWriter != null) {
-                                        Log.d(
-                                            TAG,
-                                            "Final segment ${remaining.sequenceNumber}: " +
-                                                "${remaining.videoSamples.size} video, " +
-                                                "${remaining.audioSamples.size} audio samples",
-                                        )
                                         emitSegment(
                                             segmentWriter,
                                             remaining,
@@ -389,7 +376,13 @@ internal class HlsTranscoder(
             // Build codec string from the SPS NAL unit inside csd-0. We must not use
             // MediaFormat.KEY_PROFILE/KEY_LEVEL here — MediaCodec exposes those as bit flags
             // that do not match H.264 profile_idc/level_idc, and KEY_LEVEL is often absent.
-            val codecString = buildCodecString(codecConfigBytes, config.codec)
+            val videoCodecString = buildCodecString(codecConfigBytes, config.codec)
+            val codecString =
+                if (audioConfig != null) {
+                    "$videoCodecString,$AAC_LC_CODEC_STRING"
+                } else {
+                    videoCodecString
+                }
             val targetDuration =
                 segments.maxOfOrNull { it.durationSeconds }?.toInt()?.plus(1)
                     ?: config.segmentDurationSeconds
@@ -501,5 +494,8 @@ internal class HlsTranscoder(
         private const val AUDIO_BUFFER_SIZE = 64 * 1024
         private const val PERCENT_MULTIPLIER = 100f
         private const val AAC_SAMPLES_PER_FRAME = 1024L
+
+        // AAC-LC codec string: mp4a.40.2 = MPEG-4 audio, Object Type 0x40 (AAC), AOT 2 (LC)
+        private const val AAC_LC_CODEC_STRING = "mp4a.40.2"
     }
 }
