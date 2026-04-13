@@ -20,8 +20,13 @@ object CompressorUtils {
     private const val LOG_TAG_OUTPUT_PARAMS = "Output file parameters"
     private const val MIME_HEVC = "video/hevc"
 
-    // Cache for device codec capabilities (don't change at runtime)
+    // Cache for device codec capabilities (don't change at runtime).
+    // @Volatile ensures cross-thread visibility; the computation is idempotent
+    // so a benign duplicate enumeration under a race is harmless.
+    @Volatile
     private var hevcSupportCache: Boolean? = null
+
+    @Volatile
     private var qtiSupportCache: Boolean? = null
 
     fun prepareVideoWidth(mediaMetadataRetriever: MediaMetadataRetriever): Double {
