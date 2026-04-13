@@ -27,8 +27,6 @@ local.properties
 maven-repository
 mvn-clone
 
-# Firebase config — contributors must supply their own app/google-services.json
-app/google-services.json
 build
 captures
 gen
