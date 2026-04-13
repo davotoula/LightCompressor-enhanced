@@ -42,7 +42,7 @@
     <string name="summary_bitrate_kbps">%1$d kbps</string>
 
     <!-- Version footer -->
-    <string name="version_info">App v%1$s • Bibl. v%2$s</string>
+    <string name="version_info">App v%1$s • Lib v%2$s</string>
 
     <!-- Compression status -->
     <string name="status_pending">Väntar…</string>
