@@ -65,4 +65,16 @@
 
     <!-- Player -->
     <string name="back">Back</string>
+
+    <!-- HLS test affordance -->
+    <string name="hls_codec_label">HLS codec</string>
+    <string name="hls_prepare_button">Prepare HLS</string>
+    <string name="hls_preparation_title">HLS preparation</string>
+    <string name="hls_close_description">Close</string>
+    <string name="hls_cancel_button">Cancel</string>
+    <string name="hls_play_button">Play HLS</string>
+    <string name="hls_cancelled_status">Cancelled</string>
+    <string name="hls_complete_description">Complete</string>
+    <string name="hls_failed_description">Failed</string>
+    <string name="hls_output_dir_failed">Failed to prepare HLS output directory</string>
 </resources>

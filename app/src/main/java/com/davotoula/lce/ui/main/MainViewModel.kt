@@ -14,7 +14,9 @@ import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.getFileSize
+import com.davotoula.lce.hls.HlsTestSession
 import com.davotoula.lightcompressor.CompressionListener
+import com.davotoula.lightcompressor.HlsPreparer
 import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.VideoCompressor
@@ -22,17 +24,22 @@ import com.davotoula.lightcompressor.config.Configuration
 import com.davotoula.lightcompressor.config.SaveLocation
 import com.davotoula.lightcompressor.config.SharedStorageConfiguration
 import com.davotoula.lightcompressor.config.VideoResizer
+import com.davotoula.lightcompressor.hls.HlsConfig
+import com.davotoula.lightcompressor.hls.HlsLadder
 import com.davotoula.lightcompressor.video.GifToMp4Converter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Suppress("TooManyFunctions")
 class MainViewModel(
@@ -56,7 +63,18 @@ class MainViewModel(
     }
 
     private val _uiState = MutableStateFlow(MainUiState())
-    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    @Suppress("ktlint:standard:backing-property-naming")
+    private val _hlsTestState = MutableStateFlow<HlsTestState?>(null)
+
+    val uiState: StateFlow<MainUiState> =
+        combine(_uiState, _hlsTestState) { base, hlsState ->
+            base.copy(hlsTestState = hlsState)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = MainUiState(),
+        )
 
     private val _events = MutableSharedFlow<MainEvent>()
     val events: SharedFlow<MainEvent> = _events.asSharedFlow()
@@ -81,6 +99,7 @@ class MainViewModel(
                     isStreamableEnabled = settings.isStreamableEnabled,
                     bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
                     bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput,
+                    hlsCodec = settings.hlsCodec,
                 )
             }
             if (settings.bitrateKbps == null) {
@@ -117,6 +136,11 @@ class MainViewModel(
             is MainAction.PlayVideo -> handlePlayVideo(action.path)
             MainAction.ClearToast -> clearToast()
             MainAction.ToggleSettings -> handleToggleSettings()
+            is MainAction.SetHlsCodec -> handleSetHlsCodec(action.codec)
+            MainAction.PickHlsVideo -> handlePickHlsVideo()
+            is MainAction.StartHlsPreparation -> handleStartHlsPreparation(action.uri)
+            MainAction.CancelHlsPreparation -> handleCancelHlsPreparation()
+            MainAction.CloseHlsTestState -> handleCloseHlsTestState()
         }
     }
 
@@ -743,11 +767,91 @@ class MainViewModel(
         }
     }
 
+    private fun handleSetHlsCodec(codec: Codec) {
+        val effectiveCodec =
+            if (codec == Codec.H265 && !isH265Supported()) {
+                showToast(context.getString(R.string.h265_not_supported_fallback))
+                Codec.H264
+            } else {
+                codec
+            }
+        _uiState.update { it.copy(hlsCodec = effectiveCodec) }
+        viewModelScope.launch {
+            videoSettingsPreferences.saveHlsCodec(effectiveCodec)
+        }
+    }
+
+    private fun handlePickHlsVideo() {
+        if (_hlsTestState.value?.isRunning == true) return
+        viewModelScope.launch {
+            _events.emit(MainEvent.LaunchHlsPicker)
+        }
+    }
+
+    private fun handleStartHlsPreparation(uri: Uri) {
+        if (_hlsTestState.value?.isRunning == true) return
+
+        val rootDir = File(context.filesDir, "hls/current")
+        rootDir.deleteRecursively()
+        if (!rootDir.mkdirs()) {
+            showToast(context.getString(R.string.hls_output_dir_failed))
+            return
+        }
+
+        val ladder = HlsLadder.default()
+        val seededRows =
+            ladder.renditions.map { rendition ->
+                HlsRenditionState(
+                    label = rendition.resolution.label,
+                    status = HlsRenditionStatus.Pending,
+                )
+            }
+        _hlsTestState.value =
+            HlsTestState(
+                isRunning = true,
+                renditions = seededRows,
+                terminal = null,
+            )
+
+        val videoCodec =
+            when (_uiState.value.hlsCodec) {
+                Codec.H264 -> VideoCodec.H264
+                Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
+            }
+        val config = HlsConfig(ladder = ladder, codec = videoCodec)
+
+        val session =
+            HlsTestSession(
+                rootDir = rootDir,
+                state = _hlsTestState,
+                onIoFailure = { HlsPreparer.cancel() },
+            )
+
+        HlsPreparer.start(
+            context = context,
+            uri = uri,
+            config = config,
+            listener = session,
+        )
+    }
+
+    private fun handleCancelHlsPreparation() {
+        HlsPreparer.cancel()
+    }
+
+    private fun handleCloseHlsTestState() {
+        if (_hlsTestState.value?.isRunning == true) return
+        _hlsTestState.value = null
+    }
+
     override fun onCleared() {
         super.onCleared()
         // Cancel any ongoing compression when ViewModel is cleared
         if (_uiState.value.isCompressing) {
             VideoCompressor.cancel()
+        }
+        if (_hlsTestState.value?.isRunning == true) {
+            HlsPreparer.cancel()
         }
         gifJobs.forEach { it.cancel() }
         gifJobs.clear()

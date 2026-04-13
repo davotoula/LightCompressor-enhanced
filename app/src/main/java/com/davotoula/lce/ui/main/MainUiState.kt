@@ -11,6 +11,33 @@ enum class Codec(
     H265("H.265 (HEVC)"),
 }
 
+enum class HlsRenditionStatus { Pending, Active, Complete, Failed }
+
+data class HlsRenditionState(
+    val label: String,
+    val status: HlsRenditionStatus,
+    val progressPercent: Int = 0,
+    val segmentCount: Int = 0,
+)
+
+sealed interface HlsTerminal {
+    data class Succeeded(
+        val masterPlaylistPath: String,
+    ) : HlsTerminal
+
+    data class Failed(
+        val message: String,
+    ) : HlsTerminal
+
+    data object Cancelled : HlsTerminal
+}
+
+data class HlsTestState(
+    val isRunning: Boolean = false,
+    val renditions: List<HlsRenditionState> = emptyList(),
+    val terminal: HlsTerminal? = null,
+)
+
 data class MainUiState(
     val videos: List<VideoDetailsModel> = emptyList(),
     val selectedResolution: Resolution = Resolution.HD_720,
@@ -25,6 +52,8 @@ data class MainUiState(
     val errorMessage: String? = null,
     val toastMessage: String? = null,
     val isSettingsExpanded: Boolean = true,
+    val hlsCodec: Codec = Codec.H264,
+    val hlsTestState: HlsTestState? = null,
 )
 
 sealed class MainAction {
@@ -73,10 +102,26 @@ sealed class MainAction {
     object ClearToast : MainAction()
 
     data object ToggleSettings : MainAction()
+
+    data class SetHlsCodec(
+        val codec: Codec,
+    ) : MainAction()
+
+    data object PickHlsVideo : MainAction()
+
+    data class StartHlsPreparation(
+        val uri: Uri,
+    ) : MainAction()
+
+    data object CancelHlsPreparation : MainAction()
+
+    data object CloseHlsTestState : MainAction()
 }
 
 sealed class MainEvent {
     data class NavigateToPlayer(
         val videoPath: String,
     ) : MainEvent()
+
+    data object LaunchHlsPicker : MainEvent()
 }
