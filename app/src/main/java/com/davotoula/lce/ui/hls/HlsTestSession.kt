@@ -1,4 +1,4 @@
-package com.davotoula.lce.hls
+package com.davotoula.lce.ui.hls
 
 import com.davotoula.lce.ui.main.HlsRenditionState
 import com.davotoula.lce.ui.main.HlsRenditionStatus
