@@ -3,7 +3,6 @@ package com.davotoula.lightcompressor.muxer
 import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.buildHevcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
-import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /**
@@ -106,6 +105,7 @@ internal class Mp4SegmentWriter(
             videoSamples.map { sample ->
                 sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
             }
+
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
         // Anchor the audio track's tfdt to the first audio sample's own PTS, not the
         // video segment's baseDecodeTimeUs. The two can differ for sources with a
@@ -113,23 +113,9 @@ internal class Mp4SegmentWriter(
         // sync correct at the fragment boundary.
         val audioBaseDecodeTimeUs = audioSamples.firstOrNull()?.presentationTimeUs ?: baseDecodeTimeUs
 
-        // Measure moof by writing it once into a throwaway buffer with placeholder data
-        // offsets. The real data offsets depend on the moof size, which in turn depends on
-        // the exact serialized layout — so we serialize first to measure, then serialize
-        // again to the real output with the correct offsets patched in.
-        val measuringBuffer = ByteArrayOutputStream()
-        writeMoof(
-            writer = BoxWriter(measuringBuffer),
-            videoSamples = convertedVideoSamples,
-            audioSamples = audioSamples,
-            sequenceNumber = sequenceNumber,
-            baseDecodeTimeUs = baseDecodeTimeUs,
-            audioBaseDecodeTimeUs = audioBaseDecodeTimeUs,
-            hasAudio = hasAudio,
-            videoDataOffset = 0,
-            audioDataOffset = 0,
-        )
-        val moofSize = measuringBuffer.size()
+        // Calculate moof size analytically instead of serializing twice.
+        // Structure: moof(8) + mfhd(16) + video_traf(64 + N*12) + [audio_traf(64 + M*8)]
+        val moofSize = calculateMoofSize(convertedVideoSamples.size, audioSamples.size, hasAudio)
         val videoDataOffset = moofSize + 8 // 8 = mdat box header
         val audioDataOffset = videoDataOffset + convertedVideoSamples.sumOf { it.data.size }
 
@@ -603,6 +589,28 @@ internal class Mp4SegmentWriter(
             writeUInt32(0L) // default sample size
             writeUInt32(0L) // default sample flags
         }
+    }
+
+    /**
+     * Calculate moof box size analytically to avoid double-serialization.
+     *
+     * Structure breakdown:
+     * - moof header: 8 bytes
+     * - mfhd fullbox: 8 (header) + 4 (version/flags) + 4 (sequence) = 16 bytes
+     * - video traf: 8 (traf) + 16 (tfhd) + 20 (tfdt v1) + 20 (trun header) + N*12 (samples)
+     * - audio traf: 8 (traf) + 16 (tfhd) + 20 (tfdt v1) + 20 (trun header) + M*8 (samples)
+     */
+    @Suppress("MagicNumber")
+    private fun calculateMoofSize(
+        videoSampleCount: Int,
+        audioSampleCount: Int,
+        hasAudio: Boolean,
+    ): Int {
+        val moofHeader = 8
+        val mfhd = 16
+        val videoTraf = 8 + 16 + 20 + 20 + videoSampleCount * 12
+        val audioTraf = if (hasAudio) 8 + 16 + 20 + 20 + audioSampleCount * 8 else 0
+        return moofHeader + mfhd + videoTraf + audioTraf
     }
 
     companion object {
