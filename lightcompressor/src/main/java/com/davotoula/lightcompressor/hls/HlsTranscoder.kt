@@ -6,6 +6,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import com.davotoula.lightcompressor.muxer.AudioConfig
 import com.davotoula.lightcompressor.muxer.EncodedSample
@@ -153,6 +154,28 @@ internal class HlsTranscoder(
                             MediaFormat.KEY_BITRATE_MODE,
                             MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
                         )
+
+                        // Set color metadata - read from input, default to BT.709 if missing
+                        // Prevents encoder from using device-specific defaults (e.g., sRGB)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            val colorStandard =
+                                if (inputFormat.containsKey(MediaFormat.KEY_COLOR_STANDARD)) {
+                                    inputFormat.getInteger(MediaFormat.KEY_COLOR_STANDARD)
+                                } else {
+                                    MediaFormat.COLOR_STANDARD_BT709
+                                }
+                            setInteger(MediaFormat.KEY_COLOR_STANDARD, colorStandard)
+
+                            val colorTransfer =
+                                if (inputFormat.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
+                                    inputFormat.getInteger(MediaFormat.KEY_COLOR_TRANSFER)
+                                } else {
+                                    MediaFormat.COLOR_TRANSFER_SDR_VIDEO
+                                }
+                            setInteger(MediaFormat.KEY_COLOR_TRANSFER, colorTransfer)
+
+                            setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+                        }
                     }
 
             encoder = MediaCodec.createEncoderByType(config.codec.mimeType)

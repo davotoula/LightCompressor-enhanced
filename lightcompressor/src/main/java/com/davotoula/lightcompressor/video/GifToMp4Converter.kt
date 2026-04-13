@@ -43,6 +43,7 @@ import android.opengl.EGLExt
 import android.opengl.EGLSurface
 import android.opengl.GLES20
 import android.opengl.GLUtils
+import android.os.Build
 import android.util.Log
 import android.view.Surface
 import androidx.annotation.VisibleForTesting
@@ -290,13 +291,7 @@ object GifToMp4Converter {
 
         try {
             val mimeType = MediaFormat.MIMETYPE_VIDEO_AVC
-            val format =
-                MediaFormat.createVideoFormat(mimeType, width, height).apply {
-                    setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                    setInteger(MediaFormat.KEY_BIT_RATE, calculateBitrate(width, height))
-                    setInteger(MediaFormat.KEY_FRAME_RATE, avgFps)
-                    setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
-                }
+            val format = createEncoderFormat(mimeType, width, height, avgFps)
 
             codec = MediaCodec.createEncoderByType(mimeType)
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -801,6 +796,33 @@ object GifToMp4Converter {
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun roundUpToEven(value: Int): Int = if (value > 0 && value % EVEN_CHECK_DIVISOR != 0) value + 1 else value
+
+    /**
+     * Creates encoder format with proper color metadata.
+     * GIF has no color space information, so we use BT.709 defaults (standard for HD SDR content).
+     * This prevents encoders from using device-specific defaults like sRGB.
+     */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal fun createEncoderFormat(
+        mimeType: String,
+        width: Int,
+        height: Int,
+        frameRate: Int,
+    ): MediaFormat =
+        MediaFormat.createVideoFormat(mimeType, width, height).apply {
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            setInteger(MediaFormat.KEY_BIT_RATE, calculateBitrate(width, height))
+            setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL)
+
+            // Set color metadata to BT.709 - GIF has no color space, use standard HD defaults
+            // Prevents encoder from using device-specific defaults (e.g., sRGB)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT709)
+                setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
+                setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+            }
+        }
 
     // endregion
 }
