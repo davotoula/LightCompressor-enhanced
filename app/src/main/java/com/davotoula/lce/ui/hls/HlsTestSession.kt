@@ -1,9 +1,5 @@
 package com.davotoula.lce.ui.hls
 
-import com.davotoula.lce.ui.main.HlsRenditionState
-import com.davotoula.lce.ui.main.HlsRenditionStatus
-import com.davotoula.lce.ui.main.HlsTerminal
-import com.davotoula.lce.ui.main.HlsTestState
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsListener
 import com.davotoula.lightcompressor.hls.HlsSegment

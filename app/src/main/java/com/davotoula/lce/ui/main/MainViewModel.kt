@@ -14,7 +14,10 @@ import com.davotoula.lce.R
 import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.getFileSize
+import com.davotoula.lce.ui.hls.HlsRenditionState
+import com.davotoula.lce.ui.hls.HlsRenditionStatus
 import com.davotoula.lce.ui.hls.HlsTestSession
+import com.davotoula.lce.ui.hls.HlsTestState
 import com.davotoula.lightcompressor.CompressionListener
 import com.davotoula.lightcompressor.HlsPreparer
 import com.davotoula.lightcompressor.Resolution

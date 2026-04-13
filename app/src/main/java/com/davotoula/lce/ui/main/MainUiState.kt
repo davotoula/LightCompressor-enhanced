@@ -2,6 +2,7 @@ package com.davotoula.lce.ui.main
 
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
+import com.davotoula.lce.ui.hls.HlsTestState
 import com.davotoula.lightcompressor.Resolution
 
 enum class Codec(
@@ -10,33 +11,6 @@ enum class Codec(
     H264("H.264"),
     H265("H.265 (HEVC)"),
 }
-
-enum class HlsRenditionStatus { Pending, Active, Complete, Failed }
-
-data class HlsRenditionState(
-    val label: String,
-    val status: HlsRenditionStatus,
-    val progressPercent: Int = 0,
-    val segmentCount: Int = 0,
-)
-
-sealed interface HlsTerminal {
-    data class Succeeded(
-        val masterPlaylistPath: String,
-    ) : HlsTerminal
-
-    data class Failed(
-        val message: String,
-    ) : HlsTerminal
-
-    data object Cancelled : HlsTerminal
-}
-
-data class HlsTestState(
-    val isRunning: Boolean = false,
-    val renditions: List<HlsRenditionState> = emptyList(),
-    val terminal: HlsTerminal? = null,
-)
 
 data class MainUiState(
     val videos: List<VideoDetailsModel> = emptyList(),
