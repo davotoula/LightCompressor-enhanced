@@ -1,6 +1,7 @@
 package com.davotoula.lce.ui.player
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -19,11 +20,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.ui.PlayerView
 import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import java.io.File
+import java.io.IOException
+
+private const val PLAYER_LOG_TAG = "LcePlayer"
+private const val MAX_CAUSE_DEPTH = 10
 
 /**
  * Video player screen using Media3 ExoPlayer.
@@ -49,6 +59,42 @@ fun PlayerScreen(
     val exoPlayer =
         remember {
             ExoPlayer.Builder(context).build().apply {
+                addListener(
+                    object : Player.Listener {
+                        override fun onPlayerError(error: PlaybackException) {
+                            Log.e(PLAYER_LOG_TAG, "onPlayerError: ${error.errorCodeName}", error)
+                            var cause: Throwable? = error.cause
+                            var depth = 0
+                            while (cause != null && depth < MAX_CAUSE_DEPTH) {
+                                Log.e(
+                                    PLAYER_LOG_TAG,
+                                    "  cause[$depth] ${cause.javaClass.simpleName}: ${cause.message}",
+                                    cause,
+                                )
+                                cause = cause.cause
+                                depth++
+                            }
+                        }
+                    },
+                )
+                addAnalyticsListener(
+                    object : AnalyticsListener {
+                        override fun onLoadError(
+                            eventTime: AnalyticsListener.EventTime,
+                            loadEventInfo: LoadEventInfo,
+                            mediaLoadData: MediaLoadData,
+                            error: IOException,
+                            wasCanceled: Boolean,
+                        ) {
+                            Log.e(
+                                PLAYER_LOG_TAG,
+                                "onLoadError uri=${loadEventInfo.uri} dataType=${mediaLoadData.dataType} " +
+                                    "trackType=${mediaLoadData.trackType} canceled=$wasCanceled",
+                                error,
+                            )
+                        }
+                    },
+                )
                 val file = File(videoPath)
                 val uri = Uri.fromFile(file)
                 setMediaItem(MediaItem.fromUri(uri))

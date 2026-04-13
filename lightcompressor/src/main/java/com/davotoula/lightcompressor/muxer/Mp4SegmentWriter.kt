@@ -1,5 +1,7 @@
 package com.davotoula.lightcompressor.muxer
 
+import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
+import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
 import java.io.OutputStream
 
 /**
@@ -95,21 +97,28 @@ internal class Mp4SegmentWriter(
         baseDecodeTimeUs: Long,
         output: OutputStream,
     ) {
+        // MediaCodec emits H.264/HEVC samples in Annex-B format (start codes), but the avcC/hvcC
+        // we write declares lengthSizeMinusOne = 3, so the parser expects 4-byte big-endian length
+        // prefixes inside mdat. Convert each video sample once, before computing offsets/sizes.
+        val convertedVideoSamples =
+            videoSamples.map { sample ->
+                sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
+            }
         val writer = BoxWriter(output)
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
-        val moofSize = computeMoofSize(videoSamples.size, audioSamples.size, hasAudio)
+        val moofSize = computeMoofSize(convertedVideoSamples.size, audioSamples.size, hasAudio)
         val videoDataOffset = moofSize + 8 // 8 = mdat box header
-        val audioDataOffset = videoDataOffset + videoSamples.sumOf { it.data.size }
+        val audioDataOffset = videoDataOffset + convertedVideoSamples.sumOf { it.data.size }
 
         writer.box("moof") {
             writeMfhd(this, sequenceNumber)
-            writeVideoTraf(this, videoSamples, baseDecodeTimeUs, videoDataOffset)
+            writeVideoTraf(this, convertedVideoSamples, baseDecodeTimeUs, videoDataOffset)
             if (hasAudio) {
                 writeAudioTraf(this, audioSamples, baseDecodeTimeUs, audioDataOffset)
             }
         }
         writer.box("mdat") {
-            for (sample in videoSamples) {
+            for (sample in convertedVideoSamples) {
                 writeBytes(sample.data)
             }
             if (hasAudio) {
@@ -436,12 +445,25 @@ internal class Mp4SegmentWriter(
 
     private fun writeCodecConfigBox(scope: BoxWriter.BoxScope) {
         if (videoMimeType == "video/hevc") {
+            // HEVC init segments are currently broken the same way AVC was — the hvcC box
+            // requires an HEVCDecoderConfigurationRecord (ISO/IEC 14496-15 §8.3.3.1), not the
+            // raw Annex-B csd-0 bytes. When HEVC playback is exercised, build an equivalent
+            // to buildAvcDecoderConfigurationRecord for HEVC VPS/SPS/PPS.
             scope.box("hvcC") {
                 writeBytes(videoCodecConfig)
             }
         } else {
+            // The avcC box requires an AVCDecoderConfigurationRecord, not the raw Annex-B
+            // csd-0 payload MediaCodec emits. If the builder cannot find an SPS+PPS pair the
+            // resulting init segment would be silently broken, so fail loudly here instead.
+            val record =
+                buildAvcDecoderConfigurationRecord(videoCodecConfig)
+                    ?: error(
+                        "Cannot build AVCDecoderConfigurationRecord: csd-0 must contain an SPS " +
+                            "and a PPS NAL unit",
+                    )
             scope.box("avcC") {
-                writeBytes(videoCodecConfig)
+                writeBytes(record)
             }
         }
     }

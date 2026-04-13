@@ -7,7 +7,6 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
-import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.muxer.AudioConfig
 import com.davotoula.lightcompressor.muxer.EncodedSample
 import com.davotoula.lightcompressor.muxer.Mp4SegmentWriter
@@ -74,10 +73,10 @@ internal class HlsTranscoder(
         try {
             // Setup video extractor
             videoExtractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-            val videoTrackIndex = CompressorUtils.findTrack(videoExtractor!!, true)
+            val videoTrackIndex = CompressorUtils.findTrack(videoExtractor, true)
             if (videoTrackIndex < 0) return null
-            val inputFormat = videoExtractor!!.getTrackFormat(videoTrackIndex)
-            videoExtractor!!.selectTrack(videoTrackIndex)
+            val inputFormat = videoExtractor.getTrackFormat(videoTrackIndex)
+            videoExtractor.selectTrack(videoTrackIndex)
             val sourceMime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return null
             val durationUs = inputFormat.getLong(MediaFormat.KEY_DURATION)
 
@@ -86,10 +85,10 @@ internal class HlsTranscoder(
             var audioFrameDurationUs = 0L
             if (!config.disableAudio) {
                 audioExtractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-                val audioTrackIndex = CompressorUtils.findTrack(audioExtractor!!, false)
+                val audioTrackIndex = CompressorUtils.findTrack(audioExtractor, false)
                 if (audioTrackIndex >= 0) {
-                    audioExtractor!!.selectTrack(audioTrackIndex)
-                    val audioFormat = audioExtractor!!.getTrackFormat(audioTrackIndex)
+                    audioExtractor.selectTrack(audioTrackIndex)
+                    val audioFormat = audioExtractor.getTrackFormat(audioTrackIndex)
                     val csd0 = audioFormat.getByteBuffer("csd-0")
                     if (csd0 != null) {
                         val sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
@@ -105,7 +104,7 @@ internal class HlsTranscoder(
                         audioFrameDurationUs = AAC_SAMPLES_PER_FRAME * 1_000_000L / sampleRate
                     }
                 } else {
-                    audioExtractor?.release()
+                    audioExtractor.release()
                     audioExtractor = null
                 }
             }
@@ -138,17 +137,17 @@ internal class HlsTranscoder(
                     }
 
             encoder = MediaCodec.createEncoderByType(config.codec.mimeType)
-            encoder!!.configure(encoderFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            encoder.configure(encoderFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
 
-            inputSurface = InputSurface(encoder!!.createInputSurface())
-            inputSurface!!.makeCurrent()
-            encoder!!.start()
+            inputSurface = InputSurface(encoder.createInputSurface())
+            inputSurface.makeCurrent()
+            encoder.start()
 
             // Configure decoder
             outputSurface = OutputSurface()
             decoder = MediaCodec.createDecoderByType(sourceMime)
-            decoder!!.configure(inputFormat, outputSurface!!.getSurface(), null, 0)
-            decoder!!.start()
+            decoder.configure(inputFormat, outputSurface.getSurface(), null, 0)
+            decoder.start()
 
             // Get codec config from encoder output format change
             var codecConfigBytes: ByteArray? = null
@@ -171,11 +170,11 @@ internal class HlsTranscoder(
 
                 // Feed decoder input
                 if (!inputDone) {
-                    val inputBufferIndex = decoder!!.dequeueInputBuffer(timeoutUs)
+                    val inputBufferIndex = decoder.dequeueInputBuffer(timeoutUs)
                     if (inputBufferIndex >= 0) {
-                        val inputBuffer = decoder!!.getInputBuffer(inputBufferIndex)
+                        val inputBuffer = decoder.getInputBuffer(inputBufferIndex)
                         if (inputBuffer == null) {
-                            decoder!!.queueInputBuffer(
+                            decoder.queueInputBuffer(
                                 inputBufferIndex,
                                 0,
                                 0,
@@ -183,9 +182,9 @@ internal class HlsTranscoder(
                                 MediaCodec.BUFFER_FLAG_END_OF_STREAM,
                             )
                         } else {
-                            val sampleSize = videoExtractor!!.readSampleData(inputBuffer, 0)
+                            val sampleSize = videoExtractor.readSampleData(inputBuffer, 0)
                             if (sampleSize < 0) {
-                                decoder!!.queueInputBuffer(
+                                decoder.queueInputBuffer(
                                     inputBufferIndex,
                                     0,
                                     0,
@@ -194,14 +193,14 @@ internal class HlsTranscoder(
                                 )
                                 inputDone = true
                             } else {
-                                decoder!!.queueInputBuffer(
+                                decoder.queueInputBuffer(
                                     inputBufferIndex,
                                     0,
                                     sampleSize,
-                                    videoExtractor!!.sampleTime,
-                                    videoExtractor!!.sampleFlags,
+                                    videoExtractor.sampleTime,
+                                    videoExtractor.sampleFlags,
                                 )
-                                videoExtractor!!.advance()
+                                videoExtractor.advance()
                             }
                         }
                     }
@@ -214,21 +213,22 @@ internal class HlsTranscoder(
                 while (encoderOutputAvailable || decoderOutputAvailable) {
                     // Encoder output
                     if (encoderOutputAvailable) {
-                        val encoderStatus = encoder!!.dequeueOutputBuffer(encoderBufferInfo, timeoutUs)
+                        val encoderStatus = encoder.dequeueOutputBuffer(encoderBufferInfo, timeoutUs)
                         when {
                             encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                                 encoderOutputAvailable = false
                             }
                             encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                                encoderOutputFormat = encoder!!.outputFormat
-                                val csd0 = encoderOutputFormat!!.getByteBuffer("csd-0")
-                                if (csd0 != null) {
-                                    codecConfigBytes = ByteArray(csd0.remaining())
-                                    csd0.get(codecConfigBytes!!)
-                                }
+                                encoderOutputFormat = encoder.outputFormat
+                                // Pixel AVC encoders split SPS into csd-0 and PPS into csd-1.
+                                // Both buffers must be merged so the avcC box gets a complete
+                                // AVCDecoderConfigurationRecord — see mergeCsdBuffers.
+                                val csd0 = encoderOutputFormat.getByteBuffer("csd-0")
+                                val csd1 = encoderOutputFormat.getByteBuffer("csd-1")
+                                codecConfigBytes = mergeCsdBuffers(csd0, csd1)
                                 segmentWriter =
                                     Mp4SegmentWriter(
-                                        videoCodecConfig = codecConfigBytes ?: ByteArray(0),
+                                        videoCodecConfig = codecConfigBytes,
                                         videoMimeType = config.codec.mimeType,
                                         videoWidth = actualWidth,
                                         videoHeight = actualHeight,
@@ -237,7 +237,7 @@ internal class HlsTranscoder(
                                 // Emit init segment
                                 val initFile = File(tempDir, "init_${rendition.resolution.label}.mp4")
                                 FileOutputStream(initFile).use { fos ->
-                                    segmentWriter!!.writeInitSegment(fos)
+                                    segmentWriter.writeInitSegment(fos)
                                 }
                                 listener.onSegmentReady(
                                     rendition,
@@ -247,11 +247,11 @@ internal class HlsTranscoder(
                             }
                             encoderStatus >= 0 -> {
                                 val encodedData =
-                                    encoder!!.getOutputBuffer(encoderStatus)
+                                    encoder.getOutputBuffer(encoderStatus)
                                         ?: throw RuntimeException("Null encoder output buffer")
 
                                 if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
-                                    encoder!!.releaseOutputBuffer(encoderStatus, false)
+                                    encoder.releaseOutputBuffer(encoderStatus, false)
                                     continue
                                 }
 
@@ -273,9 +273,9 @@ internal class HlsTranscoder(
 
                                     // Check for segment boundary
                                     val flushed = accumulator.flushIfReady()
-                                    if (flushed != null) {
+                                    if (flushed != null && segmentWriter != null) {
                                         emitSegment(
-                                            segmentWriter!!,
+                                            segmentWriter,
                                             flushed,
                                             rendition,
                                             listener,
@@ -294,14 +294,14 @@ internal class HlsTranscoder(
                                     listener.onProgress(rendition, progress)
                                 }
 
-                                encoder!!.releaseOutputBuffer(encoderStatus, false)
+                                encoder.releaseOutputBuffer(encoderStatus, false)
 
                                 if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                     // Flush remaining samples as final segment
                                     val remaining = accumulator.flushRemaining()
                                     if (remaining != null && segmentWriter != null) {
                                         emitSegment(
-                                            segmentWriter!!,
+                                            segmentWriter,
                                             remaining,
                                             rendition,
                                             listener,
@@ -318,7 +318,7 @@ internal class HlsTranscoder(
 
                     // Decoder output
                     if (decoderOutputAvailable && !encoderDone) {
-                        val decoderStatus = decoder!!.dequeueOutputBuffer(bufferInfo, timeoutUs)
+                        val decoderStatus = decoder.dequeueOutputBuffer(bufferInfo, timeoutUs)
                         when {
                             decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                                 decoderOutputAvailable = false
@@ -326,19 +326,19 @@ internal class HlsTranscoder(
                             decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> { /* no-op */ }
                             decoderStatus >= 0 -> {
                                 val doRender = bufferInfo.size > 0
-                                decoder!!.releaseOutputBuffer(decoderStatus, doRender)
+                                decoder.releaseOutputBuffer(decoderStatus, doRender)
                                 if (doRender) {
                                     if (isCancelled) throw CancellationException()
-                                    outputSurface!!.awaitNewImage()
-                                    outputSurface!!.drawImage()
-                                    inputSurface!!.setPresentationTime(
+                                    outputSurface.awaitNewImage()
+                                    outputSurface.drawImage()
+                                    inputSurface.setPresentationTime(
                                         bufferInfo.presentationTimeUs * NS_PER_US,
                                     )
-                                    inputSurface!!.swapBuffers()
+                                    inputSurface.swapBuffers()
                                 }
                                 if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                     decoderDone = true
-                                    encoder!!.signalEndOfInputStream()
+                                    encoder.signalEndOfInputStream()
                                 }
                             }
                         }
@@ -350,7 +350,7 @@ internal class HlsTranscoder(
                 val limitPtsUs = encoderBufferInfo.presentationTimeUs
                 if (audioExtractor != null && audioConfig != null && limitPtsUs > lastAudioLimitPtsUs) {
                     copyAudioSamples(
-                        audioExtractor!!,
+                        audioExtractor,
                         accumulator,
                         limitPtsUs = limitPtsUs,
                         audioFrameDurationUs = audioFrameDurationUs,
@@ -359,8 +359,10 @@ internal class HlsTranscoder(
                 }
             }
 
-            // Build codec string from encoder output format
-            val codecString = buildCodecString(encoderOutputFormat, config.codec)
+            // Build codec string from the SPS NAL unit inside csd-0. We must not use
+            // MediaFormat.KEY_PROFILE/KEY_LEVEL here — MediaCodec exposes those as bit flags
+            // that do not match H.264 profile_idc/level_idc, and KEY_LEVEL is often absent.
+            val codecString = buildCodecString(codecConfigBytes, config.codec)
             val targetDuration =
                 segments.maxOfOrNull { it.durationSeconds }?.toInt()?.plus(1)
                     ?: config.segmentDurationSeconds
@@ -460,32 +462,6 @@ internal class HlsTranscoder(
             DEFAULT_FRAME_RATE
         }
 
-    @Suppress("MagicNumber")
-    private fun buildCodecString(
-        format: MediaFormat?,
-        codec: VideoCodec,
-    ): String {
-        if (format == null) return if (codec == VideoCodec.H264) DEFAULT_AVC_CODEC else DEFAULT_HEVC_CODEC
-        return try {
-            when (codec) {
-                VideoCodec.H264 -> {
-                    val profile = format.getInteger(MediaFormat.KEY_PROFILE)
-                    val level = format.getInteger(MediaFormat.KEY_LEVEL)
-                    "avc1.%02X%02X%02X".format(
-                        (profile and 0xFF),
-                        0x00, // constraint flags
-                        (level and 0xFF),
-                    )
-                }
-                VideoCodec.H265 -> {
-                    DEFAULT_HEVC_CODEC // Default Main profile
-                }
-            }
-        } catch (_: Exception) {
-            if (codec == VideoCodec.H264) DEFAULT_AVC_CODEC else DEFAULT_HEVC_CODEC
-        }
-    }
-
     private class CancellationException : Exception("HLS preparation cancelled")
 
     companion object {
@@ -496,7 +472,5 @@ internal class HlsTranscoder(
         private const val AUDIO_BUFFER_SIZE = 64 * 1024
         private const val PERCENT_MULTIPLIER = 100f
         private const val AAC_SAMPLES_PER_FRAME = 1024L
-        private const val DEFAULT_AVC_CODEC = "avc1.640028"
-        private const val DEFAULT_HEVC_CODEC = "hev1.1.6.L93.B0"
     }
 }
