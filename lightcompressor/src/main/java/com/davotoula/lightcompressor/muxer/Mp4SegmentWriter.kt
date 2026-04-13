@@ -60,6 +60,7 @@ internal data class EncodedSample(
  * Writes fragmented MP4 (fMP4) initialization and media segments
  * conforming to ISO 14496-12 for HLS delivery.
  */
+@Suppress("TooManyFunctions", "MagicNumber")
 internal class Mp4SegmentWriter(
     private val videoCodecConfig: ByteArray,
     private val videoMimeType: String,

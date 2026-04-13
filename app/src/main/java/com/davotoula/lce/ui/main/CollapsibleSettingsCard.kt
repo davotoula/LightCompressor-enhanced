@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.components.SettingsSummary
+import com.davotoula.lightcompressor.Resolution
 
 @Composable
 fun CollapsibleSettingsCard(

@@ -9,6 +9,7 @@ import java.io.OutputStream
  * Writes nested boxes to an [OutputStream]. Box sizes are patched after
  * the content is written using an internal [ByteArrayOutputStream] buffer.
  */
+@Suppress("MagicNumber")
 internal class BoxWriter(
     private val output: OutputStream,
 ) {

@@ -15,6 +15,7 @@ import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.getFileSize
 import com.davotoula.lightcompressor.CompressionListener
+import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.VideoCompressor
 import com.davotoula.lightcompressor.config.Configuration
