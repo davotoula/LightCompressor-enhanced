@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.nio.ByteBuffer
 
+@Suppress("LargeClass")
 class CodecStringParserTest {
     @Test
     fun `buildAvcCodecString parses profile constraints level from 4-byte start code SPS`() {
@@ -551,5 +552,333 @@ class CodecStringParserTest {
             )
 
         assertEquals(null, buildAvcDecoderConfigurationRecord(csd))
+    }
+
+    @Test
+    fun `splitHevcCsdNalUnits separates VPS SPS PPS from concatenated Annex-B`() {
+        val csd = buildHevcSyntheticCsd()
+
+        val result = splitHevcCsdNalUnits(csd)
+
+        assertEquals(1, result.vpsUnits.size)
+        assertEquals(1, result.spsUnits.size)
+        assertEquals(1, result.ppsUnits.size)
+        // VPS NAL header is 2 bytes
+        assertEquals(2, result.vpsUnits[0].size)
+        // SPS NAL: 2-byte header + 13-byte RBSP
+        assertEquals(HEVC_SPS_NAL_SIZE, result.spsUnits[0].size)
+        assertEquals(2, result.ppsUnits[0].size)
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord emits valid record for Main profile SPS`() {
+        val record = buildHevcDecoderConfigurationRecord(buildHevcSyntheticCsd())!!
+
+        // Layout per ISO/IEC 14496-15 §8.3.3.1:
+        //   bytes 0..22   fixed HEVCDecoderConfigurationRecord header
+        //   bytes 23..29  VPS array (header 3B + NAL length 2B + 2-byte VPS NAL)
+        //   bytes 30..49  SPS array (header 3B + NAL length 2B + 15-byte SPS NAL)
+        //   bytes 50..56  PPS array (header 3B + NAL length 2B + 2-byte PPS NAL)
+        // The packed byte at offset 21 = constantFrameRate(2)=0 | numTemporalLayers(3)=1 |
+        //                                temporalIdNested(1)=1 | lengthSizeMinusOne(2)=3 → 0x0F.
+        val expected =
+            byteArrayOf(
+                0x01,
+                0x01,
+                0x60.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x90.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x5D,
+                0xF0.toByte(),
+                0x00,
+                0xFC.toByte(),
+                0xFD.toByte(),
+                0xF8.toByte(),
+                0xF8.toByte(),
+                0x00,
+                0x00,
+                0x0F,
+                0x03,
+                // VPS array: completeness|type=32 → 0xA0, numNalus=1, nalLen=2, NAL 0x40 0x01
+                0xA0.toByte(),
+                0x00,
+                0x01,
+                0x00,
+                0x02,
+                0x40,
+                0x01,
+                // SPS array: completeness|type=33 → 0xA1, numNalus=1, nalLen=15, then 15-byte SPS
+                0xA1.toByte(),
+                0x00,
+                0x01,
+                0x00,
+                0x0F,
+                0x42,
+                0x01,
+                0x01,
+                0x01,
+                0x60.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x90.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x5D,
+                // PPS array: completeness|type=34 → 0xA2, numNalus=1, nalLen=2, NAL 0x44 0x01
+                0xA2.toByte(),
+                0x00,
+                0x01,
+                0x00,
+                0x02,
+                0x44,
+                0x01,
+            )
+        assertArrayEquals(expected, record)
+        assertEquals(HEVC_EXPECTED_RECORD_SIZE, record.size)
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord returns null when VPS missing`() {
+        val csd =
+            byteArrayOf(
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x42.toByte(),
+                0x01,
+                0x01,
+                0x01,
+                0x60.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x90.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x5D,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x44.toByte(),
+                0x01,
+            )
+
+        assertEquals(null, buildHevcDecoderConfigurationRecord(csd))
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord returns null when SPS missing`() {
+        val csd =
+            byteArrayOf(
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x40.toByte(),
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x44.toByte(),
+                0x01,
+            )
+
+        assertEquals(null, buildHevcDecoderConfigurationRecord(csd))
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord returns null when PPS missing`() {
+        val csd =
+            byteArrayOf(
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x40.toByte(),
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x42.toByte(),
+                0x01,
+                0x01,
+                0x01,
+                0x60.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x90.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x5D,
+            )
+
+        assertEquals(null, buildHevcDecoderConfigurationRecord(csd))
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord returns null when SPS too short for PTL`() {
+        val csd =
+            byteArrayOf(
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x40.toByte(),
+                0x01,
+                // SPS with only 4 RBSP bytes — not enough for profile_tier_level
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x42.toByte(),
+                0x01,
+                0x01,
+                0x01,
+                0x60.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x44.toByte(),
+                0x01,
+            )
+
+        assertEquals(null, buildHevcDecoderConfigurationRecord(csd))
+    }
+
+    @Test
+    fun `buildHevcDecoderConfigurationRecord strips emulation prevention bytes from SPS RBSP`() {
+        // SPS with profile_compatibility_flags = 0x00000001 — the byte sequence
+        // 0x00 0x00 0x01 in the stream would be ambiguous with a start code, so the
+        // encoder inserts an emulation prevention byte (0x03) after the two zeros.
+        // The builder must strip it when copying profile_tier_level bytes.
+        //
+        // Target PTL layout:
+        //   profile_space/tier/profile_idc = 0x01
+        //   compat flags = 0x00 0x00 0x00 0x01  (← EP byte precedes the 0x01)
+        //   constraint flags = 0x90 0x00 0x00 0x00 0x00 0x00
+        //   level_idc = 0x5D
+        //
+        // Raw RBSP bytes (with EP byte): 0x01 0x01 0x00 0x00 0x03 0x00 0x01 0x90 0x00 ...
+        val csd =
+            byteArrayOf(
+                // VPS
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x40.toByte(),
+                0x01,
+                // SPS header + RBSP (with emulation prevention byte at index 4)
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x42.toByte(),
+                0x01,
+                0x01, // rbsp[0]: first SPS byte (vps_id=0, maxSub=0, nested=1)
+                0x01, // rbsp[1]: profile_space=0, tier=0, profile_idc=1
+                0x00,
+                0x00,
+                0x03,
+                0x00,
+                0x01, // rbsp[2..5]: compat flags 0x00000001 (EP stripped)
+                0x90.toByte(),
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00, // rbsp[6..11]: constraint flags
+                0x5D, // rbsp[12]: level_idc
+                // PPS
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x44.toByte(),
+                0x01,
+            )
+
+        val record = buildHevcDecoderConfigurationRecord(csd)!!
+
+        assertEquals(0x01, record[1].toInt() and 0xFF)
+        assertEquals(0x00, record[2].toInt() and 0xFF)
+        assertEquals(0x00, record[3].toInt() and 0xFF)
+        assertEquals(0x00, record[4].toInt() and 0xFF)
+        assertEquals(0x01, record[5].toInt() and 0xFF) // compat flag bit reassembled past EP
+        assertEquals(0x90, record[6].toInt() and 0xFF)
+        assertEquals(0x5D, record[12].toInt() and 0xFF)
+    }
+
+    private fun buildHevcSyntheticCsd(): ByteArray =
+        byteArrayOf(
+            // VPS NAL (type=32 → header byte 0x40); second byte = 0x01 (layer=0, temporal+1=1)
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x40.toByte(),
+            0x01,
+            // SPS NAL (type=33 → header byte 0x42); second byte = 0x01
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x42.toByte(),
+            0x01,
+            // SPS RBSP bytes 0..12:
+            // byte 0: vps_id=0, max_sub_layers_minus1=0, temporal_id_nesting=1 → 0x01
+            0x01,
+            // byte 1: profile_space=0, tier=0, profile_idc=1 (Main) → 0x01
+            0x01,
+            // bytes 2..5: general_profile_compatibility_flags = 0x60000000 (Main compat bit)
+            0x60.toByte(),
+            0x00,
+            0x00,
+            0x00,
+            // bytes 6..11: general_constraint_indicator_flags = 0x900000000000
+            0x90.toByte(),
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
+            // byte 12: general_level_idc = 93 (Level 3.1)
+            0x5D,
+            // PPS NAL (type=34 → header byte 0x44)
+            0x00,
+            0x00,
+            0x00,
+            0x01,
+            0x44.toByte(),
+            0x01,
+        )
+
+    companion object {
+        private const val HEVC_SPS_NAL_SIZE = 15
+        private const val HEVC_EXPECTED_RECORD_SIZE = 57
     }
 }

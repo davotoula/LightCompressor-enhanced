@@ -1,6 +1,7 @@
 package com.davotoula.lightcompressor.muxer
 
 import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
+import com.davotoula.lightcompressor.hls.buildHevcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -482,12 +483,17 @@ internal class Mp4SegmentWriter(
 
     private fun writeCodecConfigBox(scope: BoxWriter.BoxScope) {
         if (videoMimeType == "video/hevc") {
-            // HEVC init segments are currently broken the same way AVC was — the hvcC box
-            // requires an HEVCDecoderConfigurationRecord (ISO/IEC 14496-15 §8.3.3.1), not the
-            // raw Annex-B csd-0 bytes. When HEVC playback is exercised, build an equivalent
-            // to buildAvcDecoderConfigurationRecord for HEVC VPS/SPS/PPS.
+            // The hvcC box requires an HEVCDecoderConfigurationRecord, not the raw Annex-B
+            // csd-0 payload. If the builder cannot find VPS+SPS+PPS the resulting init segment
+            // would be silently broken, so fail loudly here instead.
+            val record =
+                buildHevcDecoderConfigurationRecord(videoCodecConfig)
+                    ?: error(
+                        "Cannot build HEVCDecoderConfigurationRecord: csd-0 must contain VPS, " +
+                            "SPS, and PPS NAL units",
+                    )
             scope.box("hvcC") {
-                writeBytes(videoCodecConfig)
+                writeBytes(record)
             }
         } else {
             // The avcC box requires an AVCDecoderConfigurationRecord, not the raw Annex-B
