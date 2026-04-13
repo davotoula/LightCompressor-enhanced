@@ -14,6 +14,7 @@ import com.davotoula.lightcompressor.HlsPreparer
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsLadder
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,6 +40,7 @@ class HlsViewModel(
 
     private val context get() = getApplication<Application>()
     private val videoSettingsPreferences = VideoSettingsPreferences(application)
+    private var collectorJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -113,11 +115,13 @@ class HlsViewModel(
         // Mirror every update from testStateFlow into _uiState so HlsTestSession's
         // thread-safe .update() calls stay the source of truth while the VM's
         // aggregated UI state reflects them for the screen.
-        viewModelScope.launch {
-            testStateFlow.collect { snapshot ->
-                _uiState.update { it.copy(testState = snapshot) }
+        collectorJob?.cancel()
+        collectorJob =
+            viewModelScope.launch {
+                testStateFlow.collect { snapshot ->
+                    _uiState.update { it.copy(testState = snapshot) }
+                }
             }
-        }
 
         val videoCodec =
             when (_uiState.value.hlsCodec) {
@@ -166,6 +170,7 @@ class HlsViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        collectorJob?.cancel()
         if (_uiState.value.testState?.isRunning == true) {
             HlsPreparer.cancel()
         }
