@@ -92,13 +92,18 @@ object CompressorUtils {
 
             // Only attempt changing colour range if device supports it
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                getColorStandard(inputFormat)?.let {
-                    setInteger(MediaFormat.KEY_COLOR_STANDARD, it)
-                }
+                // Default to BT.709 if input doesn't specify - standard for SDR HD content
+                // Some devices don't populate color metadata from MediaExtractor, causing
+                // encoder to use device-specific defaults (e.g., sRGB instead of BT.709)
+                val colorStandard =
+                    getColorStandard(inputFormat)
+                        ?: MediaFormat.COLOR_STANDARD_BT709
+                setInteger(MediaFormat.KEY_COLOR_STANDARD, colorStandard)
 
-                getColorTransfer(inputFormat)?.let {
-                    setInteger(MediaFormat.KEY_COLOR_TRANSFER, it)
-                }
+                val colorTransfer =
+                    getColorTransfer(inputFormat)
+                        ?: MediaFormat.COLOR_TRANSFER_SDR_VIDEO
+                setInteger(MediaFormat.KEY_COLOR_TRANSFER, colorTransfer)
 
                 val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
                 val inputColorRange = getColorRange(inputFormat)

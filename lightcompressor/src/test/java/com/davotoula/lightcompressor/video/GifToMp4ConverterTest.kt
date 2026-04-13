@@ -23,6 +23,13 @@
  */
 package com.davotoula.lightcompressor.video
 
+import android.media.MediaFormat
+import android.os.Build
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
+import io.mockk.verify
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -354,5 +361,55 @@ class GifToMp4ConverterTest {
         assertEquals(0, GifToMp4Converter.roundUpToEven(0))
         assertEquals(-1, GifToMp4Converter.roundUpToEven(-1))
         assertEquals(-2, GifToMp4Converter.roundUpToEven(-2))
+    }
+
+    // --- createEncoderFormat color metadata tests ---
+
+    @Test
+    fun `createEncoderFormat sets BT709 color standard`() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+
+        val format = mockk<MediaFormat>(relaxed = true)
+        mockkStatic(MediaFormat::class)
+        every { MediaFormat.createVideoFormat(any(), any(), any()) } returns format
+
+        GifToMp4Converter.createEncoderFormat("video/avc", 1280, 720, 30)
+
+        verify {
+            format.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT709)
+        }
+        unmockkAll()
+    }
+
+    @Test
+    fun `createEncoderFormat sets SDR_VIDEO color transfer`() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+
+        val format = mockk<MediaFormat>(relaxed = true)
+        mockkStatic(MediaFormat::class)
+        every { MediaFormat.createVideoFormat(any(), any(), any()) } returns format
+
+        GifToMp4Converter.createEncoderFormat("video/avc", 1280, 720, 30)
+
+        verify {
+            format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
+        }
+        unmockkAll()
+    }
+
+    @Test
+    fun `createEncoderFormat sets limited color range`() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+
+        val format = mockk<MediaFormat>(relaxed = true)
+        mockkStatic(MediaFormat::class)
+        every { MediaFormat.createVideoFormat(any(), any(), any()) } returns format
+
+        GifToMp4Converter.createEncoderFormat("video/avc", 1280, 720, 30)
+
+        verify {
+            format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+        }
+        unmockkAll()
     }
 }
