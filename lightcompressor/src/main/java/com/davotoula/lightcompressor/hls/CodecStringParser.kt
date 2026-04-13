@@ -184,20 +184,51 @@ internal fun splitAvcCsdNalUnits(csd: ByteArray): AvcCsdNalUnits {
  * Returns an empty array for empty input. Throws [IllegalArgumentException] if the input is
  * non-empty but contains no Annex-B start codes — that indicates a programming error upstream
  * since every MediaCodec H.264 frame begins with at least one start code.
+ *
+ * Optimized: single scan for boundaries, single allocation, direct copy (avoids intermediate
+ * List<ByteArray> and ByteArrayOutputStream overhead).
  */
+@Suppress("MagicNumber", "NestedBlockDepth")
 internal fun convertAnnexBToAvcLengthPrefixed(annexB: ByteArray): ByteArray {
     if (annexB.isEmpty()) return ByteArray(0)
-    val nals = iterateNalUnits(annexB)
-    require(nals.isNotEmpty()) { "Annex-B input has no NAL start codes" }
-    val out = ByteArrayOutputStream()
-    for (nal in nals) {
-        out.write((nal.size ushr UINT32_SHIFT) and BYTE_MASK)
-        out.write((nal.size ushr UINT24_SHIFT) and BYTE_MASK)
-        out.write((nal.size ushr UINT16_SHIFT) and BYTE_MASK)
-        out.write(nal.size and BYTE_MASK)
-        out.write(nal)
+
+    // First pass: find NAL boundaries and calculate output size
+    val nalBoundaries = mutableListOf<Pair<Int, Int>>() // (start, end) pairs
+    var cursor = 0
+    while (cursor < annexB.size) {
+        val startCodeLen = startCodeLengthAt(annexB, cursor)
+        if (startCodeLen == 0) {
+            cursor++
+        } else {
+            val nalStart = cursor + startCodeLen
+            if (nalStart >= annexB.size) break
+            val nalEnd = nextNalStart(annexB, nalStart + 1) ?: annexB.size
+            nalBoundaries.add(nalStart to nalEnd)
+            cursor = nalEnd
+        }
     }
-    return out.toByteArray()
+
+    require(nalBoundaries.isNotEmpty()) { "Annex-B input has no NAL start codes" }
+
+    // Calculate output size: 4 bytes length prefix + NAL data for each NAL
+    val outputSize = nalBoundaries.sumOf { (start, end) -> 4 + (end - start) }
+    val output = ByteArray(outputSize)
+
+    // Second pass: copy with length prefixes
+    var outPos = 0
+    for ((nalStart, nalEnd) in nalBoundaries) {
+        val nalSize = nalEnd - nalStart
+        // Write 4-byte big-endian length
+        output[outPos++] = ((nalSize ushr UINT32_SHIFT) and BYTE_MASK).toByte()
+        output[outPos++] = ((nalSize ushr UINT24_SHIFT) and BYTE_MASK).toByte()
+        output[outPos++] = ((nalSize ushr UINT16_SHIFT) and BYTE_MASK).toByte()
+        output[outPos++] = (nalSize and BYTE_MASK).toByte()
+        // Copy NAL data
+        System.arraycopy(annexB, nalStart, output, outPos, nalSize)
+        outPos += nalSize
+    }
+
+    return output
 }
 
 private fun iterateNalUnits(csd: ByteArray): List<ByteArray> {

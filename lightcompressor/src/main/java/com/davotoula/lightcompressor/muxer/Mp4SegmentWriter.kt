@@ -1,9 +1,9 @@
 package com.davotoula.lightcompressor.muxer
 
+import android.util.Log
 import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.buildHevcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
-import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /**
@@ -92,6 +92,7 @@ internal class Mp4SegmentWriter(
      * @param baseDecodeTimeUs decode timestamp of the first sample in this segment (microseconds)
      * @param output target stream
      */
+    @Suppress("MagicNumber")
     fun writeMediaSegment(
         videoSamples: List<EncodedSample>,
         audioSamples: List<EncodedSample>,
@@ -99,6 +100,9 @@ internal class Mp4SegmentWriter(
         baseDecodeTimeUs: Long,
         output: OutputStream,
     ) {
+        // Timing instrumentation
+        val annexBStart = System.nanoTime()
+
         // MediaCodec emits H.264/HEVC samples in Annex-B format (start codes), but the avcC/hvcC
         // we write declares lengthSizeMinusOne = 3, so the parser expects 4-byte big-endian length
         // prefixes inside mdat. Convert each video sample once, before computing offsets/sizes.
@@ -106,6 +110,8 @@ internal class Mp4SegmentWriter(
             videoSamples.map { sample ->
                 sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
             }
+        val annexBTimeUs = (System.nanoTime() - annexBStart) / 1000
+
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
         // Anchor the audio track's tfdt to the first audio sample's own PTS, not the
         // video segment's baseDecodeTimeUs. The two can differ for sources with a
@@ -113,26 +119,13 @@ internal class Mp4SegmentWriter(
         // sync correct at the fragment boundary.
         val audioBaseDecodeTimeUs = audioSamples.firstOrNull()?.presentationTimeUs ?: baseDecodeTimeUs
 
-        // Measure moof by writing it once into a throwaway buffer with placeholder data
-        // offsets. The real data offsets depend on the moof size, which in turn depends on
-        // the exact serialized layout — so we serialize first to measure, then serialize
-        // again to the real output with the correct offsets patched in.
-        val measuringBuffer = ByteArrayOutputStream()
-        writeMoof(
-            writer = BoxWriter(measuringBuffer),
-            videoSamples = convertedVideoSamples,
-            audioSamples = audioSamples,
-            sequenceNumber = sequenceNumber,
-            baseDecodeTimeUs = baseDecodeTimeUs,
-            audioBaseDecodeTimeUs = audioBaseDecodeTimeUs,
-            hasAudio = hasAudio,
-            videoDataOffset = 0,
-            audioDataOffset = 0,
-        )
-        val moofSize = measuringBuffer.size()
+        // Calculate moof size analytically instead of serializing twice.
+        // Structure: moof(8) + mfhd(16) + video_traf(64 + N*12) + [audio_traf(64 + M*8)]
+        val moofSize = calculateMoofSize(convertedVideoSamples.size, audioSamples.size, hasAudio)
         val videoDataOffset = moofSize + 8 // 8 = mdat box header
         val audioDataOffset = videoDataOffset + convertedVideoSamples.sumOf { it.data.size }
 
+        val moofWriteStart = System.nanoTime()
         val writer = BoxWriter(output)
         writeMoof(
             writer = writer,
@@ -145,6 +138,9 @@ internal class Mp4SegmentWriter(
             videoDataOffset = videoDataOffset,
             audioDataOffset = audioDataOffset,
         )
+        val moofWriteTimeUs = (System.nanoTime() - moofWriteStart) / 1000
+
+        val mdatStart = System.nanoTime()
         writer.box("mdat") {
             for (sample in convertedVideoSamples) {
                 writeBytes(sample.data)
@@ -154,6 +150,20 @@ internal class Mp4SegmentWriter(
                     writeBytes(sample.data)
                 }
             }
+        }
+        val mdatTimeUs = (System.nanoTime() - mdatStart) / 1000
+
+        // Log timing (wrapped for unit test compatibility)
+        @Suppress("TooGenericExceptionCaught")
+        try {
+            Log.d(
+                PERF_TAG,
+                "Segment #$sequenceNumber: annexB=${annexBTimeUs}us, " +
+                    "moofWrite=${moofWriteTimeUs}us, mdat=${mdatTimeUs}us, " +
+                    "samples=${videoSamples.size}v/${audioSamples.size}a",
+            )
+        } catch (_: Exception) {
+            // Ignore in unit tests where android.util.Log is unavailable
         }
     }
 
@@ -605,7 +615,30 @@ internal class Mp4SegmentWriter(
         }
     }
 
+    /**
+     * Calculate moof box size analytically to avoid double-serialization.
+     *
+     * Structure breakdown:
+     * - moof header: 8 bytes
+     * - mfhd fullbox: 8 (header) + 4 (version/flags) + 4 (sequence) = 16 bytes
+     * - video traf: 8 (traf) + 16 (tfhd) + 20 (tfdt v1) + 20 (trun header) + N*12 (samples)
+     * - audio traf: 8 (traf) + 16 (tfhd) + 20 (tfdt v1) + 20 (trun header) + M*8 (samples)
+     */
+    @Suppress("MagicNumber")
+    private fun calculateMoofSize(
+        videoSampleCount: Int,
+        audioSampleCount: Int,
+        hasAudio: Boolean,
+    ): Int {
+        val moofHeader = 8
+        val mfhd = 16
+        val videoTraf = 8 + 16 + 20 + 20 + videoSampleCount * 12
+        val audioTraf = if (hasAudio) 8 + 16 + 20 + 20 + audioSampleCount * 8 else 0
+        return moofHeader + mfhd + videoTraf + audioTraf
+    }
+
     companion object {
+        private const val PERF_TAG = "perf_timing"
         const val VIDEO_TRACK_ID = 1
         const val AUDIO_TRACK_ID = 2
         const val DEFAULT_VIDEO_TIMESCALE = 90000

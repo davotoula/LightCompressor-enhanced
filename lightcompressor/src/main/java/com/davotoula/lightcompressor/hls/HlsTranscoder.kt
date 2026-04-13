@@ -33,6 +33,11 @@ internal class HlsTranscoder(
     private val audioReadBuffer = java.nio.ByteBuffer.allocate(AUDIO_BUFFER_SIZE)
     private var lastAudioLimitPtsUs = -1L
 
+    // Timing instrumentation (accumulated per rendition, in nanoseconds)
+    private var videoFrameCopyTimeNs = 0L
+    private var audioSampleCopyTimeNs = 0L
+    private var segmentWriteTimeNs = 0L
+
     /**
      * Encodes one rendition of the source video.
      *
@@ -63,6 +68,11 @@ internal class HlsTranscoder(
     ): RenditionResult? {
         // Reset audio state for this rendition (instance is reused across renditions)
         lastAudioLimitPtsUs = -1L
+
+        // Reset timing counters for this rendition
+        videoFrameCopyTimeNs = 0L
+        audioSampleCopyTimeNs = 0L
+        segmentWriteTimeNs = 0L
 
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
         val segments = mutableListOf<SegmentInfo>()
@@ -268,9 +278,11 @@ internal class HlsTranscoder(
                                 }
 
                                 if (encoderBufferInfo.size > 0) {
+                                    val frameCopyStart = System.nanoTime()
                                     val data = ByteArray(encoderBufferInfo.size)
                                     encodedData.position(encoderBufferInfo.offset)
                                     encodedData.get(data)
+                                    videoFrameCopyTimeNs += System.nanoTime() - frameCopyStart
 
                                     accumulator.addVideoSample(
                                         EncodedSample(
@@ -289,18 +301,21 @@ internal class HlsTranscoder(
                                         audioConfig != null &&
                                         videoPtsUs > lastAudioLimitPtsUs
                                     ) {
+                                        val audioCopyStart = System.nanoTime()
                                         copyAudioSamples(
                                             audioExtractor,
                                             accumulator,
                                             limitPtsUs = videoPtsUs,
                                             audioFrameDurationUs = audioFrameDurationUs,
                                         )
+                                        audioSampleCopyTimeNs += System.nanoTime() - audioCopyStart
                                         lastAudioLimitPtsUs = videoPtsUs
                                     }
 
                                     // Check for segment boundary
                                     val flushed = accumulator.flushIfReady()
                                     if (flushed != null && segmentWriter != null) {
+                                        val segmentWriteStart = System.nanoTime()
                                         emitSegment(
                                             segmentWriter,
                                             flushed,
@@ -309,6 +324,7 @@ internal class HlsTranscoder(
                                             segments,
                                             tempDir,
                                         )
+                                        segmentWriteTimeNs += System.nanoTime() - segmentWriteStart
                                     }
 
                                     // Report progress
@@ -327,6 +343,7 @@ internal class HlsTranscoder(
                                     // Flush remaining samples as final segment
                                     val remaining = accumulator.flushRemaining()
                                     if (remaining != null && segmentWriter != null) {
+                                        val segmentWriteStart = System.nanoTime()
                                         emitSegment(
                                             segmentWriter,
                                             remaining,
@@ -335,6 +352,7 @@ internal class HlsTranscoder(
                                             segments,
                                             tempDir,
                                         )
+                                        segmentWriteTimeNs += System.nanoTime() - segmentWriteStart
                                     }
                                     encoderDone = true
                                     break
@@ -392,6 +410,15 @@ internal class HlsTranscoder(
                     segments = segments,
                     targetDurationSeconds = targetDuration,
                 )
+
+            // Log timing stats for this rendition
+            Log.d(
+                PERF_TAG,
+                "Rendition ${rendition.resolution.label} (${actualWidth}x$actualHeight): " +
+                    "videoFrameCopy=${videoFrameCopyTimeNs / 1_000_000}ms, " +
+                    "audioSampleCopy=${audioSampleCopyTimeNs / 1_000_000}ms, " +
+                    "segmentWrite=${segmentWriteTimeNs / 1_000_000}ms",
+            )
 
             return RenditionResult(
                 rendition = rendition,
@@ -488,6 +515,7 @@ internal class HlsTranscoder(
 
     companion object {
         private const val TAG = "HlsTranscoder"
+        private const val PERF_TAG = "perf_timing"
         private const val TIMEOUT_US = 10_000L
         private const val NS_PER_US = 1000L
         private const val DEFAULT_FRAME_RATE = 30
