@@ -3,57 +3,35 @@
 package com.davotoula.lce.navigation
 
 import android.net.Uri
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.davotoula.lce.ui.hls.HlsScreen
+import com.davotoula.lce.ui.hls.HlsViewModel
 import com.davotoula.lce.ui.main.MainScreen
 import com.davotoula.lce.ui.player.PlayerScreen
 
 /**
  * Sealed class representing all navigation routes in the LCE app.
- *
- * Each route is a distinct destination in the app's navigation graph.
- * Using a sealed class ensures type-safe navigation and compile-time
- * verification of all possible routes.
- *
- * @property route The string representation of the route used by Navigation Compose
  */
 sealed class LceRoute(
     val route: String,
 ) {
-    /**
-     * Main screen route - the home screen of the app where users can
-     * select videos and configure compression settings.
-     */
     data object Main : LceRoute("main")
 
-    /**
-     * Player screen route - displays the video player for compressed videos.
-     * Takes a videoPath parameter which is URL-encoded.
-     */
+    data object Hls : LceRoute("hls")
+
     data object Player : LceRoute("player/{videoPath}") {
-        /**
-         * Creates a navigation route with the encoded video path.
-         *
-         * @param videoPath The file path to the video to play
-         * @return The complete route string with the encoded video path
-         */
         fun createRoute(videoPath: String): String = "player/${Uri.encode(videoPath)}"
     }
 }
 
-/**
- * The main navigation host for the LCE app.
- *
- * This composable sets up the navigation graph for the entire app,
- * defining all screens and how they connect to each other.
- *
- * @param navController The navigation controller to manage navigation state
- * @param initialVideoUris Videos shared via Android "Share to" intent
- */
 @Composable
 fun LceNavHost(
     navController: NavHostController,
@@ -61,6 +39,11 @@ fun LceNavHost(
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
 ) {
+    // Scope the HLS ViewModel to the hosting Activity so a running HLS
+    // preparation survives back-navigation between Main and the HLS screen.
+    val activity = LocalActivity.current as ComponentActivity
+    val hlsViewModel: HlsViewModel = viewModel(viewModelStoreOwner = activity)
+
     NavHost(
         navController = navController,
         startDestination = LceRoute.Main.route,
@@ -70,6 +53,18 @@ fun LceNavHost(
                 initialVideoUris = initialVideoUris,
                 isDarkTheme = isDarkTheme,
                 onToggleTheme = onToggleTheme,
+                hlsViewModel = hlsViewModel,
+                onNavigateToHls = { navController.navigate(LceRoute.Hls.route) },
+                onNavigateToPlayer = { videoPath ->
+                    navController.navigate(LceRoute.Player.createRoute(videoPath))
+                },
+            )
+        }
+
+        composable(LceRoute.Hls.route) {
+            HlsScreen(
+                viewModel = hlsViewModel,
+                onBack = { navController.popBackStack() },
                 onNavigateToPlayer = { videoPath ->
                     navController.navigate(LceRoute.Player.createRoute(videoPath))
                 },

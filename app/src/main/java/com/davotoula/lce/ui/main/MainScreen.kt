@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,15 +19,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Stream
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -67,6 +73,7 @@ import com.davotoula.lce.ui.hls.HlsRenditionState
 import com.davotoula.lce.ui.hls.HlsRenditionStatus
 import com.davotoula.lce.ui.hls.HlsTerminal
 import com.davotoula.lce.ui.hls.HlsTestState
+import com.davotoula.lce.ui.hls.HlsViewModel
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 
@@ -88,11 +95,15 @@ import java.io.File
 fun MainScreen(
     initialVideoUris: List<Uri> = emptyList(),
     viewModel: MainViewModel = viewModel(),
+    hlsViewModel: HlsViewModel,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    onNavigateToHls: () -> Unit,
     onNavigateToPlayer: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val hlsUiState by hlsViewModel.uiState.collectAsStateWithLifecycle()
+    val isHlsRunning = hlsUiState.testState?.isRunning == true
     val context = LocalContext.current
 
     // Handle videos shared via "Share to" intent
@@ -232,6 +243,25 @@ fun MainScreen(
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
                 actions = {
+                    IconButton(onClick = onNavigateToHls) {
+                        Box {
+                            Icon(
+                                imageVector = Icons.Default.Stream,
+                                contentDescription = stringResource(R.string.hls_icon_description),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            if (isHlsRunning) {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(8.dp)
+                                            .offset(x = 6.dp, y = (-2).dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.error),
+                                )
+                            }
+                        }
+                    }
                     if (uiState.isCompressing) {
                         IconButton(onClick = { viewModel.onAction(MainAction.CancelCompression) }) {
                             Icon(
