@@ -2,7 +2,6 @@ package com.davotoula.lce.ui.main
 
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
-import com.davotoula.lce.ui.hls.HlsTestState
 import com.davotoula.lightcompressor.Resolution
 
 enum class Codec(
@@ -26,8 +25,6 @@ data class MainUiState(
     val errorMessage: String? = null,
     val toastMessage: String? = null,
     val isSettingsExpanded: Boolean = true,
-    val hlsCodec: Codec = Codec.H264,
-    val hlsTestState: HlsTestState? = null,
 )
 
 sealed class MainAction {
@@ -76,26 +73,10 @@ sealed class MainAction {
     object ClearToast : MainAction()
 
     data object ToggleSettings : MainAction()
-
-    data class SetHlsCodec(
-        val codec: Codec,
-    ) : MainAction()
-
-    data object PickHlsVideo : MainAction()
-
-    data class StartHlsPreparation(
-        val uri: Uri,
-    ) : MainAction()
-
-    data object CancelHlsPreparation : MainAction()
-
-    data object CloseHlsTestState : MainAction()
 }
 
 sealed class MainEvent {
     data class NavigateToPlayer(
         val videoPath: String,
     ) : MainEvent()
-
-    data object LaunchHlsPicker : MainEvent()
 }
