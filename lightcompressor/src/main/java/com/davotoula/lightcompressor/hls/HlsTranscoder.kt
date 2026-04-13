@@ -462,7 +462,7 @@ internal class HlsTranscoder(
             DEFAULT_FRAME_RATE
         }
 
-    private class CancellationException : Exception("HLS preparation cancelled")
+    private class CancellationException : kotlinx.coroutines.CancellationException("HLS preparation cancelled")
 
     companion object {
         private const val TAG = "HlsTranscoder"

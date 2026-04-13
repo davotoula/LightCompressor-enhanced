@@ -32,7 +32,10 @@ import kotlin.math.min
  * ```
  */
 object HlsPreparer : CoroutineScope by MainScope() {
+    @Volatile
     private var currentJob: Job? = null
+
+    @Volatile
     private var transcoder: HlsTranscoder? = null
 
     /**

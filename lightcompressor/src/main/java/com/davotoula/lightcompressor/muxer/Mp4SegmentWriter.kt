@@ -2,6 +2,7 @@ package com.davotoula.lightcompressor.muxer
 
 import com.davotoula.lightcompressor.hls.buildAvcDecoderConfigurationRecord
 import com.davotoula.lightcompressor.hls.convertAnnexBToAvcLengthPrefixed
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 
 /**
@@ -104,19 +105,38 @@ internal class Mp4SegmentWriter(
             videoSamples.map { sample ->
                 sample.copy(data = convertAnnexBToAvcLengthPrefixed(sample.data))
             }
-        val writer = BoxWriter(output)
         val hasAudio = audioSamples.isNotEmpty() && audioConfig != null
-        val moofSize = computeMoofSize(convertedVideoSamples.size, audioSamples.size, hasAudio)
+
+        // Measure moof by writing it once into a throwaway buffer with placeholder data
+        // offsets. The real data offsets depend on the moof size, which in turn depends on
+        // the exact serialized layout — so we serialize first to measure, then serialize
+        // again to the real output with the correct offsets patched in.
+        val measuringBuffer = ByteArrayOutputStream()
+        writeMoof(
+            writer = BoxWriter(measuringBuffer),
+            videoSamples = convertedVideoSamples,
+            audioSamples = audioSamples,
+            sequenceNumber = sequenceNumber,
+            baseDecodeTimeUs = baseDecodeTimeUs,
+            hasAudio = hasAudio,
+            videoDataOffset = 0,
+            audioDataOffset = 0,
+        )
+        val moofSize = measuringBuffer.size()
         val videoDataOffset = moofSize + 8 // 8 = mdat box header
         val audioDataOffset = videoDataOffset + convertedVideoSamples.sumOf { it.data.size }
 
-        writer.box("moof") {
-            writeMfhd(this, sequenceNumber)
-            writeVideoTraf(this, convertedVideoSamples, baseDecodeTimeUs, videoDataOffset)
-            if (hasAudio) {
-                writeAudioTraf(this, audioSamples, baseDecodeTimeUs, audioDataOffset)
-            }
-        }
+        val writer = BoxWriter(output)
+        writeMoof(
+            writer = writer,
+            videoSamples = convertedVideoSamples,
+            audioSamples = audioSamples,
+            sequenceNumber = sequenceNumber,
+            baseDecodeTimeUs = baseDecodeTimeUs,
+            hasAudio = hasAudio,
+            videoDataOffset = videoDataOffset,
+            audioDataOffset = audioDataOffset,
+        )
         writer.box("mdat") {
             for (sample in convertedVideoSamples) {
                 writeBytes(sample.data)
@@ -228,15 +248,24 @@ internal class Mp4SegmentWriter(
         }
     }
 
-    private fun computeMoofSize(
-        videoSampleCount: Int,
-        audioSampleCount: Int,
+    @Suppress("LongParameterList")
+    private fun writeMoof(
+        writer: BoxWriter,
+        videoSamples: List<EncodedSample>,
+        audioSamples: List<EncodedSample>,
+        sequenceNumber: Int,
+        baseDecodeTimeUs: Long,
         hasAudio: Boolean,
-    ): Int {
-        val mfhdSize = 16
-        val videoTrafSize = 64 + videoSampleCount * 12
-        val audioTrafSize = if (hasAudio) 64 + audioSampleCount * 8 else 0
-        return 8 + mfhdSize + videoTrafSize + audioTrafSize
+        videoDataOffset: Int,
+        audioDataOffset: Int,
+    ) {
+        writer.box("moof") {
+            writeMfhd(this, sequenceNumber)
+            writeVideoTraf(this, videoSamples, baseDecodeTimeUs, videoDataOffset)
+            if (hasAudio) {
+                writeAudioTraf(this, audioSamples, baseDecodeTimeUs, audioDataOffset)
+            }
+        }
     }
 
     private fun writeFtyp(writer: BoxWriter) {
