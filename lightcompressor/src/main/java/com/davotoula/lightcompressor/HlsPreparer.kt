@@ -136,7 +136,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
                         withContext(Dispatchers.IO) {
                             extractAudioSamples(context, uri)
                         }
-                    val elapsedMs = (System.nanoTime() - extractStart) / 1_000_000
+                    val elapsedMs = (System.nanoTime() - extractStart) / NANOS_PER_MILLI
                     Log.d(
                         PERF_TAG,
                         "Pre-extracted audio: ${extracted?.samples?.size ?: 0} samples in ${elapsedMs}ms",
@@ -299,4 +299,5 @@ object HlsPreparer : CoroutineScope by MainScope() {
     )
 
     private const val PERF_TAG = "perf_timing"
+    private const val NANOS_PER_MILLI = 1_000_000L
 }
