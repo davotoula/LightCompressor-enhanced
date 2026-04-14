@@ -19,8 +19,11 @@ const val HLS_TERMINAL_CANCELLED = "cancelled"
  * `HlsListener` implementation used by the sample app's "Prepare HLS" affordance.
  *
  * Persists segments and playlists under [rootDir] in the layout the playlists already
- * reference (`<label>/init.mp4`, `<label>/segment_NNN.m4s`, `<label>/media.m3u8`,
- * `master.m3u8`) so the result is directly playable by `ExoPlayer`.
+ * reference. The exact layout depends on the library mode:
+ * - Multi-file: `<label>/init.mp4`, `<label>/segment_NNN.m4s`, `<label>/media.m3u8`
+ * - Single-file: `<label>/<label>.mp4` (init + every segment), `<label>/media.m3u8`
+ * In both cases the master playlist is `master.m3u8` at the root and the result is
+ * directly playable by `ExoPlayer`.
  *
  * State mutations go through [updateState], which the caller wires to a thread-safe
  * sink (e.g. `MutableStateFlow.update`). No explicit dispatcher hop is needed even
@@ -69,16 +72,13 @@ class HlsTestSession(
                 throw IOException("Could not create $targetDir")
             }
             val targetFile =
-                if (segment.isInitSegment) {
-                    File(targetDir, "init.mp4")
-                } else {
-                    File(targetDir, SEGMENT_FILENAME_FORMAT.format(segment.index))
+                when {
+                    segment.isCombinedRendition ->
+                        File(targetDir, "${rendition.resolution.label}.mp4")
+                    segment.isInitSegment -> File(targetDir, "init.mp4")
+                    else -> File(targetDir, SEGMENT_FILENAME_FORMAT.format(segment.index))
                 }
-            segment.file.inputStream().use { input ->
-                targetFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
+            segment.file.copyTo(targetFile, overwrite = true)
         } catch (e: IOException) {
             failWithIoError("Failed to write segment ${segment.index}: ${e.message}")
             return
@@ -86,6 +86,8 @@ class HlsTestSession(
 
         if (segment.isInitSegment) return
 
+        // In single-file mode, isCombinedRendition segments count as 1 regardless of
+        // how many segments the encoding actually produced (the count is for UI display only).
         updateRow(rendition) { row ->
             row.copy(segmentCount = row.segmentCount + 1)
         }
@@ -140,8 +142,9 @@ class HlsTestSession(
         rendition: Rendition,
         percent: Float,
     ) {
+        val intPercent = percent.toInt()
         updateRow(rendition) { row ->
-            row.copy(progressPercent = percent.toInt())
+            if (row.progressPercent == intPercent) row else row.copy(progressPercent = intPercent)
         }
     }
 

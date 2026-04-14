@@ -52,16 +52,27 @@ interface HlsListener {
 
 /**
  * Represents a single fMP4 segment ready for upload.
+ *
+ * In the default multi-file layout, the listener receives one [HlsSegment] per init segment
+ * and per media segment. In the single-file layout enabled by
+ * [com.davotoula.lightcompressor.hls.HlsConfig.singleFilePerRendition], the listener receives
+ * exactly one [HlsSegment] per rendition with [isCombinedRendition] set to `true`.
  */
 data class HlsSegment(
     /** Temp file containing the segment data. Valid until [HlsListener.onSegmentReady] returns. */
     val file: File,
     /** Segment sequence number (0-based). */
     val index: Int,
-    /** Actual segment duration in seconds. */
+    /** Actual segment duration in seconds. For a combined rendition this is the rendition total. */
     val durationSeconds: Double,
     /** True for the initialization segment (init.mp4), false for media segments. */
     val isInitSegment: Boolean,
+    /**
+     * True when the file contains the entire rendition (init + every media segment concatenated).
+     * Mutually exclusive with [isInitSegment]; only set when
+     * [com.davotoula.lightcompressor.hls.HlsConfig.singleFilePerRendition] is enabled.
+     */
+    val isCombinedRendition: Boolean = false,
 )
 
 /**

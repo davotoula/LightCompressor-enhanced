@@ -87,5 +87,6 @@
     <string name="hls_back_description">Zurück zur Komprimierung</string>
     <string name="hls_icon_description">HLS-Vorbereitung öffnen</string>
     <string name="hls_output_dir_failed">HLS-Ausgabeverzeichnis konnte nicht vorbereitet werden</string>
+    <string name="hls_single_file_label">Eine fMP4-Datei pro Rendition</string>
 
 </resources>

@@ -87,5 +87,6 @@
     <string name="hls_back_description">Tillbaka till komprimering</string>
     <string name="hls_icon_description">Öppna HLS-förberedelse</string>
     <string name="hls_output_dir_failed">Det gick inte att förbereda HLS-utdatakatalogen</string>
+    <string name="hls_single_file_label">En fMP4-fil per rendition</string>
 
 </resources>

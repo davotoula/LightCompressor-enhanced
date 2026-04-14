@@ -59,8 +59,9 @@ Package: `com.davotoula.lightcompressor`
 2. `HlsTranscoder` — encodes each rendition sequentially (lowest-first) using Surface/GL pipeline
 3. `SegmentAccumulator` — detects keyframe-aligned segment boundaries in encoder output
 4. `Mp4SegmentWriter` / `BoxWriter` — writes fMP4 init and media segments (ISO 14496-12)
-5. `PlaylistGenerator` — builds VOD m3u8 playlists as strings
-6. Segments emitted via `HlsListener.onSegmentReady()` callback; temp files deleted after callback returns
+5. `SegmentSink` — `MultiFileSegmentSink` (default, one file per init/segment) or `SingleFileSegmentSink` (one combined `<label>.mp4` per rendition with `#EXT-X-BYTERANGE` playlist), selected by `HlsConfig.singleFilePerRendition`
+6. `PlaylistGenerator` — builds VOD m3u8 playlists as strings (`buildMediaPlaylist` for multi-file, `buildByteRangeMediaPlaylist` for single-file)
+7. Segments emitted via `HlsListener.onSegmentReady()` callback; temp files deleted after callback returns. In single-file mode the listener gets exactly one callback per rendition with `HlsSegment.isCombinedRendition = true`.
 
 **Key design decisions:**
 - BPS bitrate takes precedence over Mbps when both specified in `Configuration`
@@ -87,9 +88,10 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `BoxWriterTest` — ISO BMFF box encoding
 - `Mp4SegmentWriterTest` — fMP4 init and media segment structure
 - `HlsConfigTest` — encoding ladder configuration
-- `PlaylistGeneratorTest` — m3u8 playlist generation
+- `PlaylistGeneratorTest` — m3u8 playlist generation (multi-file + byterange)
 - `PlaylistRewriterTest` — URL remapping
 - `SegmentAccumulatorTest` — keyframe boundary detection
+- `SegmentSinkTest` — multi-file vs single-file rendition emission
 
 ## Dependencies
 

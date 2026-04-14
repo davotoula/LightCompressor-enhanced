@@ -87,5 +87,6 @@
     <string name="hls_back_description">Voltar para a compactação</string>
     <string name="hls_icon_description">Abrir preparação de HLS</string>
     <string name="hls_output_dir_failed">Falha ao preparar o diretório de saída do HLS</string>
+    <string name="hls_single_file_label">Um arquivo fMP4 por rendição</string>
 
 </resources>

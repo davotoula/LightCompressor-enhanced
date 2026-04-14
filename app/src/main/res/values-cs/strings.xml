@@ -87,5 +87,6 @@
     <string name="hls_back_description">Zpět ke kompresi</string>
     <string name="hls_icon_description">Otevřít přípravu HLS</string>
     <string name="hls_output_dir_failed">Nepodařilo se připravit výstupní adresář HLS</string>
+    <string name="hls_single_file_label">Jeden fMP4 soubor na rendici</string>
 
 </resources>

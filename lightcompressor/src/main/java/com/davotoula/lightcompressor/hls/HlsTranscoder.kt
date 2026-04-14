@@ -15,7 +15,6 @@ import com.davotoula.lightcompressor.utils.CompressorUtils
 import com.davotoula.lightcompressor.video.InputSurface
 import com.davotoula.lightcompressor.video.OutputSurface
 import java.io.File
-import java.io.FileOutputStream
 import kotlin.math.min
 
 /**
@@ -76,13 +75,18 @@ internal class HlsTranscoder(
         segmentWriteTimeNs = 0L
 
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
-        val segments = mutableListOf<SegmentInfo>()
         var videoExtractor: MediaExtractor? = null
         var audioExtractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
         var encoder: MediaCodec? = null
         var inputSurface: InputSurface? = null
         var outputSurface: OutputSurface? = null
+        val sink: SegmentSink =
+            if (config.singleFilePerRendition) {
+                SingleFileSegmentSink(rendition, listener, tempDir)
+            } else {
+                MultiFileSegmentSink(rendition, listener, tempDir)
+            }
 
         try {
             // Setup video extractor
@@ -277,18 +281,7 @@ internal class HlsTranscoder(
                                         videoHeight = actualHeight,
                                         audioConfig = audioConfig,
                                     )
-                                // Emit init segment
-                                val initFile = File(tempDir, "init_${rendition.resolution.label}.mp4")
-                                FileOutputStream(initFile).use { fos ->
-                                    segmentWriter.writeInitSegment(fos)
-                                }
-                                listener.onSegmentReady(
-                                    rendition,
-                                    HlsSegment(initFile, 0, 0.0, isInitSegment = true),
-                                )
-                                if (!initFile.delete()) {
-                                    Log.w(TAG, "Failed to delete init temp file: ${initFile.absolutePath}")
-                                }
+                                sink.writeInit(segmentWriter)
                             }
                             encoderStatus >= 0 -> {
                                 val encodedData =
@@ -339,14 +332,7 @@ internal class HlsTranscoder(
                                     val flushed = accumulator.flushIfReady()
                                     if (flushed != null && segmentWriter != null) {
                                         val segmentWriteStart = System.nanoTime()
-                                        emitSegment(
-                                            segmentWriter,
-                                            flushed,
-                                            rendition,
-                                            listener,
-                                            segments,
-                                            tempDir,
-                                        )
+                                        sink.writeMedia(segmentWriter, flushed)
                                         segmentWriteTimeNs += System.nanoTime() - segmentWriteStart
                                     }
 
@@ -367,14 +353,7 @@ internal class HlsTranscoder(
                                     val remaining = accumulator.flushRemaining()
                                     if (remaining != null && segmentWriter != null) {
                                         val segmentWriteStart = System.nanoTime()
-                                        emitSegment(
-                                            segmentWriter,
-                                            remaining,
-                                            rendition,
-                                            listener,
-                                            segments,
-                                            tempDir,
-                                        )
+                                        sink.writeMedia(segmentWriter, remaining)
                                         segmentWriteTimeNs += System.nanoTime() - segmentWriteStart
                                     }
                                     encoderDone = true
@@ -414,6 +393,11 @@ internal class HlsTranscoder(
                 }
             }
 
+            // Emit any deferred output (single-file mode flushes the combined rendition here).
+            val finishStart = System.nanoTime()
+            sink.finish()
+            segmentWriteTimeNs += System.nanoTime() - finishStart
+
             // Build codec string from the SPS NAL unit inside csd-0. We must not use
             // MediaFormat.KEY_PROFILE/KEY_LEVEL here — MediaCodec exposes those as bit flags
             // that do not match H.264 profile_idc/level_idc, and KEY_LEVEL is often absent.
@@ -425,14 +409,13 @@ internal class HlsTranscoder(
                     videoCodecString
                 }
             val targetDuration =
-                segments.maxOfOrNull { it.durationSeconds }?.toInt()?.plus(1)
-                    ?: config.segmentDurationSeconds
+                if (sink.mediaSegmentCount > 0) {
+                    sink.maxSegmentDurationSeconds.toInt() + 1
+                } else {
+                    config.segmentDurationSeconds
+                }
 
-            val playlist =
-                PlaylistGenerator().buildMediaPlaylist(
-                    segments = segments,
-                    targetDurationSeconds = targetDuration,
-                )
+            val playlist = sink.buildPlaylist(targetDurationSeconds = targetDuration)
 
             // Log timing stats for this rendition
             Log.d(
@@ -457,6 +440,7 @@ internal class HlsTranscoder(
             Log.e(TAG, "Rendition ${rendition.resolution.label} failed", e)
             return null
         } finally {
+            runCatching { sink.close() }
             runCatching { decoder?.stop() }
             runCatching { decoder?.release() }
             runCatching { encoder?.stop() }
@@ -465,37 +449,6 @@ internal class HlsTranscoder(
             runCatching { outputSurface?.release() }
             runCatching { videoExtractor?.release() }
             runCatching { audioExtractor?.release() }
-        }
-    }
-
-    @Suppress("MagicNumber")
-    private fun emitSegment(
-        writer: Mp4SegmentWriter,
-        flushed: FlushedSegment,
-        rendition: Rendition,
-        listener: HlsListener,
-        segments: MutableList<SegmentInfo>,
-        tempDir: File,
-    ) {
-        val filename = "segment_%03d.m4s".format(flushed.sequenceNumber - 1)
-        val segmentFile = File(tempDir, "${rendition.resolution.label}_$filename")
-        FileOutputStream(segmentFile).use { fos ->
-            writer.writeMediaSegment(
-                videoSamples = flushed.videoSamples,
-                audioSamples = flushed.audioSamples,
-                sequenceNumber = flushed.sequenceNumber,
-                baseDecodeTimeUs = flushed.baseDecodeTimeUs,
-                output = fos,
-            )
-        }
-        val durationSeconds = flushed.durationUs / 1_000_000.0
-        segments.add(SegmentInfo(filename, durationSeconds))
-        listener.onSegmentReady(
-            rendition,
-            HlsSegment(segmentFile, flushed.sequenceNumber - 1, durationSeconds, isInitSegment = false),
-        )
-        if (!segmentFile.delete()) {
-            Log.w(TAG, "Failed to delete segment temp file: ${segmentFile.absolutePath}")
         }
     }
 

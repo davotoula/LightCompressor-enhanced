@@ -68,6 +68,21 @@ class HlsTestSessionTest {
         )
     }
 
+    private fun makeCombinedSegment(
+        contents: ByteArray = byteArrayOf(0x10, 0x20, 0x30, 0x40, 0x50),
+        durationSeconds: Double = 12.0,
+    ): HlsSegment {
+        val temp = tempFolder.newFile("combined.bin")
+        temp.writeBytes(contents)
+        return HlsSegment(
+            file = temp,
+            index = 0,
+            durationSeconds = durationSeconds,
+            isInitSegment = false,
+            isCombinedRendition = true,
+        )
+    }
+
     @Test
     fun `onStart trims rendition rows to renditionCount and marks running`() {
         session.onStart(renditionCount = 1)
@@ -205,6 +220,24 @@ class HlsTestSessionTest {
         assertFalse(current.isRunning)
         val failedAfter = current.terminal as HlsTerminal.Failed
         assertEquals(failedBefore.message, failedAfter.message)
+    }
+
+    @Test
+    fun `onSegmentReady with combined rendition writes single mp4 named after the rendition label`() {
+        session.onStart(renditionCount = 2)
+        session.onRenditionStart(rendition360)
+        val combinedBytes = byteArrayOf(0x11, 0x22, 0x33, 0x44, 0x55, 0x66)
+        session.onSegmentReady(rendition360, makeCombinedSegment(contents = combinedBytes))
+
+        val combinedFile = File(rootDir, "360p/360p.mp4")
+        assertTrue("combined rendition file should exist", combinedFile.exists())
+        assertEquals(combinedBytes.size.toLong(), combinedFile.length())
+        // No init.mp4 / segment_000.m4s should be created — only the single combined file.
+        assertFalse(File(rootDir, "360p/init.mp4").exists())
+        assertFalse(File(rootDir, "360p/segment_000.m4s").exists())
+
+        val row = state!!.renditions.first { it.label == "360p" }
+        assertEquals("combined segment counts as one media segment", 1, row.segmentCount)
     }
 
     @Test

@@ -49,11 +49,17 @@ class HlsViewModel(
     fun onAction(action: HlsAction) {
         when (action) {
             is HlsAction.SetCodec -> handleSetCodec(action.codec)
+            is HlsAction.SetSingleFilePerRendition -> handleSetSingleFilePerRendition(action.enabled)
             HlsAction.PickVideo -> handlePickVideo()
             is HlsAction.StartPreparation -> handleStartPreparation(action.uri)
             HlsAction.CancelPreparation -> handleCancelPreparation()
             HlsAction.CloseTestState -> handleCloseTestState()
         }
+    }
+
+    private fun handleSetSingleFilePerRendition(enabled: Boolean) {
+        if (_uiState.value.testState?.isRunning == true) return
+        _uiState.update { it.copy(singleFilePerRendition = enabled) }
     }
 
     private fun handleSetCodec(codec: Codec) {
@@ -80,7 +86,8 @@ class HlsViewModel(
     }
 
     private fun handleStartPreparation(uri: Uri) {
-        if (_uiState.value.testState?.isRunning == true) return
+        val state = _uiState.value
+        if (state.testState?.isRunning == true) return
 
         val rootDir = File(context.filesDir, "hls/current")
         rootDir.deleteRecursively()
@@ -111,11 +118,16 @@ class HlsViewModel(
         }
 
         val videoCodec =
-            when (_uiState.value.hlsCodec) {
+            when (state.hlsCodec) {
                 Codec.H264 -> VideoCodec.H264
                 Codec.H265 -> if (CompressorUtils.isHevcEncodingSupported()) VideoCodec.H265 else VideoCodec.H264
             }
-        val config = HlsConfig(ladder = ladder, codec = videoCodec)
+        val config =
+            HlsConfig(
+                ladder = ladder,
+                codec = videoCodec,
+                singleFilePerRendition = state.singleFilePerRendition,
+            )
 
         val session =
             HlsTestSession(

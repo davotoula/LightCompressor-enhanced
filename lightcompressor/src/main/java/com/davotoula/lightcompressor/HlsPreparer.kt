@@ -176,7 +176,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
                         )
                     }
                 } else {
-                    val masterPlaylist = PlaylistGenerator().buildMasterPlaylist(completed)
+                    val masterPlaylist = PlaylistGenerator.buildMasterPlaylist(completed)
                     withContext(Dispatchers.Main) {
                         listener.onComplete(masterPlaylist)
                     }
