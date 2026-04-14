@@ -8,7 +8,6 @@ import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import com.davotoula.lightcompressor.muxer.AudioConfig
 import com.davotoula.lightcompressor.muxer.EncodedSample
 import com.davotoula.lightcompressor.muxer.Mp4SegmentWriter
 import com.davotoula.lightcompressor.utils.CompressorUtils
@@ -30,8 +29,7 @@ internal class HlsTranscoder(
     @Volatile
     var isCancelled = false
 
-    private val audioReadBuffer = java.nio.ByteBuffer.allocate(AUDIO_BUFFER_SIZE)
-    private var lastAudioLimitPtsUs = -1L
+    private var nextAudioSampleIndex = 0
 
     // Timing instrumentation (accumulated per rendition, in nanoseconds)
     private var videoFrameCopyTimeNs = 0L
@@ -47,6 +45,8 @@ internal class HlsTranscoder(
      * @param actualHeight target height
      * @param listener callbacks for segment delivery and progress
      * @param tempDir directory for temporary segment files
+     * @param preExtractedAudio audio samples extracted once for the whole preparation; null when
+     *   audio is disabled or the source has no audio track
      * @return [RenditionResult] on success, null on failure
      */
     @Suppress(
@@ -66,9 +66,10 @@ internal class HlsTranscoder(
         actualHeight: Int,
         listener: HlsListener,
         tempDir: File,
+        preExtractedAudio: PreExtractedAudio?,
     ): RenditionResult? {
         // Reset audio state for this rendition (instance is reused across renditions)
-        lastAudioLimitPtsUs = -1L
+        nextAudioSampleIndex = 0
 
         // Reset timing counters for this rendition
         videoFrameCopyTimeNs = 0L
@@ -78,7 +79,6 @@ internal class HlsTranscoder(
 
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
         var videoExtractor: MediaExtractor? = null
-        var audioExtractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
         var encoder: MediaCodec? = null
         var inputSurface: InputSurface? = null
@@ -100,38 +100,9 @@ internal class HlsTranscoder(
             val sourceMime = inputFormat.getString(MediaFormat.KEY_MIME) ?: return null
             val durationUs = inputFormat.getLong(MediaFormat.KEY_DURATION)
 
-            // Setup audio extractor (if enabled)
-            var audioConfig: AudioConfig? = null
-            var audioFrameDurationUs = 0L
-            if (!config.disableAudio) {
-                audioExtractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-                val audioTrackIndex = CompressorUtils.findTrack(audioExtractor, false)
-                if (audioTrackIndex >= 0) {
-                    audioExtractor.selectTrack(audioTrackIndex)
-                    val audioFormat = audioExtractor.getTrackFormat(audioTrackIndex)
-                    val csd0 = audioFormat.getByteBuffer("csd-0")
-                    if (csd0 != null) {
-                        val sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-                        val configBytes = ByteArray(csd0.remaining())
-                        csd0.get(configBytes)
-                        audioConfig =
-                            AudioConfig(
-                                codecConfig = configBytes,
-                                sampleRate = sampleRate,
-                                channelCount = audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT),
-                                timescale = sampleRate,
-                            )
-                        audioFrameDurationUs = AAC_SAMPLES_PER_FRAME * 1_000_000L / sampleRate
-                        Log.d(TAG, "Audio track found: ${sampleRate}Hz, ${audioConfig.channelCount}ch")
-                    } else {
-                        Log.d(TAG, "Audio track has no csd-0, skipping audio")
-                    }
-                } else {
-                    Log.d(TAG, "No audio track found in source")
-                    audioExtractor.release()
-                    audioExtractor = null
-                }
-            } else {
+            val audioConfig = preExtractedAudio?.config
+            val audioSamples = preExtractedAudio?.samples.orEmpty()
+            if (config.disableAudio) {
                 Log.d(TAG, "Audio disabled by config")
             }
 
@@ -311,23 +282,17 @@ internal class HlsTranscoder(
                                         ),
                                     )
 
-                                    // Copy audio samples up to the current video PTS BEFORE checking
-                                    // for segment boundary. This ensures audio is included in the
-                                    // segment that gets flushed.
-                                    val videoPtsUs = encoderBufferInfo.presentationTimeUs
-                                    if (audioExtractor != null &&
-                                        audioConfig != null &&
-                                        videoPtsUs > lastAudioLimitPtsUs
-                                    ) {
+                                    // Push audio samples up to the current video PTS BEFORE
+                                    // checking for segment boundary. This ensures audio is
+                                    // included in the segment that gets flushed.
+                                    if (audioConfig != null && audioSamples.isNotEmpty()) {
                                         val audioCopyStart = System.nanoTime()
-                                        copyAudioSamples(
-                                            audioExtractor,
+                                        pushAudioSamplesUpTo(
                                             accumulator,
-                                            limitPtsUs = videoPtsUs,
-                                            audioFrameDurationUs = audioFrameDurationUs,
+                                            audioSamples,
+                                            limitPtsUs = encoderBufferInfo.presentationTimeUs,
                                         )
                                         audioSampleCopyTimeNs += System.nanoTime() - audioCopyStart
-                                        lastAudioLimitPtsUs = videoPtsUs
                                     }
 
                                     // Check for segment boundary
@@ -451,35 +416,19 @@ internal class HlsTranscoder(
             runCatching { inputSurface?.release() }
             runCatching { outputSurface?.release() }
             runCatching { videoExtractor?.release() }
-            runCatching { audioExtractor?.release() }
         }
     }
 
-    private fun copyAudioSamples(
-        extractor: MediaExtractor,
+    private fun pushAudioSamplesUpTo(
         accumulator: SegmentAccumulator,
+        samples: List<EncodedSample>,
         limitPtsUs: Long,
-        audioFrameDurationUs: Long,
     ) {
-        val buffer = audioReadBuffer
-        var sampleTime = extractor.sampleTime
-        while (sampleTime in 0..limitPtsUs) {
-            buffer.clear()
-            val sampleSize = extractor.readSampleData(buffer, 0)
-            if (sampleSize < 0) break
-            val data = ByteArray(sampleSize)
-            buffer.position(0)
-            buffer.get(data, 0, sampleSize)
-            accumulator.addAudioSample(
-                EncodedSample(
-                    data = data,
-                    presentationTimeUs = sampleTime,
-                    durationUs = audioFrameDurationUs,
-                    flags = 0,
-                ),
-            )
-            extractor.advance()
-            sampleTime = extractor.sampleTime
+        while (nextAudioSampleIndex < samples.size) {
+            val sample = samples[nextAudioSampleIndex]
+            if (sample.presentationTimeUs > limitPtsUs) break
+            accumulator.addAudioSample(sample)
+            nextAudioSampleIndex++
         }
     }
 
@@ -498,9 +447,7 @@ internal class HlsTranscoder(
         private const val TIMEOUT_US = 10_000L
         private const val NS_PER_US = 1000L
         private const val DEFAULT_FRAME_RATE = 30
-        private const val AUDIO_BUFFER_SIZE = 64 * 1024
         private const val PERCENT_MULTIPLIER = 100f
-        private const val AAC_SAMPLES_PER_FRAME = 1024L
 
         // AAC-LC codec string: mp4a.40.2 = MPEG-4 audio, Object Type 0x40 (AAC), AOT 2 (LC)
         private const val AAC_LC_CODEC_STRING = "mp4a.40.2"
