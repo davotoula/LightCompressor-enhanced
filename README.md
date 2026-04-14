@@ -230,16 +230,18 @@ class MyStorageConfiguration : StorageConfiguration {
 
 - `HlsPreparer.start(context, uri, config, listener): Job` — kicks off preparation and returns a coroutine `Job`.
 - `HlsPreparer.cancel()` — cancels any running preparation.
-- `HlsConfig(ladder, codec, segmentDurationSeconds, disableAudio)` — configuration. Defaults: `HlsLadder.default()`, `VideoCodec.H264`, 6 s segments, audio enabled.
+- `HlsConfig(ladder, codec, segmentDurationSeconds, disableAudio, singleFilePerRendition)` — configuration. Defaults: `HlsLadder.default()`, `VideoCodec.H264`, 6 s segments, audio enabled, multi-file output. Set `singleFilePerRendition = true` to emit one combined fMP4 file per rendition (init + every media segment) referenced by `#EXT-X-BYTERANGE` in the playlist — useful when the consumer wants a single upload per rendition instead of dozens of segment files.
 - `HlsLadder` — ordered list of `Rendition`s. Use `HlsLadder.default()` (360p / 540p / 720p / 1080p / 4K) and chain `.drop("1080p", "4K")` or `.add(Rendition(Resolution.HD_720, 2500))` to customise. Renditions whose short side exceeds the source are automatically dropped at `start`.
 - `Rendition(resolution: Resolution, bitrateKbps: Int)` — a single ladder entry. `Resolution` is the same enum used by `VideoCompressor` (`SD_360`, `SD_540`, `HD_720`, `FHD_1080`, `UHD_4K`).
 - `HlsListener` — 8 callbacks: `onStart(renditionCount)`, `onRenditionStart(rendition)`, `onSegmentReady(rendition, segment)`, `onRenditionComplete(rendition, playlist)`, `onComplete(masterPlaylist)`, `onFailure(error)`, `onProgress(rendition, percent)`, `onCancelled()`.
-- `HlsSegment(file, index, durationSeconds, isInitSegment)` — one emitted segment. `file` is a temp file that is **valid only until `onSegmentReady` returns** — copy or upload it synchronously. `isInitSegment = true` for the per-rendition `init.mp4`.
+- `HlsSegment(file, index, durationSeconds, isInitSegment, isCombinedRendition)` — one emitted segment. `file` is a temp file that is **valid only until `onSegmentReady` returns** — copy or upload it synchronously. In multi-file mode `isInitSegment = true` for the per-rendition `init.mp4`. In single-file mode the listener receives exactly one callback per rendition with `isCombinedRendition = true`; the file contains the init segment followed by every media fragment.
 - `HlsError(message, failedRenditions, completedRenditions)` — delivered to `onFailure` when every rendition fails. Partial failures still trigger `onComplete`.
 
 **Threading:** `onSegmentReady` and `onProgress` are invoked on a background dispatcher (`Dispatchers.Default`); all other callbacks are on the main thread.
 
-**Output layout:** segments are identified by the rendition's `Resolution.label` (e.g. `720p`). Per rendition, `HlsPreparer` emits one `init.mp4` followed by `segment_000.m4s`, `segment_001.m4s`, … The per-rendition media playlist (`media.m3u8`) is delivered as a `String` via `onRenditionComplete`, and the master playlist (`master.m3u8`) is delivered as a `String` via `onComplete`. Persisting playlists and segments to their final destination (disk, CDN, object storage) is the caller's responsibility — a typical layout is `master.m3u8` at the root with one subdirectory per rendition label containing `media.m3u8`, `init.mp4`, and the `segment_NNN.m4s` files.
+**Output layout (multi-file, default):** segments are identified by the rendition's `Resolution.label` (e.g. `720p`). Per rendition, `HlsPreparer` emits one `init.mp4` followed by `segment_000.m4s`, `segment_001.m4s`, … The per-rendition media playlist (`media.m3u8`) is delivered as a `String` via `onRenditionComplete`, and the master playlist (`master.m3u8`) is delivered as a `String` via `onComplete`. Persisting playlists and segments to their final destination (disk, CDN, object storage) is the caller's responsibility — a typical layout is `master.m3u8` at the root with one subdirectory per rendition label containing `media.m3u8`, `init.mp4`, and the `segment_NNN.m4s` files.
+
+**Output layout (single-file):** with `singleFilePerRendition = true`, each rendition produces one `<label>.mp4` file (e.g. `720p.mp4`) containing the init segment immediately followed by every media fragment. The media playlist references the file via `#EXT-X-MAP:URI="<label>.mp4",BYTERANGE="<initLen>@0"` and uses `#EXT-X-BYTERANGE` for each `#EXTINF` entry, so a typical persisted layout is `master.m3u8` at the root with one subdirectory per rendition label containing `media.m3u8` and `<label>.mp4`.
 
 ### Usage
 
@@ -276,7 +278,12 @@ HlsPreparer.start(
             // Called on a background thread. Copy synchronously — the temp
             // file is deleted as soon as this method returns.
             val dir = File(outputRoot, rendition.resolution.label).apply { mkdirs() }
-            val name = if (segment.isInitSegment) "init.mp4" else "segment_%03d.m4s".format(segment.index)
+            val name =
+                when {
+                    segment.isCombinedRendition -> "${rendition.resolution.label}.mp4"
+                    segment.isInitSegment -> "init.mp4"
+                    else -> "segment_%03d.m4s".format(segment.index)
+                }
             segment.file.copyTo(File(dir, name), overwrite = true)
         }
 

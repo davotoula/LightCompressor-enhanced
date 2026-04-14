@@ -48,10 +48,21 @@ class HlsLadder(
 
 /**
  * Configuration for HLS video preparation.
+ *
+ * @property ladder encoding ladder of renditions to produce
+ * @property codec video codec for all renditions
+ * @property segmentDurationSeconds target keyframe-aligned segment length
+ * @property disableAudio drop the audio track from every rendition
+ * @property singleFilePerRendition when true (default), emit one fMP4 file per rendition (init +
+ *   every media segment concatenated) and reference each segment by `#EXT-X-BYTERANGE` in the
+ *   playlist. The listener receives a single [HlsListener.onSegmentReady] callback per rendition
+ *   with [HlsSegment.isCombinedRendition] set. Set to false for the multi-file layout (init.mp4 +
+ *   per-segment .m4s files).
  */
 data class HlsConfig(
     val ladder: HlsLadder = HlsLadder.default(),
     val codec: VideoCodec = VideoCodec.H264,
     val segmentDurationSeconds: Int = 6,
     val disableAudio: Boolean = false,
+    val singleFilePerRendition: Boolean = true,
 )

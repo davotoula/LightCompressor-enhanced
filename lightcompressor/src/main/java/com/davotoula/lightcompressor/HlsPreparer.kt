@@ -3,6 +3,7 @@ package com.davotoula.lightcompressor
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsListener
@@ -10,6 +11,7 @@ import com.davotoula.lightcompressor.hls.HlsTranscoder
 import com.davotoula.lightcompressor.hls.PlaylistGenerator
 import com.davotoula.lightcompressor.hls.Rendition
 import com.davotoula.lightcompressor.hls.RenditionResult
+import com.davotoula.lightcompressor.hls.extractAudioSamples
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -123,6 +125,25 @@ object HlsPreparer : CoroutineScope by MainScope() {
             val tempDir = File(context.cacheDir, "hls_temp_${System.currentTimeMillis()}")
             tempDir.mkdirs()
 
+            // Pre-extract audio samples once and reuse across renditions. Audio is
+            // AAC pass-through, so extracting per-rendition was pure duplicated I/O.
+            val preExtractedAudio =
+                if (config.disableAudio) {
+                    null
+                } else {
+                    val extractStart = System.nanoTime()
+                    val extracted =
+                        withContext(Dispatchers.IO) {
+                            extractAudioSamples(context, uri)
+                        }
+                    val elapsedMs = (System.nanoTime() - extractStart) / NANOS_PER_MILLI
+                    Log.d(
+                        PERF_TAG,
+                        "Pre-extracted audio: ${extracted?.samples?.size ?: 0} samples in ${elapsedMs}ms",
+                    )
+                    extracted
+                }
+
             val completed = mutableListOf<RenditionResult>()
             val failed = mutableListOf<Rendition>()
 
@@ -152,6 +173,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
                                 actualHeight = actualHeight,
                                 listener = listener,
                                 tempDir = tempDir,
+                                preExtractedAudio = preExtractedAudio,
                             )
                         }
 
@@ -176,7 +198,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
                         )
                     }
                 } else {
-                    val masterPlaylist = PlaylistGenerator().buildMasterPlaylist(completed)
+                    val masterPlaylist = PlaylistGenerator.buildMasterPlaylist(completed)
                     withContext(Dispatchers.Main) {
                         listener.onComplete(masterPlaylist)
                     }
@@ -275,4 +297,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
         val height: Int,
         val shortSide: Int,
     )
+
+    private const val PERF_TAG = "perf_timing"
+    private const val NANOS_PER_MILLI = 1_000_000L
 }

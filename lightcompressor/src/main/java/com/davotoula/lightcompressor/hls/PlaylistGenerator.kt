@@ -9,6 +9,16 @@ internal data class SegmentInfo(
 )
 
 /**
+ * Metadata for one segment inside a single-file rendition. Each entry maps to a contiguous
+ * byte range inside the rendition's combined fMP4 file.
+ */
+internal data class ByteRangeSegment(
+    val durationSeconds: Double,
+    val offset: Long,
+    val length: Long,
+)
+
+/**
  * Result for one completed rendition, used to build the master playlist.
  */
 internal data class RenditionResult(
@@ -23,7 +33,10 @@ internal data class RenditionResult(
 /**
  * Generates HLS m3u8 playlist strings (VOD).
  */
-internal class PlaylistGenerator {
+internal object PlaylistGenerator {
+    private const val EXTM3U = "#EXTM3U"
+    private const val EXT_X_VERSION_7 = "#EXT-X-VERSION:7"
+
     /**
      * Builds a media playlist for a single rendition.
      */
@@ -32,8 +45,8 @@ internal class PlaylistGenerator {
         targetDurationSeconds: Int,
     ): String =
         buildString {
-            appendLine("#EXTM3U")
-            appendLine("#EXT-X-VERSION:7")
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
             appendLine("#EXT-X-TARGETDURATION:$targetDurationSeconds")
             appendLine("#EXT-X-MEDIA-SEQUENCE:0")
             appendLine("#EXT-X-PLAYLIST-TYPE:VOD")
@@ -43,7 +56,39 @@ internal class PlaylistGenerator {
                 appendLine("#EXTINF:${formatDuration(segment.durationSeconds)},")
                 appendLine(segment.filename)
             }
+            appendLine("#EXT-X-ENDLIST")
+        }
+
+    /**
+     * Builds a media playlist for a single-file rendition. The init segment and every media
+     * segment live inside [combinedFilename]; each segment is referenced by `#EXT-X-BYTERANGE`.
+     *
+     * @param combinedFilename name of the rendition file (relative to the playlist)
+     * @param initRangeLength length in bytes of the leading init segment (offset is always 0)
+     * @param segments byte-range entries in playback order
+     * @param targetDurationSeconds value for `#EXT-X-TARGETDURATION`
+     */
+    fun buildByteRangeMediaPlaylist(
+        combinedFilename: String,
+        initRangeLength: Long,
+        segments: List<ByteRangeSegment>,
+        targetDurationSeconds: Int,
+    ): String =
+        buildString {
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
+            appendLine("#EXT-X-TARGETDURATION:$targetDurationSeconds")
+            appendLine("#EXT-X-MEDIA-SEQUENCE:0")
+            appendLine("#EXT-X-PLAYLIST-TYPE:VOD")
+            appendLine(
+                "#EXT-X-MAP:URI=\"$combinedFilename\",BYTERANGE=\"$initRangeLength@0\"",
+            )
             appendLine()
+            for (segment in segments) {
+                appendLine("#EXTINF:${formatDuration(segment.durationSeconds)},")
+                appendLine("#EXT-X-BYTERANGE:${segment.length}@${segment.offset}")
+                appendLine(combinedFilename)
+            }
             appendLine("#EXT-X-ENDLIST")
         }
 
@@ -55,8 +100,8 @@ internal class PlaylistGenerator {
     fun buildMasterPlaylist(renditions: List<RenditionResult>): String =
         buildString {
             val sorted = renditions.sortedBy { it.rendition.bitrateKbps }
-            appendLine("#EXTM3U")
-            appendLine("#EXT-X-VERSION:7")
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
             appendLine()
             for (r in sorted) {
                 val bandwidthBps = r.rendition.bitrateKbps * 1000

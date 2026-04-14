@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -130,6 +131,14 @@ fun HlsScreen(
                 onPrepareHls = { viewModel.onAction(HlsAction.PickVideo) },
             )
 
+            HlsSingleFileToggleRow(
+                checked = uiState.singleFilePerRendition,
+                isRunning = uiState.testState?.isRunning == true,
+                onCheckedChange = { enabled ->
+                    viewModel.onAction(HlsAction.SetSingleFilePerRendition(enabled))
+                },
+            )
+
             uiState.testState?.let { testState ->
                 HlsTestStatusCard(
                     state = testState,
@@ -195,6 +204,30 @@ private fun HlsControlsRow(
         ) {
             Text(stringResource(R.string.hls_prepare_button))
         }
+    }
+}
+
+@Composable
+private fun HlsSingleFileToggleRow(
+    checked: Boolean,
+    isRunning: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.hls_single_file_label),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = !isRunning,
+        )
     }
 }
 

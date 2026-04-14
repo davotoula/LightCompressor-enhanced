@@ -133,6 +133,51 @@ class HlsViewModelTest {
         }
 
     @Test
+    fun `setSingleFilePerRendition toggles the ui flag while idle`() =
+        testScope.runTest {
+            val vm = createViewModel()
+            assertEquals(true, vm.uiState.value.singleFilePerRendition)
+
+            vm.onAction(HlsAction.SetSingleFilePerRendition(false))
+            advanceUntilIdle()
+            assertEquals(false, vm.uiState.value.singleFilePerRendition)
+
+            vm.onAction(HlsAction.SetSingleFilePerRendition(true))
+            advanceUntilIdle()
+            assertEquals(true, vm.uiState.value.singleFilePerRendition)
+        }
+
+    @Test
+    fun `setSingleFilePerRendition is ignored while a run is in progress`() =
+        testScope.runTest {
+            val vm = createViewModel()
+
+            // Force a running test state via the same reflection trick the other tests use.
+            val runningState =
+                HlsTestState(
+                    isRunning = true,
+                    renditions = emptyList(),
+                    terminal = null,
+                )
+            val field = HlsViewModel::class.java.getDeclaredField("_uiState")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val stateFlow =
+                field.get(vm) as kotlinx.coroutines.flow.MutableStateFlow<HlsUiState>
+            stateFlow.value =
+                stateFlow.value.copy(
+                    testState = runningState,
+                    singleFilePerRendition = false,
+                )
+            advanceUntilIdle()
+
+            vm.onAction(HlsAction.SetSingleFilePerRendition(true))
+            advanceUntilIdle()
+
+            assertEquals(false, vm.uiState.value.singleFilePerRendition)
+        }
+
+    @Test
     fun `pickVideo emits LaunchPicker when idle`() =
         testScope.runTest {
             val vm = createViewModel()

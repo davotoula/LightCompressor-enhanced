@@ -32,12 +32,17 @@ data class HlsTestState(
 
 data class HlsUiState(
     val hlsCodec: Codec = Codec.H264,
+    val singleFilePerRendition: Boolean = true,
     val testState: HlsTestState? = null,
 )
 
 sealed interface HlsAction {
     data class SetCodec(
         val codec: Codec,
+    ) : HlsAction
+
+    data class SetSingleFilePerRendition(
+        val enabled: Boolean,
     ) : HlsAction
 
     data object PickVideo : HlsAction

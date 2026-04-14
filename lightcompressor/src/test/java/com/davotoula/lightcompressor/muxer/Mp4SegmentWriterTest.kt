@@ -518,6 +518,95 @@ class Mp4SegmentWriterTest {
     }
 
     @Test
+    fun `init segment then media segments concatenated to one stream produce ftyp moov moof mdat sequence`() {
+        // Single-file mode writes init + every media segment to the same OutputStream. The
+        // resulting bytes must parse as a contiguous sequence of top-level boxes whose sizes
+        // exactly cover the buffer end-to-end.
+        val writer = createVideoOnlyWriter()
+        val out = ByteArrayOutputStream()
+        writer.writeInitSegment(out)
+        val initEnd = out.size()
+
+        val firstSamples =
+            listOf(
+                EncodedSample(
+                    data = fakeAnnexBSample(120),
+                    presentationTimeUs = 0L,
+                    durationUs = 33333L,
+                    flags = 1,
+                ),
+            )
+        writer.writeMediaSegment(
+            videoSamples = firstSamples,
+            audioSamples = emptyList(),
+            sequenceNumber = 1,
+            baseDecodeTimeUs = 0L,
+            output = out,
+        )
+        val firstSegmentEnd = out.size()
+
+        val secondSamples =
+            listOf(
+                EncodedSample(
+                    data = fakeAnnexBSample(80),
+                    presentationTimeUs = 33333L,
+                    durationUs = 33333L,
+                    flags = 1,
+                ),
+            )
+        writer.writeMediaSegment(
+            videoSamples = secondSamples,
+            audioSamples = emptyList(),
+            sequenceNumber = 2,
+            baseDecodeTimeUs = 33333L,
+            output = out,
+        )
+
+        val bytes = out.toByteArray()
+        val bb = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+
+        // Box 1: ftyp at 0
+        val (ftypSize, ftypType) = readBoxHeader(bb)
+        assertEquals("ftyp", ftypType)
+
+        // Box 2: moov immediately after ftyp
+        bb.position(ftypSize)
+        val (moovSize, moovType) = readBoxHeader(bb)
+        assertEquals("moov", moovType)
+        assertEquals("init total = ftyp + moov", ftypSize + moovSize, initEnd)
+
+        // Box 3: first moof immediately after init
+        bb.position(initEnd)
+        val (firstMoofSize, firstMoofType) = readBoxHeader(bb)
+        assertEquals("moof", firstMoofType)
+
+        // Box 4: first mdat immediately after first moof
+        bb.position(initEnd + firstMoofSize)
+        val (firstMdatSize, firstMdatType) = readBoxHeader(bb)
+        assertEquals("mdat", firstMdatType)
+        val firstFragmentSize = firstMoofSize + firstMdatSize
+        assertEquals(
+            "first fragment must end exactly at the end of the first writeMediaSegment call",
+            initEnd + firstFragmentSize,
+            firstSegmentEnd,
+        )
+
+        // Box 5: second moof immediately after first mdat
+        bb.position(firstSegmentEnd)
+        val (secondMoofSize, secondMoofType) = readBoxHeader(bb)
+        assertEquals("moof", secondMoofType)
+
+        // Box 6: second mdat immediately after second moof
+        bb.position(firstSegmentEnd + secondMoofSize)
+        val (secondMdatSize, secondMdatType) = readBoxHeader(bb)
+        assertEquals("mdat", secondMdatType)
+
+        // Sum of all top-level boxes must equal the buffer size — no trailing bytes, no gaps.
+        val total = ftypSize + moovSize + firstMoofSize + firstMdatSize + secondMoofSize + secondMdatSize
+        assertEquals("top-level box sizes must cover the whole stream", total, bytes.size)
+    }
+
+    @Test
     fun `media segment trun video sample size matches converted length-prefixed bytes`() {
         val writer = createVideoOnlyWriter()
         // 3-byte start code → 4-byte length. Original 6 bytes → converted 7 bytes.
