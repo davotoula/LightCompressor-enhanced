@@ -90,6 +90,7 @@
     <string name="hls_codec_label">HLS codec</string>
     <string name="hls_single_file_label">Single fMP4 file per rendition</string>
     <string name="hls_prepare_button">Prepare HLS</string>
+    <string name="hls_upload_button">Prepare HLS + Upload</string>
     <string name="hls_preparation_title">HLS preparation</string>
     <string name="hls_close_description">Close</string>
     <string name="hls_cancel_button">Cancel</string>

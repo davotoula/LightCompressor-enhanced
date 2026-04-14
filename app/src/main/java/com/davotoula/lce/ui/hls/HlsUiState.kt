@@ -51,6 +51,12 @@ sealed interface HlsAction {
         val uri: Uri,
     ) : HlsAction
 
+    data class StartUploadPreparation(
+        val uri: Uri,
+    ) : HlsAction
+
+    data object PickVideoForUpload : HlsAction
+
     data object CancelPreparation : HlsAction
 
     data object CloseTestState : HlsAction
@@ -58,4 +64,6 @@ sealed interface HlsAction {
 
 sealed interface HlsEvent {
     data object LaunchPicker : HlsEvent
+
+    data object LaunchUploadPicker : HlsEvent
 }

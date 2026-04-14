@@ -13,6 +13,7 @@ import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsLadder
 import com.davotoula.lightcompressor.utils.CompressorUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class HlsViewModel(
@@ -51,7 +53,9 @@ class HlsViewModel(
             is HlsAction.SetCodec -> handleSetCodec(action.codec)
             is HlsAction.SetSingleFilePerRendition -> handleSetSingleFilePerRendition(action.enabled)
             HlsAction.PickVideo -> handlePickVideo()
+            HlsAction.PickVideoForUpload -> handlePickVideoForUpload()
             is HlsAction.StartPreparation -> handleStartPreparation(action.uri)
+            is HlsAction.StartUploadPreparation -> handleStartUploadPreparation(action.uri)
             HlsAction.CancelPreparation -> handleCancelPreparation()
             HlsAction.CloseTestState -> handleCloseTestState()
         }
@@ -82,6 +86,13 @@ class HlsViewModel(
         if (_uiState.value.testState?.isRunning == true) return
         viewModelScope.launch {
             _events.emit(HlsEvent.LaunchPicker)
+        }
+    }
+
+    private fun handlePickVideoForUpload() {
+        if (_uiState.value.testState?.isRunning == true) return
+        viewModelScope.launch {
+            _events.emit(HlsEvent.LaunchUploadPicker)
         }
     }
 
@@ -154,6 +165,85 @@ class HlsViewModel(
             config = config,
             listener = session,
         )
+    }
+
+    @Suppress("MagicNumber")
+    private fun handleStartUploadPreparation(uri: Uri) {
+        val state = _uiState.value
+        if (state.testState?.isRunning == true) return
+
+        val rootDir = File(context.filesDir, "hls-upload/current")
+
+        val ladder = HlsLadder.default()
+        val seededRows =
+            ladder.renditions.map { rendition ->
+                HlsRenditionState(
+                    label = rendition.resolution.label,
+                    status = HlsRenditionStatus.Pending,
+                )
+            }
+        _uiState.update {
+            it.copy(
+                testState =
+                    HlsTestState(
+                        isRunning = true,
+                        renditions = seededRows,
+                        terminal = null,
+                    ),
+            )
+        }
+
+        val videoCodec =
+            when (state.hlsCodec) {
+                Codec.H264 -> VideoCodec.H264
+                Codec.H265 -> if (CompressorUtils.isHevcEncodingSupported()) VideoCodec.H265 else VideoCodec.H264
+            }
+        val config =
+            HlsConfig(
+                ladder = ladder,
+                codec = videoCodec,
+                singleFilePerRendition = state.singleFilePerRendition,
+            )
+
+        viewModelScope.launch {
+            try {
+                val masterFile =
+                    withContext(Dispatchers.IO) {
+                        HlsUploadTestRunner.run(
+                            context = context,
+                            sourceUri = uri,
+                            rootDir = rootDir,
+                            config = config,
+                        )
+                    }
+                _uiState.update { current ->
+                    current.copy(
+                        testState =
+                            current.testState?.copy(
+                                isRunning = false,
+                                terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
+                                renditions =
+                                    current.testState.renditions.map { row ->
+                                        row.copy(
+                                            status = HlsRenditionStatus.Complete,
+                                            progressPercent = 100,
+                                        )
+                                    },
+                            ),
+                    )
+                }
+            } catch (e: Throwable) {
+                _uiState.update { current ->
+                    current.copy(
+                        testState =
+                            current.testState?.copy(
+                                isRunning = false,
+                                terminal = HlsTerminal.Failed(e.message ?: "Upload smoke test failed"),
+                            ),
+                    )
+                }
+            }
+        }
     }
 
     private fun handleCancelPreparation() {
