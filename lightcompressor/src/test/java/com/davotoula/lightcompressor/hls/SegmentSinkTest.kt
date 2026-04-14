@@ -266,7 +266,7 @@ class SegmentSinkTest {
 
         override fun onRenditionComplete(
             rendition: Rendition,
-            playlist: String,
+            summary: HlsRenditionSummary,
         ) = Unit
 
         override fun onComplete(masterPlaylist: String) = Unit
