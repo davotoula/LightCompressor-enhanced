@@ -26,6 +26,13 @@ import java.util.concurrent.CancellationException
  *   legal here because we're inside a suspending context.
  * - Rewrites and returns the master playlist.
  *
+ * If [externalListener] is non-null, every callback is forwarded to it **after** the
+ * orchestrator's own bookkeeping. This lets consumers (e.g. a ViewModel-driven UI) observe
+ * the raw `HlsPreparer` event stream for progress reporting, while the orchestrator handles
+ * the upload plumbing underneath. Forwarding is unconditional — the external listener sees
+ * every event even after an internal upload failure, so its view of the event stream is
+ * identical to what it would receive if it were the direct `HlsPreparer` listener.
+ *
  * Kept separate from [HlsUploadHelper] so the entire flow can be unit-tested without
  * real Android framework dependencies. Tests drive the listener methods directly, then
  * call [completeUpload] inside a `runBlocking { ... }` block.
@@ -33,6 +40,7 @@ import java.util.concurrent.CancellationException
 internal class HlsUploadOrchestrator(
     private val context: Context,
     private val uploader: suspend (File, String) -> String,
+    private val externalListener: HlsListener? = null,
 ) : HlsListener {
     private val segmentUrls = mutableMapOf<Rendition, MutableMap<String, String>>()
     private val pendingSummaries = mutableListOf<HlsRenditionSummary>()
@@ -46,24 +54,33 @@ internal class HlsUploadOrchestrator(
     private var cancelled: Boolean = false
     private var completed: Boolean = false
 
-    override fun onStart(renditionCount: Int) = Unit
+    override fun onStart(renditionCount: Int) {
+        externalListener?.onStart(renditionCount)
+    }
 
     override fun onRenditionStart(rendition: Rendition) {
         segmentUrls.getOrPut(rendition) { mutableMapOf() }
+        externalListener?.onRenditionStart(rendition)
     }
 
     override fun onSegmentReady(
         rendition: Rendition,
         segment: HlsSegment,
     ) {
-        if (failure != null || cancelled || completed) return
-        val suggested = segment.suggestedFilename(rendition)
-        @Suppress("TooGenericExceptionCaught") // intentional: capture any uploader failure, including Error subclasses
         try {
-            val url = runBlocking(Dispatchers.IO) { uploader(segment.file, suggested) }
-            segmentUrls.getOrPut(rendition) { mutableMapOf() }[suggested] = url
-        } catch (e: Throwable) {
-            failure = e
+            if (failure == null && !cancelled && !completed) {
+                val suggested = segment.suggestedFilename(rendition)
+                // Catch Throwable so uploader failures, including Errors from lambdas, reach completeUpload().
+                @Suppress("TooGenericExceptionCaught")
+                try {
+                    val url = runBlocking(Dispatchers.IO) { uploader(segment.file, suggested) }
+                    segmentUrls.getOrPut(rendition) { mutableMapOf() }[suggested] = url
+                } catch (e: Throwable) {
+                    failure = e
+                }
+            }
+        } finally {
+            externalListener?.onSegmentReady(rendition, segment)
         }
     }
 
@@ -71,27 +88,35 @@ internal class HlsUploadOrchestrator(
         rendition: Rendition,
         summary: HlsRenditionSummary,
     ) {
-        if (failure != null || cancelled) return
-        pendingSummaries += summary
+        if (failure == null && !cancelled) {
+            pendingSummaries += summary
+        }
+        externalListener?.onRenditionComplete(rendition, summary)
     }
 
     override fun onComplete(masterPlaylist: String) {
-        if (failure != null || cancelled) return
-        this.masterPlaylist = masterPlaylist
-        completed = true
+        if (failure == null && !cancelled) {
+            this.masterPlaylist = masterPlaylist
+            completed = true
+        }
+        externalListener?.onComplete(masterPlaylist)
     }
 
     override fun onFailure(error: HlsError) {
         if (failure == null) failure = IllegalStateException(error.message)
+        externalListener?.onFailure(error)
     }
 
     override fun onProgress(
         rendition: Rendition,
         percent: Float,
-    ) = Unit
+    ) {
+        externalListener?.onProgress(rendition, percent)
+    }
 
     override fun onCancelled() {
         cancelled = true
+        externalListener?.onCancelled()
     }
 
     /**

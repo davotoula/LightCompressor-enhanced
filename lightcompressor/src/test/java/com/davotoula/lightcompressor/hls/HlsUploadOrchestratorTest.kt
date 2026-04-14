@@ -219,7 +219,7 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `onFailure from transcoder surfaces as completeUpload exception`() {
-        val orchestrator = HlsUploadOrchestrator(context) { _, _ -> "unused" }
+        val orchestrator = HlsUploadOrchestrator(context, uploader = { _, _ -> "unused" })
         orchestrator.onStart(1)
         orchestrator.onRenditionStart(rendition720)
         orchestrator.onFailure(
@@ -240,7 +240,7 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `onCancelled surfaces as CancellationException from completeUpload`() {
-        val orchestrator = HlsUploadOrchestrator(context) { _, _ -> "unused" }
+        val orchestrator = HlsUploadOrchestrator(context, uploader = { _, _ -> "unused" })
         orchestrator.onStart(1)
         orchestrator.onCancelled()
 
@@ -277,5 +277,97 @@ class HlsUploadOrchestratorTest {
         } catch (e: IllegalStateException) {
             assertEquals("playlist upload failed", e.message)
         }
+    }
+
+    @Test
+    fun `external listener receives every callback in order`() {
+        val uploader: suspend (File, String) -> String = { _, name -> "https://cdn/$name" }
+        val events = mutableListOf<String>()
+        val recorder =
+            object : SimpleHlsListener() {
+                override fun onStart(renditionCount: Int) {
+                    events += "onStart($renditionCount)"
+                }
+
+                override fun onRenditionStart(rendition: Rendition) {
+                    events += "onRenditionStart(${rendition.resolution.label})"
+                }
+
+                override fun onSegmentReady(
+                    rendition: Rendition,
+                    segment: HlsSegment,
+                ) {
+                    val label = rendition.resolution.label
+                    events += "onSegmentReady($label, idx=${segment.index}, init=${segment.isInitSegment})"
+                }
+
+                override fun onRenditionComplete(
+                    rendition: Rendition,
+                    summary: HlsRenditionSummary,
+                ) {
+                    events += "onRenditionComplete(${rendition.resolution.label})"
+                }
+
+                override fun onComplete(masterPlaylist: String) {
+                    events += "onComplete(${masterPlaylist.length}bytes)"
+                }
+
+                override fun onProgress(
+                    rendition: Rendition,
+                    percent: Float,
+                ) {
+                    events += "onProgress(${rendition.resolution.label}, $percent)"
+                }
+            }
+        val orchestrator = HlsUploadOrchestrator(context, uploader, recorder)
+
+        orchestrator.onStart(1)
+        orchestrator.onRenditionStart(rendition720)
+        orchestrator.onSegmentReady(
+            rendition720,
+            HlsSegment(file = segmentFile("init.mp4"), index = 0, durationSeconds = 0.0, isInitSegment = true),
+        )
+        orchestrator.onProgress(rendition720, 50f)
+        orchestrator.onSegmentReady(
+            rendition720,
+            HlsSegment(file = segmentFile("s000.m4s"), index = 0, durationSeconds = 6.0, isInitSegment = false),
+        )
+        orchestrator.onRenditionComplete(rendition720, summary(rendition720, "#EXTM3U\n#EXT-X-ENDLIST\n"))
+        orchestrator.onComplete("master")
+
+        assertEquals(
+            listOf(
+                "onStart(1)",
+                "onRenditionStart(720p)",
+                "onSegmentReady(720p, idx=0, init=true)",
+                "onProgress(720p, 50.0)",
+                "onSegmentReady(720p, idx=0, init=false)",
+                "onRenditionComplete(720p)",
+                "onComplete(6bytes)",
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun `external listener still receives failure and cancellation`() {
+        val uploader: suspend (File, String) -> String = { _, _ -> "unused" }
+        val events = mutableListOf<String>()
+        val recorder =
+            object : SimpleHlsListener() {
+                override fun onFailure(error: HlsError) {
+                    events += "onFailure(${error.message})"
+                }
+
+                override fun onCancelled() {
+                    events += "onCancelled"
+                }
+            }
+        val orchestrator = HlsUploadOrchestrator(context, uploader, recorder)
+
+        orchestrator.onFailure(HlsError("boom", emptyList(), emptyList()))
+        orchestrator.onCancelled()
+
+        assertEquals(listOf("onFailure(boom)", "onCancelled"), events)
     }
 }

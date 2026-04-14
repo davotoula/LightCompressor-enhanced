@@ -52,9 +52,22 @@ data class HlsUploadResult(
  * [HlsPreparer] — if at least one rendition makes it through, [run] returns a result
  * containing only the successful renditions; if all fail, [run] throws.
  *
+ * **Progress reporting:** pass an optional [HlsListener] as the `listener` parameter to
+ * observe the raw `HlsPreparer` event stream (rendition start, per-segment progress, etc.)
+ * while the helper handles upload and rewriting underneath. Every `HlsListener` callback
+ * is forwarded to the supplied listener after the helper's own bookkeeping, so the
+ * listener's view of the event stream matches what it would see as a direct `HlsPreparer`
+ * listener. Typical use: a ViewModel passes a progress-only `SimpleHlsListener` subclass
+ * that updates UI state.
+ *
  * Example:
  * ```
- * val result = HlsUploadHelper.run(context, videoUri, HlsConfig()) { file, name ->
+ * val result = HlsUploadHelper.run(
+ *     context = context,
+ *     uri = videoUri,
+ *     config = HlsConfig(),
+ *     listener = progressListener, // optional; receives per-segment progress
+ * ) { file, name ->
  *     val contentType = if (name.endsWith(".m3u8")) {
  *         HlsContentTypes.forPlaylist()
  *     } else {
@@ -69,16 +82,21 @@ object HlsUploadHelper {
     /**
      * Transcode [uri] into an HLS ladder and upload every segment via [uploader]. Returns
      * the rewritten master playlist along with per-rendition summaries. See class docs for
-     * threading, error handling, and partial-success semantics.
+     * threading, error handling, progress reporting, and partial-success semantics.
+     *
+     * @param listener optional [HlsListener] that observes the raw `HlsPreparer` event
+     *   stream (rendition start, per-segment progress, etc.). Every callback is forwarded
+     *   after the helper's own bookkeeping. Useful for driving a progress UI.
      */
     suspend fun run(
         context: Context,
         uri: Uri,
         config: HlsConfig = HlsConfig(),
+        listener: HlsListener? = null,
         uploader: suspend (file: File, suggestedFilename: String) -> String,
     ): HlsUploadResult =
         coroutineScope {
-            val orchestrator = HlsUploadOrchestrator(context, uploader)
+            val orchestrator = HlsUploadOrchestrator(context, uploader, listener)
             try {
                 val preparerJob =
                     HlsPreparer.start(
