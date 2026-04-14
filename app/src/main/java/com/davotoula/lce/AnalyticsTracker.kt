@@ -100,6 +100,26 @@ object AnalyticsTracker {
         }
     }
 
+    fun logHlsScreenOpened() {
+        Firebase.analytics.logEvent("hls_screen_opened", null)
+    }
+
+    fun logHlsPreparationStarted(codec: String) {
+        Firebase.analytics.logEvent("hls_preparation_started") {
+            param(PARAM_CODEC, codec)
+        }
+    }
+
+    fun logHlsPreparationResult(
+        status: String,
+        codec: String,
+    ) {
+        Firebase.analytics.logEvent("hls_preparation_result") {
+            param(PARAM_STATUS, status)
+            param(PARAM_CODEC, codec)
+        }
+    }
+
     fun logVideoWithoutSound(
         codec: String,
         source: String,

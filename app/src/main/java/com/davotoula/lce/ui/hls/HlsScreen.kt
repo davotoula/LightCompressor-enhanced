@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import com.davotoula.lce.ui.Codec
 import kotlinx.coroutines.flow.collectLatest
@@ -76,6 +77,7 @@ fun HlsScreen(
         }
 
     LaunchedEffect(Unit) {
+        AnalyticsTracker.logHlsScreenOpened()
         viewModel.events.collectLatest { event ->
             when (event) {
                 HlsEvent.LaunchPicker ->

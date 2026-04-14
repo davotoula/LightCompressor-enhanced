@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.davotoula.lce.AnalyticsTracker
 import com.davotoula.lce.R
 import com.davotoula.lce.data.VideoSettingsPreferences
 import com.davotoula.lce.ui.Codec
@@ -125,7 +126,15 @@ class HlsViewModel(
                     }
                 },
                 onIoFailure = { HlsPreparer.cancel() },
+                onTerminal = { status ->
+                    AnalyticsTracker.logHlsPreparationResult(
+                        status = status,
+                        codec = videoCodec.name,
+                    )
+                },
             )
+
+        AnalyticsTracker.logHlsPreparationStarted(codec = videoCodec.name)
 
         HlsPreparer.start(
             context = context,

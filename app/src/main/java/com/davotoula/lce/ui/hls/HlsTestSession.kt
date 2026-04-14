@@ -6,9 +6,14 @@ import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val PROGRESS_COMPLETE_PERCENT = 100
 private const val SEGMENT_FILENAME_FORMAT = "segment_%03d.m4s"
+
+const val HLS_TERMINAL_SUCCESS = "success"
+const val HLS_TERMINAL_FAILURE = "failure"
+const val HLS_TERMINAL_CANCELLED = "cancelled"
 
 /**
  * `HlsListener` implementation used by the sample app's "Prepare HLS" affordance.
@@ -21,12 +26,24 @@ private const val SEGMENT_FILENAME_FORMAT = "segment_%03d.m4s"
  * sink (e.g. `MutableStateFlow.update`). No explicit dispatcher hop is needed even
  * though `onSegmentReady` and `onProgress` run on `Dispatchers.Default` while the rest
  * run on Main.
+ *
+ * [onTerminal] is invoked exactly once per session with one of [HLS_TERMINAL_SUCCESS],
+ * [HLS_TERMINAL_FAILURE], or [HLS_TERMINAL_CANCELLED]. It is gated so that the
+ * IO-failure → `HlsPreparer.cancel()` → `onCancelled` race only emits a single result.
  */
 class HlsTestSession(
     private val rootDir: File,
     private val updateState: ((HlsTestState?) -> HlsTestState?) -> Unit,
     private val onIoFailure: () -> Unit,
+    private val onTerminal: (String) -> Unit = {},
 ) : HlsListener {
+    private val terminalReported = AtomicBoolean(false)
+
+    private fun reportTerminal(status: String) {
+        if (!terminalReported.compareAndSet(false, true)) return
+        onTerminal(status)
+    }
+
     override fun onStart(renditionCount: Int) {
         updateState { current ->
             current?.copy(
@@ -116,6 +133,7 @@ class HlsTestSession(
                 terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
             )
         }
+        reportTerminal(HLS_TERMINAL_SUCCESS)
     }
 
     override fun onProgress(
@@ -142,6 +160,7 @@ class HlsTestSession(
                     },
             )
         }
+        reportTerminal(HLS_TERMINAL_FAILURE)
     }
 
     override fun onCancelled() {
@@ -151,6 +170,7 @@ class HlsTestSession(
                 terminal = current.terminal ?: HlsTerminal.Cancelled,
             )
         }
+        reportTerminal(HLS_TERMINAL_CANCELLED)
     }
 
     private fun updateRow(
@@ -174,6 +194,7 @@ class HlsTestSession(
                 terminal = HlsTerminal.Failed(message),
             )
         }
+        reportTerminal(HLS_TERMINAL_FAILURE)
         onIoFailure()
     }
 }

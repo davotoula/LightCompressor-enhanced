@@ -20,6 +20,7 @@ class HlsTestSessionTest {
     private lateinit var rootDir: File
     private var state: HlsTestState? = null
     private var ioFailureCount: Int = 0
+    private val terminalEvents: MutableList<String> = mutableListOf()
     private lateinit var session: HlsTestSession
 
     private val rendition360 = Rendition(Resolution.SD_360, 500)
@@ -42,11 +43,13 @@ class HlsTestSessionTest {
         rootDir = tempFolder.newFolder("hls-current")
         state = seedPending(rendition360, rendition720)
         ioFailureCount = 0
+        terminalEvents.clear()
         session =
             HlsTestSession(
                 rootDir = rootDir,
                 updateState = { transform -> state = transform(state) },
                 onIoFailure = { ioFailureCount++ },
+                onTerminal = { status -> terminalEvents.add(status) },
             )
     }
 
@@ -217,5 +220,50 @@ class HlsTestSessionTest {
         val current = state!!
         assertFalse(current.isRunning)
         assertTrue(current.terminal is HlsTerminal.Failed)
+    }
+
+    @Test
+    fun `onComplete reports success terminal exactly once`() {
+        session.onStart(renditionCount = 2)
+        session.onComplete(masterPlaylist = "#EXTM3U\n# master\n")
+
+        assertEquals(listOf(HLS_TERMINAL_SUCCESS), terminalEvents)
+    }
+
+    @Test
+    fun `onFailure reports failure terminal exactly once`() {
+        session.onStart(renditionCount = 2)
+        session.onRenditionStart(rendition720)
+        session.onFailure(
+            HlsError(
+                message = "encoder died",
+                failedRenditions = listOf(rendition720),
+                completedRenditions = emptyList(),
+            ),
+        )
+
+        assertEquals(listOf(HLS_TERMINAL_FAILURE), terminalEvents)
+    }
+
+    @Test
+    fun `onCancelled reports cancelled terminal when no prior terminal`() {
+        session.onStart(renditionCount = 2)
+        session.onCancelled()
+
+        assertEquals(listOf(HLS_TERMINAL_CANCELLED), terminalEvents)
+    }
+
+    @Test
+    fun `IO failure followed by onCancelled only reports failure terminal once`() {
+        // Reproduce the IO-failure → HlsPreparer.cancel() → onCancelled race:
+        // the terminal callback must fire once with "failure", not twice.
+        File(rootDir, "360p").writeText("blocker")
+
+        session.onStart(renditionCount = 2)
+        session.onRenditionStart(rendition360)
+        session.onSegmentReady(rendition360, makeSegment(index = 0, isInit = false))
+        session.onCancelled()
+
+        assertEquals(listOf(HLS_TERMINAL_FAILURE), terminalEvents)
     }
 }
