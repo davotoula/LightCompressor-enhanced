@@ -126,3 +126,36 @@ data class HlsRenditionSummary(
     val codecString: String,
     val combinedFilename: String?,
 )
+
+/**
+ * Convenience base class for consumers that only care about a subset of HLS events. Override
+ * the callbacks you need; unoverridden ones are no-ops. Consumers that want compile-time
+ * safety against new interface methods being added in future library versions should
+ * implement [HlsListener] directly.
+ */
+abstract class SimpleHlsListener : HlsListener {
+    override fun onStart(renditionCount: Int) = Unit
+
+    override fun onRenditionStart(rendition: Rendition) = Unit
+
+    override fun onSegmentReady(
+        rendition: Rendition,
+        segment: HlsSegment,
+    ) = Unit
+
+    override fun onRenditionComplete(
+        rendition: Rendition,
+        summary: HlsRenditionSummary,
+    ) = Unit
+
+    override fun onComplete(masterPlaylist: String) = Unit
+
+    override fun onFailure(error: HlsError) = Unit
+
+    override fun onProgress(
+        rendition: Rendition,
+        percent: Float,
+    ) = Unit
+
+    override fun onCancelled() = Unit
+}
