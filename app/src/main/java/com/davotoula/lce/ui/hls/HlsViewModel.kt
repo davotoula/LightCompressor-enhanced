@@ -205,6 +205,15 @@ class HlsViewModel(
                 singleFilePerRendition = state.singleFilePerRendition,
             )
 
+        val progressListener =
+            HlsUploadProgressListener(
+                updateState = { transform ->
+                    _uiState.update { current ->
+                        current.copy(testState = transform(current.testState))
+                    }
+                },
+            )
+
         viewModelScope.launch {
             try {
                 val masterFile =
@@ -214,6 +223,7 @@ class HlsViewModel(
                             sourceUri = uri,
                             rootDir = rootDir,
                             config = config,
+                            listener = progressListener,
                         )
                     }
                 _uiState.update { current ->
@@ -222,13 +232,6 @@ class HlsViewModel(
                             current.testState?.copy(
                                 isRunning = false,
                                 terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
-                                renditions =
-                                    current.testState.renditions.map { row ->
-                                        row.copy(
-                                            status = HlsRenditionStatus.Complete,
-                                            progressPercent = 100,
-                                        )
-                                    },
                             ),
                     )
                 }

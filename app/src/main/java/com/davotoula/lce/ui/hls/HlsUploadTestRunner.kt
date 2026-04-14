@@ -3,6 +3,7 @@ package com.davotoula.lce.ui.hls
 import android.content.Context
 import android.net.Uri
 import com.davotoula.lightcompressor.hls.HlsConfig
+import com.davotoula.lightcompressor.hls.HlsListener
 import com.davotoula.lightcompressor.hls.HlsUploadHelper
 import com.davotoula.lightcompressor.hls.HlsUploadResult
 import java.io.File
@@ -19,12 +20,15 @@ object HlsUploadTestRunner {
      * Returns the absolute path to the master playlist, which the caller can hand to
      * `PlayerScreen` via the same `HlsTerminal.Succeeded(masterPlaylistPath = ...)` state
      * the existing flow uses.
+     *
+     * Pass an optional [listener] to observe per-segment progress from inside the helper.
      */
     suspend fun run(
         context: Context,
         sourceUri: Uri,
         rootDir: File,
         config: HlsConfig = HlsConfig(),
+        listener: HlsListener? = null,
     ): File {
         rootDir.deleteRecursively()
         rootDir.mkdirs()
@@ -34,6 +38,7 @@ object HlsUploadTestRunner {
                 context = context,
                 uri = sourceUri,
                 config = config,
+                listener = listener,
             ) { file, suggestedFilename ->
                 val dest = File(rootDir, suggestedFilename)
                 dest.parentFile?.mkdirs()
