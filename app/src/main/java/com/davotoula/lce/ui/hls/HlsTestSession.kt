@@ -78,7 +78,12 @@ class HlsTestSession(
                     segment.isInitSegment -> File(targetDir, "init.mp4")
                     else -> File(targetDir, SEGMENT_FILENAME_FORMAT.format(segment.index))
                 }
-            segment.file.copyTo(targetFile, overwrite = true)
+            // Try rename first (O(1) on same filesystem). Fall back to copy when the source
+            // and destination straddle filesystems (e.g. cacheDir on a separate partition).
+            if (targetFile.exists()) targetFile.delete()
+            if (!segment.file.renameTo(targetFile)) {
+                segment.file.copyTo(targetFile, overwrite = true)
+            }
         } catch (e: IOException) {
             failWithIoError("Failed to write segment ${segment.index}: ${e.message}")
             return

@@ -136,15 +136,15 @@ class HlsViewModelTest {
     fun `setSingleFilePerRendition toggles the ui flag while idle`() =
         testScope.runTest {
             val vm = createViewModel()
-            assertEquals(false, vm.uiState.value.singleFilePerRendition)
-
-            vm.onAction(HlsAction.SetSingleFilePerRendition(true))
-            advanceUntilIdle()
             assertEquals(true, vm.uiState.value.singleFilePerRendition)
 
             vm.onAction(HlsAction.SetSingleFilePerRendition(false))
             advanceUntilIdle()
             assertEquals(false, vm.uiState.value.singleFilePerRendition)
+
+            vm.onAction(HlsAction.SetSingleFilePerRendition(true))
+            advanceUntilIdle()
+            assertEquals(true, vm.uiState.value.singleFilePerRendition)
         }
 
     @Test

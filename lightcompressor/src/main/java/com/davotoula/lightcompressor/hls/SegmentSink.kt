@@ -92,7 +92,7 @@ internal class MultiFileSegmentSink(
                 isInitSegment = true,
             ),
         )
-        if (!initFile.delete()) {
+        if (initFile.exists() && !initFile.delete()) {
             Log.w(TAG, "Failed to delete init temp file: ${initFile.absolutePath}")
         }
     }
@@ -123,7 +123,7 @@ internal class MultiFileSegmentSink(
                 isInitSegment = false,
             ),
         )
-        if (!segmentFile.delete()) {
+        if (segmentFile.exists() && !segmentFile.delete()) {
             Log.w(TAG, "Failed to delete segment temp file: ${segmentFile.absolutePath}")
         }
     }
@@ -170,7 +170,6 @@ internal class SingleFileSegmentSink(
         val counter = CountingOutputStream(FileOutputStream(combinedFile))
         counting = counter
         writer.writeInitSegment(counter)
-        counter.flush()
         initLength = counter.bytesWritten
     }
 
@@ -189,7 +188,6 @@ internal class SingleFileSegmentSink(
             baseDecodeTimeUs = flushed.baseDecodeTimeUs,
             output = counter,
         )
-        counter.flush()
         val length = counter.bytesWritten - offset
         val durationSeconds = flushed.durationUs / MICROS_PER_SECOND
         byteRangeSegments.add(

@@ -37,6 +37,7 @@ internal class HlsTranscoder(
     private var videoFrameCopyTimeNs = 0L
     private var audioSampleCopyTimeNs = 0L
     private var segmentWriteTimeNs = 0L
+    private var sinkFinishTimeNs = 0L
 
     /**
      * Encodes one rendition of the source video.
@@ -73,6 +74,7 @@ internal class HlsTranscoder(
         videoFrameCopyTimeNs = 0L
         audioSampleCopyTimeNs = 0L
         segmentWriteTimeNs = 0L
+        sinkFinishTimeNs = 0L
 
         val segmentDurationUs = config.segmentDurationSeconds * 1_000_000L
         var videoExtractor: MediaExtractor? = null
@@ -396,7 +398,7 @@ internal class HlsTranscoder(
             // Emit any deferred output (single-file mode flushes the combined rendition here).
             val finishStart = System.nanoTime()
             sink.finish()
-            segmentWriteTimeNs += System.nanoTime() - finishStart
+            sinkFinishTimeNs += System.nanoTime() - finishStart
 
             // Build codec string from the SPS NAL unit inside csd-0. We must not use
             // MediaFormat.KEY_PROFILE/KEY_LEVEL here — MediaCodec exposes those as bit flags
@@ -423,7 +425,8 @@ internal class HlsTranscoder(
                 "Rendition ${rendition.resolution.label} (${actualWidth}x$actualHeight): " +
                     "videoFrameCopy=${videoFrameCopyTimeNs / 1_000_000}ms, " +
                     "audioSampleCopy=${audioSampleCopyTimeNs / 1_000_000}ms, " +
-                    "segmentWrite=${segmentWriteTimeNs / 1_000_000}ms",
+                    "segmentWrite=${segmentWriteTimeNs / 1_000_000}ms, " +
+                    "sinkFinish=${sinkFinishTimeNs / 1_000_000}ms",
             )
 
             return RenditionResult(

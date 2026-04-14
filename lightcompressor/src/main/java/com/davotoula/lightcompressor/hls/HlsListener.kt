@@ -10,7 +10,9 @@ import java.io.File
  * - All other callbacks: called on Main thread
  *
  * The [onSegmentReady] callback is synchronous: the segment file is valid
- * until the callback returns. The library deletes the temp file after return.
+ * until the callback returns. The listener may copy, upload, or move/rename
+ * the file during the callback. After the callback returns, the library
+ * will delete the temp file if it is still present.
  */
 interface HlsListener {
     /** Called when preparation starts. [renditionCount] = number of renditions to process. */
@@ -21,7 +23,12 @@ interface HlsListener {
 
     /**
      * Called when a segment is ready. The [segment] file is valid until this method returns.
-     * Upload or copy the file before returning — the library deletes it afterward.
+     * The listener must copy, upload, or move the file synchronously before returning.
+     *
+     * **Performance tip:** For large combined-rendition files (see [HlsSegment.isCombinedRendition]),
+     * prefer [java.io.File.renameTo] over copying when the destination is on the same filesystem.
+     * The library tolerates the file being moved — it will not log warnings if the temp file is
+     * already gone when it tries to clean up.
      */
     fun onSegmentReady(
         rendition: Rendition,
@@ -59,7 +66,11 @@ interface HlsListener {
  * exactly one [HlsSegment] per rendition with [isCombinedRendition] set to `true`.
  */
 data class HlsSegment(
-    /** Temp file containing the segment data. Valid until [HlsListener.onSegmentReady] returns. */
+    /**
+     * Temp file containing the segment data. Valid until [HlsListener.onSegmentReady] returns.
+     * The listener may move/rename this file during the callback for a fast O(1) handoff on the
+     * same filesystem.
+     */
     val file: File,
     /** Segment sequence number (0-based). */
     val index: Int,
