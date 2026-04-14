@@ -355,42 +355,15 @@ object GifToMp4Converter {
             // GL resources must be released while the EGL context is still current
             // (i.e. before egl.release()), otherwise glDelete* calls operate on a
             // detached context and the handles leak in the driver.
-            try {
-                if (textureId != 0) GLES20.glDeleteTextures(1, intArrayOf(textureId), 0)
-            } catch (_: Exception) {
-            }
-            try {
-                if (program != 0) GLES20.glDeleteProgram(program)
-            } catch (_: Exception) {
-            }
-            try {
-                bitmap?.recycle()
-            } catch (_: Exception) {
-            }
-            try {
-                egl?.release()
-            } catch (_: Exception) {
-            }
-            try {
-                codec?.stop()
-            } catch (_: Exception) {
-            }
-            try {
-                codec?.release()
-            } catch (_: Exception) {
-            }
-            try {
-                codecSurface?.release()
-            } catch (_: Exception) {
-            }
-            try {
-                muxer?.stop()
-            } catch (_: Exception) {
-            }
-            try {
-                muxer?.release()
-            } catch (_: Exception) {
-            }
+            runCatching { if (textureId != 0) GLES20.glDeleteTextures(1, intArrayOf(textureId), 0) }
+            runCatching { if (program != 0) GLES20.glDeleteProgram(program) }
+            runCatching { bitmap?.recycle() }
+            runCatching { egl?.release() }
+            runCatching { codec?.stop() }
+            runCatching { codec?.release() }
+            runCatching { codecSurface?.release() }
+            runCatching { muxer?.stop() }
+            runCatching { muxer?.release() }
         }
     }
 
@@ -459,22 +432,13 @@ object GifToMp4Converter {
                 // Tear down whatever succeeded so we do not leak driver handles
                 // when the caller never gets a reference to this object.
                 if (localEglSurface != EGL14.EGL_NO_SURFACE) {
-                    try {
-                        EGL14.eglDestroySurface(localDisplay, localEglSurface)
-                    } catch (_: Exception) {
-                    }
+                    runCatching { EGL14.eglDestroySurface(localDisplay, localEglSurface) }
                 }
                 if (localContext != EGL14.EGL_NO_CONTEXT) {
-                    try {
-                        EGL14.eglDestroyContext(localDisplay, localContext)
-                    } catch (_: Exception) {
-                    }
+                    runCatching { EGL14.eglDestroyContext(localDisplay, localContext) }
                 }
                 if (localDisplay != EGL14.EGL_NO_DISPLAY) {
-                    try {
-                        EGL14.eglTerminate(localDisplay)
-                    } catch (_: Exception) {
-                    }
+                    runCatching { EGL14.eglTerminate(localDisplay) }
                 }
                 throw t
             }

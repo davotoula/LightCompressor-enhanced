@@ -80,7 +80,11 @@ class HlsTestSession(
                 }
             // Try rename first (O(1) on same filesystem). Fall back to copy when the source
             // and destination straddle filesystems (e.g. cacheDir on a separate partition).
-            if (targetFile.exists()) targetFile.delete()
+            // renameTo on Android requires the destination to not exist; copyTo handles
+            // overwrite directly, so we only need to clear the target on the rename path.
+            if (targetFile.exists() && !targetFile.delete()) {
+                throw IOException("Could not delete existing $targetFile")
+            }
             if (!segment.file.renameTo(targetFile)) {
                 segment.file.copyTo(targetFile, overwrite = true)
             }

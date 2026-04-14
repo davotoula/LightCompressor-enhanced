@@ -170,7 +170,6 @@ internal class HlsTranscoder(
 
             // Get codec config from encoder output format change
             var codecConfigBytes: ByteArray? = null
-            var encoderOutputFormat: MediaFormat? = null
 
             // Create segment writer (deferred until we have codec config)
             var segmentWriter: Mp4SegmentWriter? = null
@@ -239,7 +238,7 @@ internal class HlsTranscoder(
                                 encoderOutputAvailable = false
                             }
                             encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                                encoderOutputFormat = encoder.outputFormat
+                                val encoderOutputFormat = encoder.outputFormat
                                 // Pixel AVC encoders split SPS into csd-0 and PPS into csd-1.
                                 // Both buffers must be merged so the avcC box gets a complete
                                 // AVCDecoderConfigurationRecord — see mergeCsdBuffers.

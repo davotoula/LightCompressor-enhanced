@@ -34,6 +34,9 @@ internal data class RenditionResult(
  * Generates HLS m3u8 playlist strings (VOD).
  */
 internal object PlaylistGenerator {
+    private const val EXTM3U = "#EXTM3U"
+    private const val EXT_X_VERSION_7 = "#EXT-X-VERSION:7"
+
     /**
      * Builds a media playlist for a single rendition.
      */
@@ -42,8 +45,8 @@ internal object PlaylistGenerator {
         targetDurationSeconds: Int,
     ): String =
         buildString {
-            appendLine("#EXTM3U")
-            appendLine("#EXT-X-VERSION:7")
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
             appendLine("#EXT-X-TARGETDURATION:$targetDurationSeconds")
             appendLine("#EXT-X-MEDIA-SEQUENCE:0")
             appendLine("#EXT-X-PLAYLIST-TYPE:VOD")
@@ -72,8 +75,8 @@ internal object PlaylistGenerator {
         targetDurationSeconds: Int,
     ): String =
         buildString {
-            appendLine("#EXTM3U")
-            appendLine("#EXT-X-VERSION:7")
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
             appendLine("#EXT-X-TARGETDURATION:$targetDurationSeconds")
             appendLine("#EXT-X-MEDIA-SEQUENCE:0")
             appendLine("#EXT-X-PLAYLIST-TYPE:VOD")
@@ -97,8 +100,8 @@ internal object PlaylistGenerator {
     fun buildMasterPlaylist(renditions: List<RenditionResult>): String =
         buildString {
             val sorted = renditions.sortedBy { it.rendition.bitrateKbps }
-            appendLine("#EXTM3U")
-            appendLine("#EXT-X-VERSION:7")
+            appendLine(EXTM3U)
+            appendLine(EXT_X_VERSION_7)
             appendLine()
             for (r in sorted) {
                 val bandwidthBps = r.rendition.bitrateKbps * 1000
