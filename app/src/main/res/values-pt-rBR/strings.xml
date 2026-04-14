@@ -31,6 +31,26 @@
     <string name="video_starting">Iniciando…</string>
     <string name="video_player_title">Reprodutor de vídeo</string>
 
+    <!-- Settings card -->
+    <string name="settings_title">Configurações</string>
+    <string name="settings_collapse">Recolher</string>
+    <string name="settings_expand">Expandir</string>
+
+    <!-- Settings summary -->
+    <string name="summary_streamable">Streamável</string>
+    <string name="summary_not_streamable">Não streamável</string>
+    <string name="summary_bitrate_kbps">%1$d kbps</string>
+
+    <!-- Version footer -->
+    <string name="version_info">App v%1$s • Lib v%2$s</string>
+
+    <!-- Compression status -->
+    <string name="status_pending">Pendente…</string>
+    <string name="status_compressing">Compactando…</string>
+    <string name="status_compressing_percent">Compactando… %1$d%%</string>
+    <string name="status_cancelled">Cancelado</string>
+    <string name="status_error_format">Erro: %1$s</string>
+
     <string name="permission_required_pick_videos">Permissão necessária para selecionar vídeos</string>
     <string name="permission_required_camera">Permissão da câmera necessária para gravar vídeo</string>
 
@@ -53,5 +73,19 @@
     <string name="share_video_description">Compartilhar vídeo</string>
 
     <string name="back">Voltar</string>
+
+    <!-- HLS test affordance -->
+    <string name="hls_codec_label">Codec HLS</string>
+    <string name="hls_prepare_button">Preparar HLS</string>
+    <string name="hls_preparation_title">Preparação de HLS</string>
+    <string name="hls_close_description">Fechar</string>
+    <string name="hls_cancel_button">Cancelar</string>
+    <string name="hls_play_button">Reproduzir HLS</string>
+    <string name="hls_cancelled_status">Cancelado</string>
+    <string name="hls_complete_description">Concluído</string>
+    <string name="hls_failed_description">Falhou</string>
+    <string name="hls_back_description">Voltar para a compactação</string>
+    <string name="hls_icon_description">Abrir preparação de HLS</string>
+    <string name="hls_output_dir_failed">Falha ao preparar o diretório de saída do HLS</string>
 
 </resources>

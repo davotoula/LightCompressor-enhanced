@@ -64,7 +64,7 @@ fun CollapsibleSettingsCard(
             ) {
                 if (uiState.isSettingsExpanded) {
                     Text(
-                        text = "Settings",
+                        text = stringResource(R.string.settings_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -85,7 +85,12 @@ fun CollapsibleSettingsCard(
                         } else {
                             Icons.Default.KeyboardArrowDown
                         },
-                    contentDescription = if (uiState.isSettingsExpanded) "Collapse" else "Expand",
+                    contentDescription =
+                        if (uiState.isSettingsExpanded) {
+                            stringResource(R.string.settings_collapse)
+                        } else {
+                            stringResource(R.string.settings_expand)
+                        },
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

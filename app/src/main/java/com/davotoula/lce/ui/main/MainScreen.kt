@@ -355,7 +355,12 @@ fun MainScreen(
 
             // Version info
             Text(
-                text = "App v${BuildConfig.VERSION_NAME} • Lib v${BuildConfig.LIBRARY_VERSION}",
+                text =
+                    stringResource(
+                        R.string.version_info,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.LIBRARY_VERSION,
+                    ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier =
