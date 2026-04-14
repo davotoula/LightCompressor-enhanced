@@ -6,6 +6,7 @@ import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val PROGRESS_COMPLETE_PERCENT = 100
 private const val SEGMENT_FILENAME_FORMAT = "segment_%03d.m4s"
@@ -36,11 +37,10 @@ class HlsTestSession(
     private val onIoFailure: () -> Unit,
     private val onTerminal: (String) -> Unit = {},
 ) : HlsListener {
-    private var terminalReported: Boolean = false
+    private val terminalReported = AtomicBoolean(false)
 
     private fun reportTerminal(status: String) {
-        if (terminalReported) return
-        terminalReported = true
+        if (!terminalReported.compareAndSet(false, true)) return
         onTerminal(status)
     }
 

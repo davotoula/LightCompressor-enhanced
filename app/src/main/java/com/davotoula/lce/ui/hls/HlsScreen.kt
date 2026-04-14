@@ -78,9 +78,6 @@ fun HlsScreen(
 
     LaunchedEffect(Unit) {
         AnalyticsTracker.logHlsScreenOpened()
-    }
-
-    LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
                 HlsEvent.LaunchPicker ->
