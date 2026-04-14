@@ -31,7 +31,6 @@ class HlsUploadOrchestratorTest {
     }
 
     private val rendition720 = Rendition(Resolution.HD_720, bitrateKbps = 2500)
-    private val rendition1080 = Rendition(Resolution.FHD_1080, bitrateKbps = 5000)
 
     private fun summary(
         rendition: Rendition,
@@ -186,7 +185,7 @@ class HlsUploadOrchestratorTest {
         var callCount = 0
         val uploader: suspend (File, String) -> String = { _, _ ->
             callCount += 1
-            if (callCount == 2) throw RuntimeException("boom")
+            if (callCount == 2) error("boom")
             "https://cdn/x"
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
@@ -212,8 +211,8 @@ class HlsUploadOrchestratorTest {
         assertEquals(2, callCount) // first succeeded, second threw, rest were suppressed
         try {
             kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
-            fail("expected RuntimeException")
-        } catch (e: RuntimeException) {
+            fail("expected IllegalStateException")
+        } catch (e: IllegalStateException) {
             assertEquals("boom", e.message)
         }
     }
@@ -249,14 +248,14 @@ class HlsUploadOrchestratorTest {
             kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
             fail("expected CancellationException")
         } catch (e: CancellationException) {
-            // expected
+            assertEquals("HLS upload cancelled", e.message)
         }
     }
 
     @Test
     fun `media playlist upload failure during completeUpload propagates`() {
         val uploader: suspend (File, String) -> String = { _, name ->
-            if (name.endsWith(".m3u8")) throw RuntimeException("playlist upload failed")
+            if (name.endsWith(".m3u8")) error("playlist upload failed")
             "https://cdn/$name"
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
@@ -274,8 +273,8 @@ class HlsUploadOrchestratorTest {
 
         try {
             kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
-            fail("expected RuntimeException")
-        } catch (e: RuntimeException) {
+            fail("expected IllegalStateException")
+        } catch (e: IllegalStateException) {
             assertEquals("playlist upload failed", e.message)
         }
     }

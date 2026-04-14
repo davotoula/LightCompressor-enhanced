@@ -58,6 +58,7 @@ internal class HlsUploadOrchestrator(
     ) {
         if (failure != null || cancelled || completed) return
         val suggested = segment.suggestedFilename(rendition)
+        @Suppress("TooGenericExceptionCaught") // intentional: capture any uploader failure, including Error subclasses
         try {
             val url = runBlocking(Dispatchers.IO) { uploader(segment.file, suggested) }
             segmentUrls.getOrPut(rendition) { mutableMapOf() }[suggested] = url
@@ -105,12 +106,13 @@ internal class HlsUploadOrchestrator(
      *   `completeUpload` is called before any terminal signal
      * - whatever a media playlist uploader throws, if one fails during the suspend phase
      */
+    @Suppress("ThrowsCount") // three distinct error modes: prior failure, cancellation, premature call
     suspend fun completeUpload(): HlsUploadResult {
         failure?.let { throw it }
         if (cancelled) throw CancellationException("HLS upload cancelled")
         val master =
             masterPlaylist
-                ?: throw IllegalStateException("HlsUploadOrchestrator.completeUpload called before onComplete")
+                ?: error("HlsUploadOrchestrator.completeUpload called before onComplete")
 
         val renditionPlaylistUrls = mutableMapOf<String, String>()
         for (summary in pendingSummaries) {
