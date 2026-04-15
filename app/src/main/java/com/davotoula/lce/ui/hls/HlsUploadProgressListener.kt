@@ -6,14 +6,7 @@ import com.davotoula.lightcompressor.hls.SimpleHlsListener
 
 private const val PROGRESS_COMPLETE_PERCENT = 100
 
-/**
- * Progress-only `HlsListener` for the "Prepare HLS + Upload" smoke test. Mirrors the UI
- * state updates from `HlsTestSession` (rendition rows going Pending → Active → Complete
- * with per-segment progress) without touching the disk — `HlsUploadHelper`'s uploader
- * lambda already handles file persistence. The viewmodel owns terminal state via its own
- * try/catch around `HlsUploadTestRunner.run`, so this listener deliberately skips
- * `onComplete`, `onFailure`, and `onCancelled`.
- */
+/** Progress-only `HlsListener` for the "Prepare HLS + Upload" smoke test. */
 class HlsUploadProgressListener(
     private val updateState: ((HlsTestState?) -> HlsTestState?) -> Unit,
 ) : SimpleHlsListener() {

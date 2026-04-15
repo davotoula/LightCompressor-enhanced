@@ -3,7 +3,6 @@ package com.davotoula.lightcompressor.hls
 import android.content.Context
 import android.net.Uri
 import com.davotoula.lightcompressor.HlsPreparer
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import java.io.File
 
@@ -42,7 +41,7 @@ data class HlsUploaded<out T>(
  *   - **Single-file mode**: combined rendition file (`"<label>.mp4"`) and the rewritten media
  *     playlist (`"<label>/media.m3u8"`) for every rendition.
  *
- *   **Key format contract**: map keys match exactly what [HlsSegment.suggestedFilename]
+ *   **Key format contract**: map keys match exactly what [Rendition.suggestedFilename]
  *   returns for segments, [HlsRenditionSummary.playlistFilename] (equivalently
  *   [Rendition.mediaPlaylistFilename]) for media playlists, and
  *   [HlsRenditionSummary.combinedFilename] for combined renditions in single-file mode.
@@ -82,16 +81,17 @@ data class HlsUploadResult<out T>(
  * more `uploader(tempFile, "master.m3u8")` call is all it takes.
  *
  * **Threading:**
- * - Segment uploads (init + media segments) run during `HlsListener.onSegmentReady`, which
- *   the transcoder dispatches on `Dispatchers.Default`. The orchestrator wraps each
- *   uploader call in `runBlocking(Dispatchers.IO)`, so consumer code always executes on
- *   the IO dispatcher. Blocking a `Default` thread is acceptable because the next segment
- *   can't start encoding until the current one's callback returns.
- * - Media-playlist and master-playlist rewriting and upload happen **after** the transcoder
- *   has finished (inside [HlsUploadOrchestrator.completeUpload]), in the outer coroutine's
- *   context, via `withContext(Dispatchers.IO)`. `Dispatchers.Main` is never blocked.
- * - Uploads happen serially: lowest rendition first, init segment before media segments,
- *   then media playlists in rendition order.
+ * - Segment uploads (init + media segments) run serially during `HlsListener.onSegmentReady`,
+ *   which the transcoder dispatches on `Dispatchers.Default`. The orchestrator wraps each
+ *   uploader call in `runBlocking(Dispatchers.IO)`, so consumer code always executes on the
+ *   IO dispatcher. Blocking a `Default` thread is acceptable because the next segment can't
+ *   start encoding until the current one's callback returns.
+ * - Media-playlist rewriting and upload happen **after** the transcoder has finished
+ *   (inside [HlsUploadOrchestrator.completeUpload]). Each rendition's media playlist is
+ *   uploaded in parallel via `async`/`awaitAll` on `Dispatchers.IO`; `Dispatchers.Main` is
+ *   never blocked.
+ * - Overall order: lowest rendition first, init segment before media segments, then all
+ *   media playlists concurrently.
  *
  * **Error handling:** the first uploader failure cancels the whole operation. [run] throws
  * the original cause. Partial rendition failures in the transcoder behave the same way as
@@ -117,7 +117,7 @@ data class HlsUploadResult<out T>(
  *     listener = progressListener,
  * ) { file, name ->
  *     val contentType = if (name.endsWith(".m3u8")) {
- *         HlsContentTypes.forPlaylist()
+ *         HlsContentTypes.HLS_PLAYLIST
  *     } else {
  *         HlsContentTypes.FMP4_SEGMENT
  *     }
@@ -159,6 +159,7 @@ object HlsUploadHelper {
     ): HlsUploadResult<T> =
         coroutineScope {
             val orchestrator = HlsUploadOrchestrator(context, uploader, listener)
+            @Suppress("TooGenericExceptionCaught")
             try {
                 val preparerJob =
                     HlsPreparer.start(
@@ -168,10 +169,10 @@ object HlsUploadHelper {
                         listener = orchestrator,
                     )
                 preparerJob.join()
-            } catch (e: CancellationException) {
+                orchestrator.completeUpload()
+            } catch (e: Throwable) {
                 HlsPreparer.cancel()
                 throw e
             }
-            orchestrator.completeUpload()
         }
 }

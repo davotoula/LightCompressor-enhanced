@@ -4,6 +4,7 @@ import android.content.Context
 import com.davotoula.lightcompressor.Resolution
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -12,7 +13,6 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.File
-import java.util.concurrent.CancellationException
 
 class HlsUploadOrchestratorTest {
     private lateinit var tempDir: File

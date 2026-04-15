@@ -279,7 +279,7 @@ HlsPreparer.start(
         override fun onSegmentReady(rendition: Rendition, segment: HlsSegment) {
             // Called on a background thread. Copy synchronously — the temp
             // file is deleted as soon as this method returns.
-            val dest = File(outputRoot, segment.suggestedFilename(rendition))
+            val dest = File(outputRoot, rendition.suggestedFilename(segment))
             dest.parentFile?.mkdirs()
             segment.file.copyTo(dest, overwrite = true)
         }
@@ -336,7 +336,7 @@ suspend fun uploadHls(context: Context, videoUri: Uri): String {
         // Invoked on Dispatchers.IO. Upload the file and return the URL + any metadata
         // you need downstream (e.g. for NIP-71 `imeta` tags, signed manifests, analytics).
         val contentType = if (suggestedFilename.endsWith(".m3u8")) {
-            HlsContentTypes.forPlaylist()
+            HlsContentTypes.HLS_PLAYLIST
         } else {
             HlsContentTypes.FMP4_SEGMENT
         }
@@ -347,7 +347,7 @@ suspend fun uploadHls(context: Context, videoUri: Uri): String {
     // Look up any upload's metadata by the same identifiers the library already gave you:
     //   result.uploads[summary.combinedFilename] // single-file rendition
     //   result.uploads[summary.playlistFilename] // media playlist
-    //   result.uploads[segment.suggestedFilename(rendition)] // individual segment
+    //   result.uploads[rendition.suggestedFilename(segment)] // individual segment
     result.renditions.forEach { summary ->
         val renditionFile = summary.combinedFilename ?: return@forEach
         val blob = result.uploads[renditionFile]?.metadata ?: return@forEach
@@ -359,7 +359,7 @@ suspend fun uploadHls(context: Context, videoUri: Uri): String {
     return myUploader.uploadText(
         content = result.masterPlaylist,
         filename = "master.m3u8",
-        contentType = HlsContentTypes.forPlaylist(),
+        contentType = HlsContentTypes.HLS_PLAYLIST,
     ).url
 }
 ```
@@ -372,7 +372,7 @@ val result: HlsUploadResult<Unit> = HlsUploadHelper.run(ctx, videoUri) { file, n
 }
 ```
 
-`HlsUploadResult.renditions` carries per-rendition `HlsRenditionSummary` objects — use `summary.width`, `summary.height`, and `summary.codecString` to build downstream metadata (e.g. Nostr `imeta` tags) without re-parsing the master playlist. `HlsUploadResult.uploads` is a `LinkedHashMap` preserving the upload timeline: all segments first (across renditions, in emission order), then all media playlists (in rendition order). Map keys match exactly what `segment.suggestedFilename(rendition)`, `summary.playlistFilename`, and `summary.combinedFilename` return — consumers can look up entries by the same identifiers they already hold.
+`HlsUploadResult.renditions` carries per-rendition `HlsRenditionSummary` objects — use `summary.width`, `summary.height`, and `summary.codecString` to build downstream metadata (e.g. Nostr `imeta` tags) without re-parsing the master playlist. `HlsUploadResult.uploads` is a `LinkedHashMap` preserving the upload timeline: all segments first (across renditions, in emission order), then all media playlists (in rendition order). Map keys match exactly what `rendition.suggestedFilename(segment)`, `summary.playlistFilename`, and `summary.combinedFilename` return — consumers can look up entries by the same identifiers they already hold.
 
 #### Manual integration with `PlaylistRewriter`
 
@@ -389,7 +389,7 @@ class UploadingListener(private val uploader: Uploader) : SimpleHlsListener() {
     private val renditionPlaylistUrls = mutableMapOf<String, String>()
 
     override fun onSegmentReady(rendition: Rendition, segment: HlsSegment) {
-        val key = segment.suggestedFilename(rendition)
+        val key = rendition.suggestedFilename(segment)
         val url = uploader.upload(segment.file, filename = key)
         segmentUrls.getOrPut(rendition) { mutableMapOf() }[key] = url
     }
@@ -397,9 +397,9 @@ class UploadingListener(private val uploader: Uploader) : SimpleHlsListener() {
     override fun onRenditionComplete(rendition: Rendition, summary: HlsRenditionSummary) {
         // The media playlist references segments by bare filename (e.g. "init.mp4",
         // "segment_000.m4s"), while the rewrite map is keyed by the library's full
-        // suggestedFilename() output (e.g. "720p/init.mp4"). Strip the "<label>/" prefix
-        // before rewriting so the keys match what the playlist actually contains.
-        // Combined-rendition keys like "720p.mp4" have no prefix to strip and pass through.
+        // rendition.suggestedFilename(segment) output (e.g. "720p/init.mp4"). Strip the
+        // "<label>/" prefix before rewriting so the keys match what the playlist actually
+        // contains. Combined-rendition keys like "720p.mp4" have no prefix to strip.
         val prefix = "${rendition.resolution.label}/"
         val perRenditionMap =
             (segmentUrls[rendition] ?: emptyMap()).entries.associate { (key, url) ->
@@ -420,11 +420,11 @@ class UploadingListener(private val uploader: Uploader) : SimpleHlsListener() {
 }
 ```
 
-Rewrite-map keys are whatever `HlsSegment.suggestedFilename(rendition)` / `HlsRenditionSummary.playlistFilename` return — the library guarantees the two are consistent, so your rewrite map just needs to match its own lookups.
+Rewrite-map keys are whatever `Rendition.suggestedFilename(segment)` / `HlsRenditionSummary.playlistFilename` return — the library guarantees the two are consistent, so your rewrite map just needs to match its own lookups.
 
 #### MIME types
 
-`.m3u8` playlists must be served as `application/vnd.apple.mpegurl`. Android's `MimeTypeMap` does **not** know this type, so if your upload pipeline derives content types from file extensions you must special-case it. Use `HlsContentTypes.forPlaylist()` and `HlsContentTypes.forSegment(segment)` (or the `HlsContentTypes.HLS_PLAYLIST` / `FMP4_SEGMENT` constants) as the canonical source.
+`.m3u8` playlists must be served as `application/vnd.apple.mpegurl`. Android's `MimeTypeMap` does **not** know this type, so if your upload pipeline derives content types from file extensions you must special-case it. Use `HlsContentTypes.HLS_PLAYLIST` / `HlsContentTypes.FMP4_SEGMENT` as the canonical source.
 
 #### Per-variant metadata
 

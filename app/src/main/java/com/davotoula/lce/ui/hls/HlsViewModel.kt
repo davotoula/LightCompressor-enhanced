@@ -13,7 +13,7 @@ import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsLadder
 import com.davotoula.lightcompressor.utils.CompressorUtils
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+
+private const val HLS_PREPARE_DIR = "hls/current"
+private const val HLS_UPLOAD_DIR = "hls-upload/current"
 
 class HlsViewModel(
     application: Application,
@@ -100,7 +102,7 @@ class HlsViewModel(
         val state = _uiState.value
         if (state.testState?.isRunning == true) return
 
-        val rootDir = File(context.filesDir, "hls/current")
+        val rootDir = File(context.filesDir, HLS_PREPARE_DIR)
         rootDir.deleteRecursively()
         if (!rootDir.mkdirs()) {
             viewModelScope.launch {
@@ -109,36 +111,7 @@ class HlsViewModel(
             return
         }
 
-        val ladder = HlsLadder.default()
-        val seededRows =
-            ladder.renditions.map { rendition ->
-                HlsRenditionState(
-                    label = rendition.resolution.label,
-                    status = HlsRenditionStatus.Pending,
-                )
-            }
-        _uiState.update {
-            it.copy(
-                testState =
-                    HlsTestState(
-                        isRunning = true,
-                        renditions = seededRows,
-                        terminal = null,
-                    ),
-            )
-        }
-
-        val videoCodec =
-            when (state.hlsCodec) {
-                Codec.H264 -> VideoCodec.H264
-                Codec.H265 -> if (CompressorUtils.isHevcEncodingSupported()) VideoCodec.H265 else VideoCodec.H264
-            }
-        val config =
-            HlsConfig(
-                ladder = ladder,
-                codec = videoCodec,
-                singleFilePerRendition = state.singleFilePerRendition,
-            )
+        val (videoCodec, config) = initSessionStateAndBuildConfig(state)
 
         val session =
             HlsTestSession(
@@ -167,13 +140,59 @@ class HlsViewModel(
         )
     }
 
-    @Suppress("MagicNumber")
     private fun handleStartUploadPreparation(uri: Uri) {
         val state = _uiState.value
         if (state.testState?.isRunning == true) return
 
-        val rootDir = File(context.filesDir, "hls-upload/current")
+        val rootDir = File(context.filesDir, HLS_UPLOAD_DIR)
 
+        val (_, config) = initSessionStateAndBuildConfig(state)
+
+        val progressListener =
+            HlsUploadProgressListener(
+                updateState = { transform ->
+                    _uiState.update { current ->
+                        current.copy(testState = transform(current.testState))
+                    }
+                },
+            )
+
+        viewModelScope.launch {
+            try {
+                val masterFile =
+                    HlsUploadTestRunner.run(
+                        context = context,
+                        sourceUri = uri,
+                        rootDir = rootDir,
+                        config = config,
+                        listener = progressListener,
+                    )
+                _uiState.update { current ->
+                    current.copy(
+                        testState =
+                            current.testState?.copy(
+                                isRunning = false,
+                                terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
+                            ),
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _uiState.update { current ->
+                    current.copy(
+                        testState =
+                            current.testState?.copy(
+                                isRunning = false,
+                                terminal = HlsTerminal.Failed(e.message ?: "Upload smoke test failed"),
+                            ),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun initSessionStateAndBuildConfig(state: HlsUiState): Pair<VideoCodec, HlsConfig> {
         val ladder = HlsLadder.default()
         val seededRows =
             ladder.renditions.map { rendition ->
@@ -192,7 +211,6 @@ class HlsViewModel(
                     ),
             )
         }
-
         val videoCodec =
             when (state.hlsCodec) {
                 Codec.H264 -> VideoCodec.H264
@@ -204,49 +222,7 @@ class HlsViewModel(
                 codec = videoCodec,
                 singleFilePerRendition = state.singleFilePerRendition,
             )
-
-        val progressListener =
-            HlsUploadProgressListener(
-                updateState = { transform ->
-                    _uiState.update { current ->
-                        current.copy(testState = transform(current.testState))
-                    }
-                },
-            )
-
-        viewModelScope.launch {
-            try {
-                val masterFile =
-                    withContext(Dispatchers.IO) {
-                        HlsUploadTestRunner.run(
-                            context = context,
-                            sourceUri = uri,
-                            rootDir = rootDir,
-                            config = config,
-                            listener = progressListener,
-                        )
-                    }
-                _uiState.update { current ->
-                    current.copy(
-                        testState =
-                            current.testState?.copy(
-                                isRunning = false,
-                                terminal = HlsTerminal.Succeeded(masterPlaylistPath = masterFile.absolutePath),
-                            ),
-                    )
-                }
-            } catch (e: Throwable) {
-                _uiState.update { current ->
-                    current.copy(
-                        testState =
-                            current.testState?.copy(
-                                isRunning = false,
-                                terminal = HlsTerminal.Failed(e.message ?: "Upload smoke test failed"),
-                            ),
-                    )
-                }
-            }
-        }
+        return videoCodec to config
     }
 
     private fun handleCancelPreparation() {
