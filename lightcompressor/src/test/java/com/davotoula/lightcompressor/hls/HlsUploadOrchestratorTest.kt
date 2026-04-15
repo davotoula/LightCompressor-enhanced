@@ -6,6 +6,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -31,6 +32,7 @@ class HlsUploadOrchestratorTest {
     }
 
     private val rendition720 = Rendition(Resolution.HD_720, bitrateKbps = 2500)
+    private val rendition1080 = Rendition(Resolution.FHD_1080, bitrateKbps = 5000)
 
     private fun summary(
         rendition: Rendition,
@@ -56,10 +58,10 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `happy path multi-file emits rewritten master playlist`() {
-        val uploads = mutableListOf<Pair<String, String>>() // suggestedFilename -> content
-        val uploader: suspend (File, String) -> String = { file, name ->
-            uploads += name to file.readText()
-            "https://cdn/$name"
+        val uploadOrder = mutableListOf<Pair<String, String>>() // suggestedFilename -> content
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { file, name ->
+            uploadOrder += name to file.readText()
+            HlsUploaded("https://cdn/$name", Unit)
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
 
@@ -104,27 +106,36 @@ class HlsUploadOrchestratorTest {
         val result = kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
 
         // Uploader called for init, media segment, and media playlist (3 total).
-        assertEquals(3, uploads.size)
-        assertEquals("720p/init.mp4", uploads[0].first)
-        assertEquals("720p/segment_000.m4s", uploads[1].first)
-        assertEquals("720p/media.m3u8", uploads[2].first)
+        assertEquals(3, uploadOrder.size)
+        assertEquals("720p/init.mp4", uploadOrder[0].first)
+        assertEquals("720p/segment_000.m4s", uploadOrder[1].first)
+        assertEquals("720p/media.m3u8", uploadOrder[2].first)
 
         // The rewritten media playlist was uploaded (not the raw one).
-        assertTrue(uploads[2].second.contains("https://cdn/720p/init.mp4"))
-        assertTrue(uploads[2].second.contains("https://cdn/720p/segment_000.m4s"))
+        assertTrue(uploadOrder[2].second.contains("https://cdn/720p/init.mp4"))
+        assertTrue(uploadOrder[2].second.contains("https://cdn/720p/segment_000.m4s"))
 
         // The returned master playlist contains the uploaded rendition URL.
         assertTrue(result.masterPlaylist.contains("https://cdn/720p/media.m3u8"))
         assertEquals(1, result.renditions.size)
         assertEquals(rendition720, result.renditions[0].rendition)
+
+        // result.uploads exposes every call to the uploader in timeline order.
+        assertEquals(
+            listOf("720p/init.mp4", "720p/segment_000.m4s", "720p/media.m3u8"),
+            result.uploads.keys.toList(),
+        )
+        assertEquals("https://cdn/720p/init.mp4", result.uploads["720p/init.mp4"]?.url)
+        assertEquals("https://cdn/720p/segment_000.m4s", result.uploads["720p/segment_000.m4s"]?.url)
+        assertEquals("https://cdn/720p/media.m3u8", result.uploads["720p/media.m3u8"]?.url)
     }
 
     @Test
     fun `happy path single-file emits byterange playlist rewrites`() {
-        val uploads = mutableListOf<Pair<String, String>>()
-        val uploader: suspend (File, String) -> String = { file, name ->
-            uploads += name to file.readText()
-            "https://cdn/$name"
+        val uploadOrder = mutableListOf<Pair<String, String>>()
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { file, name ->
+            uploadOrder += name to file.readText()
+            HlsUploaded("https://cdn/$name", Unit)
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
 
@@ -167,26 +178,115 @@ class HlsUploadOrchestratorTest {
 
         val result = kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
 
-        assertEquals(2, uploads.size)
-        assertEquals("720p.mp4", uploads[0].first)
-        assertEquals("720p/media.m3u8", uploads[1].first)
+        assertEquals(2, uploadOrder.size)
+        assertEquals("720p.mp4", uploadOrder[0].first)
+        assertEquals("720p/media.m3u8", uploadOrder[1].first)
 
         // Rewritten media playlist references the uploaded combined file URL everywhere it used to say 720p.mp4.
-        assertTrue(uploads[1].second.contains("https://cdn/720p.mp4"))
+        assertTrue(uploadOrder[1].second.contains("https://cdn/720p.mp4"))
         // Byterange and MAP directives are preserved intact by PlaylistRewriter.
-        assertTrue(uploads[1].second.contains("#EXT-X-BYTERANGE:4096@1024"))
-        assertTrue(uploads[1].second.contains("#EXT-X-MAP:URI=\"https://cdn/720p.mp4\",BYTERANGE=\"1024@0\""))
+        assertTrue(uploadOrder[1].second.contains("#EXT-X-BYTERANGE:4096@1024"))
+        assertTrue(uploadOrder[1].second.contains("#EXT-X-MAP:URI=\"https://cdn/720p.mp4\",BYTERANGE=\"1024@0\""))
 
         assertTrue(result.masterPlaylist.contains("https://cdn/720p/media.m3u8"))
+
+        // Combined rendition key matches summary.combinedFilename exactly — the contract Amethyst depends on.
+        assertEquals(
+            listOf("720p.mp4", "720p/media.m3u8"),
+            result.uploads.keys.toList(),
+        )
+        assertNotNull(result.uploads["720p.mp4"])
+        assertEquals("https://cdn/720p.mp4", result.uploads["720p.mp4"]?.url)
+    }
+
+    @Test
+    fun `uploads map carries caller metadata and iteration order across two renditions`() {
+        data class Blob(
+            val sha256: String,
+            val size: Long,
+        )
+
+        val uploader: suspend (File, String) -> HlsUploaded<Blob> = { file, name ->
+            HlsUploaded(
+                url = "https://cdn/$name",
+                metadata = Blob(sha256 = "sha-$name", size = file.length()),
+            )
+        }
+        val orchestrator = HlsUploadOrchestrator(context, uploader)
+
+        // 720p rendition (single-file mode) — combined + media playlist
+        orchestrator.onStart(2)
+        orchestrator.onRenditionStart(rendition720)
+        orchestrator.onSegmentReady(
+            rendition720,
+            HlsSegment(
+                file = segmentFile("720p.mp4", "a".repeat(100)),
+                index = 0,
+                durationSeconds = 12.0,
+                isInitSegment = false,
+                isCombinedRendition = true,
+            ),
+        )
+        orchestrator.onRenditionComplete(
+            rendition720,
+            summary(rendition720, "#EXTM3U\n720p.mp4\n#EXT-X-ENDLIST\n", combinedFilename = "720p.mp4"),
+        )
+
+        // 1080p rendition (single-file mode)
+        orchestrator.onRenditionStart(rendition1080)
+        orchestrator.onSegmentReady(
+            rendition1080,
+            HlsSegment(
+                file = segmentFile("1080p.mp4", "b".repeat(200)),
+                index = 0,
+                durationSeconds = 12.0,
+                isInitSegment = false,
+                isCombinedRendition = true,
+            ),
+        )
+        orchestrator.onRenditionComplete(
+            rendition1080,
+            summary(rendition1080, "#EXTM3U\n1080p.mp4\n#EXT-X-ENDLIST\n", combinedFilename = "1080p.mp4"),
+        )
+
+        orchestrator.onComplete("#EXTM3U\n720p/media.m3u8\n1080p/media.m3u8\n")
+
+        val result: HlsUploadResult<Blob> = kotlinx.coroutines.runBlocking { orchestrator.completeUpload() }
+
+        // Iteration order tracks the actual upload timeline. Segments are uploaded during the sync phase
+        // (as onSegmentReady fires, in emission order — 720p combined then 1080p combined). Media playlists
+        // are uploaded during the suspend phase in completeUpload(), in rendition order, AFTER every segment
+        // has been emitted. So the final order is: all segments → all media playlists.
+        assertEquals(
+            listOf("720p.mp4", "1080p.mp4", "720p/media.m3u8", "1080p/media.m3u8"),
+            result.uploads.keys.toList(),
+        )
+
+        // Combined-rendition metadata is reachable by summary.combinedFilename — the key Amethyst uses for imeta tags.
+        val combined720 = result.uploads["720p.mp4"]
+        assertNotNull(combined720)
+        assertEquals("sha-720p.mp4", combined720?.metadata?.sha256)
+        assertEquals(100L, combined720?.metadata?.size)
+
+        val combined1080 = result.uploads["1080p.mp4"]
+        assertNotNull(combined1080)
+        assertEquals("sha-1080p.mp4", combined1080?.metadata?.sha256)
+        assertEquals(200L, combined1080?.metadata?.size)
+
+        // Media playlist uploads also surface metadata — useful for integrity verification or analytics.
+        assertNotNull(result.uploads["720p/media.m3u8"])
+        assertNotNull(result.uploads["1080p/media.m3u8"])
+
+        assertEquals(2, result.renditions.size)
     }
 
     @Test
     fun `uploader failure stops orchestration and is rethrown by completeUpload`() {
         var callCount = 0
-        val uploader: suspend (File, String) -> String = { _, _ ->
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { _, _ ->
             callCount += 1
             if (callCount == 2) error("boom")
-            "https://cdn/x"
+            HlsUploaded("https://cdn/x", Unit)
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
 
@@ -219,7 +319,11 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `onFailure from transcoder surfaces as completeUpload exception`() {
-        val orchestrator = HlsUploadOrchestrator(context, uploader = { _, _ -> "unused" })
+        val orchestrator =
+            HlsUploadOrchestrator<Unit>(
+                context,
+                uploader = { _, _ -> HlsUploaded("unused", Unit) },
+            )
         orchestrator.onStart(1)
         orchestrator.onRenditionStart(rendition720)
         orchestrator.onFailure(
@@ -240,7 +344,11 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `onCancelled surfaces as CancellationException from completeUpload`() {
-        val orchestrator = HlsUploadOrchestrator(context, uploader = { _, _ -> "unused" })
+        val orchestrator =
+            HlsUploadOrchestrator<Unit>(
+                context,
+                uploader = { _, _ -> HlsUploaded("unused", Unit) },
+            )
         orchestrator.onStart(1)
         orchestrator.onCancelled()
 
@@ -254,9 +362,9 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `media playlist upload failure during completeUpload propagates`() {
-        val uploader: suspend (File, String) -> String = { _, name ->
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { _, name ->
             if (name.endsWith(".m3u8")) error("playlist upload failed")
-            "https://cdn/$name"
+            HlsUploaded("https://cdn/$name", Unit)
         }
         val orchestrator = HlsUploadOrchestrator(context, uploader)
 
@@ -281,7 +389,9 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `external listener receives every callback in order`() {
-        val uploader: suspend (File, String) -> String = { _, name -> "https://cdn/$name" }
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { _, name ->
+            HlsUploaded("https://cdn/$name", Unit)
+        }
         val events = mutableListOf<String>()
         val recorder =
             object : SimpleHlsListener() {
@@ -351,7 +461,7 @@ class HlsUploadOrchestratorTest {
 
     @Test
     fun `external listener still receives failure and cancellation`() {
-        val uploader: suspend (File, String) -> String = { _, _ -> "unused" }
+        val uploader: suspend (File, String) -> HlsUploaded<Unit> = { _, _ -> HlsUploaded("unused", Unit) }
         val events = mutableListOf<String>()
         val recorder =
             object : SimpleHlsListener() {

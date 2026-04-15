@@ -8,6 +8,24 @@ import kotlinx.coroutines.coroutineScope
 import java.io.File
 
 /**
+ * The return value of the uploader lambda passed to [HlsUploadHelper.run]. Pairs the URL
+ * the file was uploaded to with arbitrary per-upload metadata that the caller wants to
+ * carry back into [HlsUploadResult.uploads].
+ *
+ * Use the [metadata] slot to thread content-addressed hashes, sizes, server-assigned IDs,
+ * or any other per-upload payload you need later. Callers who don't need metadata use
+ * [Unit] as `T` and `HlsUploaded(url, Unit)`.
+ *
+ * @property url the URL the file is now available at, used by the library to rewrite
+ *   segment and playlist references
+ * @property metadata caller-supplied payload preserved verbatim in [HlsUploadResult.uploads]
+ */
+data class HlsUploaded<out T>(
+    val url: String,
+    val metadata: T,
+)
+
+/**
  * The result of a successful [HlsUploadHelper.run] call.
  *
  * @property masterPlaylist the rewritten master playlist, with every rendition reference
@@ -16,20 +34,48 @@ import java.io.File
  * @property renditions one summary per successfully uploaded rendition. Carries the output
  *   dimensions, codec string, and filenames the caller may need when building downstream
  *   metadata (e.g. Nostr `imeta` tags or a video manifest).
+ * @property uploads every call the helper made to the uploader lambda, keyed by the
+ *   `suggestedFilename` passed to the lambda. Contents:
+ *   - **Multi-file mode**: init segment (`"<label>/init.mp4"`), each media segment
+ *     (`"<label>/segment_NNN.m4s"`), and the rewritten media playlist (`"<label>/media.m3u8"`)
+ *     for every rendition.
+ *   - **Single-file mode**: combined rendition file (`"<label>.mp4"`) and the rewritten media
+ *     playlist (`"<label>/media.m3u8"`) for every rendition.
+ *
+ *   **Key format contract**: map keys match exactly what [HlsSegment.suggestedFilename]
+ *   returns for segments, [HlsRenditionSummary.playlistFilename] (equivalently
+ *   [Rendition.mediaPlaylistFilename]) for media playlists, and
+ *   [HlsRenditionSummary.combinedFilename] for combined renditions in single-file mode.
+ *   Consumers can look up entries with the same identifiers they already hold.
+ *
+ *   **Iteration order**: the returned `Map` is a `LinkedHashMap`; iteration order matches
+ *   the actual upload timeline. That timeline is **all segments first** (across all
+ *   renditions, in emission order from the transcoder — so 720p segments before 1080p
+ *   segments, init before media segments within a rendition), **then all media playlists**
+ *   (in rendition order). The split reflects how the helper batches work: segments upload
+ *   synchronously during the transcoder's callbacks, media playlists upload after the
+ *   transcoder has finished. Useful for logging, timing analysis, and deterministic output.
+ *   The master playlist is **not** in this map — the helper does not upload the master
+ *   playlist itself.
  */
-data class HlsUploadResult(
+data class HlsUploadResult<out T>(
     val masterPlaylist: String,
     val renditions: List<HlsRenditionSummary>,
+    val uploads: Map<String, HlsUploaded<T>>,
 )
 
 /**
  * Convenience orchestrator for "transcode → upload → rewrite → publish" pipelines.
  *
  * Pass an [uploader] lambda that knows how to push a local file to wherever your content
- * lives. [HlsUploadHelper.run] drives the full HLS pipeline: every segment (and every
- * media playlist, after rewriting) is handed to the uploader in order; the returned
+ * lives. The lambda returns an [HlsUploaded] wrapper carrying the URL (used by the library
+ * to rewrite playlist references) plus arbitrary per-upload metadata of type `T` that the
+ * caller wants to keep — content hashes, sizes, server-side IDs, anything.
+ * [HlsUploadHelper.run] drives the full HLS pipeline: every segment (and every media
+ * playlist, after rewriting) is handed to the uploader in order; the returned
  * [HlsUploadResult.masterPlaylist] is already rewritten to point at the URLs the uploader
- * returned.
+ * returned; [HlsUploadResult.uploads] surfaces the entire upload timeline so consumers can
+ * look up any individual upload's URL and metadata by its `suggestedFilename`.
  *
  * The helper does **not** upload the master playlist itself — the caller publishes the
  * returned string however they want. If you want to upload it via the same pipeline, one
@@ -60,41 +106,57 @@ data class HlsUploadResult(
  * listener. Typical use: a ViewModel passes a progress-only `SimpleHlsListener` subclass
  * that updates UI state.
  *
- * Example:
+ * Example with per-upload metadata:
  * ```
- * val result = HlsUploadHelper.run(
+ * data class UploadedBlob(val sha256: String, val sizeBytes: Long)
+ *
+ * val result: HlsUploadResult<UploadedBlob> = HlsUploadHelper.run(
  *     context = context,
  *     uri = videoUri,
  *     config = HlsConfig(),
- *     listener = progressListener, // optional; receives per-segment progress
+ *     listener = progressListener,
  * ) { file, name ->
  *     val contentType = if (name.endsWith(".m3u8")) {
  *         HlsContentTypes.forPlaylist()
  *     } else {
  *         HlsContentTypes.FMP4_SEGMENT
  *     }
- *     myUploader.upload(file, contentType = contentType).url
+ *     val blob = myUploader.upload(file, contentType = contentType)
+ *     HlsUploaded(url = blob.url, metadata = UploadedBlob(blob.sha256, blob.size))
  * }
- * // Publish result.masterPlaylist however you want — it's already rewritten.
+ * // result.uploads["720p.mp4"] carries the combined rendition's sha256/size for imeta tags.
+ * // result.masterPlaylist is already rewritten — publish it however you want.
+ * ```
+ *
+ * Example without metadata (use `Unit` for `T`):
+ * ```
+ * val result: HlsUploadResult<Unit> = HlsUploadHelper.run(context, videoUri) { file, name ->
+ *     HlsUploaded(url = myUploader.upload(file).url, metadata = Unit)
+ * }
  * ```
  */
 object HlsUploadHelper {
     /**
      * Transcode [uri] into an HLS ladder and upload every segment via [uploader]. Returns
-     * the rewritten master playlist along with per-rendition summaries. See class docs for
-     * threading, error handling, progress reporting, and partial-success semantics.
+     * the rewritten master playlist along with per-rendition summaries and a per-upload
+     * map keyed by `suggestedFilename`. See class docs for threading, error handling,
+     * progress reporting, partial-success semantics, and the key-format / iteration-order
+     * contract on [HlsUploadResult.uploads].
      *
      * @param listener optional [HlsListener] that observes the raw `HlsPreparer` event
      *   stream (rendition start, per-segment progress, etc.). Every callback is forwarded
      *   after the helper's own bookkeeping. Useful for driving a progress UI.
+     * @param uploader called for every segment and rewritten media playlist. Must return
+     *   an [HlsUploaded] wrapper carrying the upload URL plus caller-controlled metadata
+     *   of type [T]. Callers who only need URLs use `T = Unit`.
      */
-    suspend fun run(
+    suspend fun <T> run(
         context: Context,
         uri: Uri,
         config: HlsConfig = HlsConfig(),
         listener: HlsListener? = null,
-        uploader: suspend (file: File, suggestedFilename: String) -> String,
-    ): HlsUploadResult =
+        uploader: suspend (file: File, suggestedFilename: String) -> HlsUploaded<T>,
+    ): HlsUploadResult<T> =
         coroutineScope {
             val orchestrator = HlsUploadOrchestrator(context, uploader, listener)
             try {

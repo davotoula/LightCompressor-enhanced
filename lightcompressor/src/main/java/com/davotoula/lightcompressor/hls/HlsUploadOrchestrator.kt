@@ -33,16 +33,26 @@ import java.util.concurrent.CancellationException
  * every event even after an internal upload failure, so its view of the event stream is
  * identical to what it would receive if it were the direct `HlsPreparer` listener.
  *
+ * The orchestrator is generic over `T` so the public [HlsUploadResult.uploads] map can
+ * carry arbitrary per-upload metadata the caller returns from the uploader lambda.
+ *
  * Kept separate from [HlsUploadHelper] so the entire flow can be unit-tested without
  * real Android framework dependencies. Tests drive the listener methods directly, then
  * call [completeUpload] inside a `runBlocking { ... }` block.
  */
-internal class HlsUploadOrchestrator(
+internal class HlsUploadOrchestrator<T>(
     private val context: Context,
-    private val uploader: suspend (File, String) -> String,
+    private val uploader: suspend (File, String) -> HlsUploaded<T>,
     private val externalListener: HlsListener? = null,
 ) : HlsListener {
-    private val segmentUrls = mutableMapOf<Rendition, MutableMap<String, String>>()
+    // URL-only per-rendition map used by PlaylistRewriter to rewrite each media playlist.
+    private val segmentUrls = mutableMapOf<Rendition, LinkedHashMap<String, String>>()
+
+    // Flat output map preserving upload timeline order. Kept as LinkedHashMap so iteration
+    // order is a stable contract (segments in emission order, then the rendition's media
+    // playlist, then the next rendition's segments, etc).
+    private val uploads = LinkedHashMap<String, HlsUploaded<T>>()
+
     private val pendingSummaries = mutableListOf<HlsRenditionSummary>()
 
     private var masterPlaylist: String? = null
@@ -59,7 +69,7 @@ internal class HlsUploadOrchestrator(
     }
 
     override fun onRenditionStart(rendition: Rendition) {
-        segmentUrls.getOrPut(rendition) { mutableMapOf() }
+        segmentUrls.getOrPut(rendition) { LinkedHashMap() }
         externalListener?.onRenditionStart(rendition)
     }
 
@@ -73,8 +83,9 @@ internal class HlsUploadOrchestrator(
                 // Catch Throwable so uploader failures, including Errors from lambdas, reach completeUpload().
                 @Suppress("TooGenericExceptionCaught")
                 try {
-                    val url = runBlocking(Dispatchers.IO) { uploader(segment.file, suggested) }
-                    segmentUrls.getOrPut(rendition) { mutableMapOf() }[suggested] = url
+                    val uploaded = runBlocking(Dispatchers.IO) { uploader(segment.file, suggested) }
+                    segmentUrls.getOrPut(rendition) { LinkedHashMap() }[suggested] = uploaded.url
+                    uploads[suggested] = uploaded
                 } catch (e: Throwable) {
                     failure = e
                 }
@@ -132,7 +143,7 @@ internal class HlsUploadOrchestrator(
      * - whatever a media playlist uploader throws, if one fails during the suspend phase
      */
     @Suppress("ThrowsCount") // three distinct error modes: prior failure, cancellation, premature call
-    suspend fun completeUpload(): HlsUploadResult {
+    suspend fun completeUpload(): HlsUploadResult<T> {
         failure?.let { throw it }
         if (cancelled) throw CancellationException("HLS upload cancelled")
         val master =
@@ -156,8 +167,9 @@ internal class HlsUploadOrchestrator(
             val tempFile = File(context.cacheDir, "hls-upload-${summary.rendition.resolution.label}-media.m3u8")
             try {
                 tempFile.writeText(rewrittenMedia)
-                val url = withContext(Dispatchers.IO) { uploader(tempFile, summary.playlistFilename) }
-                renditionPlaylistUrls[summary.playlistFilename] = url
+                val uploaded = withContext(Dispatchers.IO) { uploader(tempFile, summary.playlistFilename) }
+                uploads[summary.playlistFilename] = uploaded
+                renditionPlaylistUrls[summary.playlistFilename] = uploaded.url
             } finally {
                 tempFile.delete()
             }
@@ -166,6 +178,7 @@ internal class HlsUploadOrchestrator(
         return HlsUploadResult(
             masterPlaylist = PlaylistRewriter.rewrite(master, renditionPlaylistUrls),
             renditions = pendingSummaries.toList(),
+            uploads = LinkedHashMap(uploads),
         )
     }
 }

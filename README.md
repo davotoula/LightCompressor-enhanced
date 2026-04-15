@@ -316,24 +316,42 @@ Most real integrations transcode → upload each segment → rewrite the playlis
 
 #### Shortcut: `HlsUploadHelper`
 
+The uploader lambda returns `HlsUploaded<T>(url, metadata)` where `T` is a caller-chosen type. Use it to thread per-upload data you need later — content hashes, sizes, server IDs, anything — without maintaining a side-channel map. Callers who only want URLs use `T = Unit`.
+
 ```kotlin
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsContentTypes
+import com.davotoula.lightcompressor.hls.HlsUploaded
 import com.davotoula.lightcompressor.hls.HlsUploadHelper
+import com.davotoula.lightcompressor.hls.HlsUploadResult
+
+data class UploadedBlob(val sha256: String, val sizeBytes: Long)
 
 suspend fun uploadHls(context: Context, videoUri: Uri): String {
-    val result = HlsUploadHelper.run(
+    val result: HlsUploadResult<UploadedBlob> = HlsUploadHelper.run(
         context = context,
         uri = videoUri,
         config = HlsConfig(),
     ) { file, suggestedFilename ->
-        // Invoked on Dispatchers.IO. Return the URL the file was uploaded to.
+        // Invoked on Dispatchers.IO. Upload the file and return the URL + any metadata
+        // you need downstream (e.g. for NIP-71 `imeta` tags, signed manifests, analytics).
         val contentType = if (suggestedFilename.endsWith(".m3u8")) {
             HlsContentTypes.forPlaylist()
         } else {
             HlsContentTypes.FMP4_SEGMENT
         }
-        myUploader.upload(file, filename = suggestedFilename, contentType = contentType).url
+        val blob = myUploader.upload(file, filename = suggestedFilename, contentType = contentType)
+        HlsUploaded(url = blob.url, metadata = UploadedBlob(blob.sha256, blob.sizeBytes))
+    }
+
+    // Look up any upload's metadata by the same identifiers the library already gave you:
+    //   result.uploads[summary.combinedFilename] // single-file rendition
+    //   result.uploads[summary.playlistFilename] // media playlist
+    //   result.uploads[segment.suggestedFilename(rendition)] // individual segment
+    result.renditions.forEach { summary ->
+        val renditionFile = summary.combinedFilename ?: return@forEach
+        val blob = result.uploads[renditionFile]?.metadata ?: return@forEach
+        println("${summary.rendition.resolution.label}: ${summary.width}x${summary.height}, sha256=${blob.sha256}, ${blob.sizeBytes} bytes")
     }
 
     // result.masterPlaylist is already rewritten to point at the uploaded URLs.
@@ -346,7 +364,15 @@ suspend fun uploadHls(context: Context, videoUri: Uri): String {
 }
 ```
 
-`HlsUploadResult.renditions` carries per-rendition `HlsRenditionSummary` objects — use `summary.width`, `summary.height`, and `summary.codecString` to build downstream metadata (e.g. Nostr `imeta` tags) without re-parsing the master playlist.
+If you only need URLs and don't want to define a metadata type, use `Unit`:
+
+```kotlin
+val result: HlsUploadResult<Unit> = HlsUploadHelper.run(ctx, videoUri) { file, name ->
+    HlsUploaded(url = myUploader.upload(file).url, metadata = Unit)
+}
+```
+
+`HlsUploadResult.renditions` carries per-rendition `HlsRenditionSummary` objects — use `summary.width`, `summary.height`, and `summary.codecString` to build downstream metadata (e.g. Nostr `imeta` tags) without re-parsing the master playlist. `HlsUploadResult.uploads` is a `LinkedHashMap` preserving the upload timeline: all segments first (across renditions, in emission order), then all media playlists (in rendition order). Map keys match exactly what `segment.suggestedFilename(rendition)`, `summary.playlistFilename`, and `summary.combinedFilename` return — consumers can look up entries by the same identifiers they already hold.
 
 #### Manual integration with `PlaylistRewriter`
 
