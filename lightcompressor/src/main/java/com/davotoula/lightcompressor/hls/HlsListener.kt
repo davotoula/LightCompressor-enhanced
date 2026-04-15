@@ -35,10 +35,15 @@ interface HlsListener {
         segment: HlsSegment,
     )
 
-    /** Called when a rendition finishes. [playlist] is the m3u8 media playlist content. */
+    /**
+     * Called when a rendition finishes. [summary] carries the media playlist plus output
+     * dimensions, codec string, and the library's chosen filename for the playlist and
+     * (in single-file mode) the combined rendition file. Consumers no longer need to parse
+     * the master playlist to recover this metadata.
+     */
     fun onRenditionComplete(
         rendition: Rendition,
-        playlist: String,
+        summary: HlsRenditionSummary,
     )
 
     /** Called when all renditions complete. [masterPlaylist] is the master m3u8 content. */
@@ -94,3 +99,63 @@ data class HlsError(
     val failedRenditions: List<Rendition>,
     val completedRenditions: List<Rendition>,
 )
+
+/**
+ * Rendition summary passed to [HlsListener.onRenditionComplete]. Carries everything a
+ * consumer needs to publish the rendition, build downstream metadata, or construct a
+ * URL-rewrite map without re-parsing any of the library's output.
+ *
+ * @property rendition the ladder entry that produced this result
+ * @property mediaPlaylist the m3u8 media playlist content (not yet rewritten for upload)
+ * @property playlistFilename relative filename the library uses for the media playlist,
+ *   e.g. `"720p/media.m3u8"`. Matches what [Rendition.mediaPlaylistFilename] returns.
+ * @property width actual output width in pixels, aspect-preserved from the source
+ * @property height actual output height in pixels, aspect-preserved from the source
+ * @property codecString RFC 6381 codec string (e.g. `"avc1.64001F"`), identical to the
+ *   `CODECS=` attribute used in the master playlist
+ * @property combinedFilename the single-file rendition filename (e.g. `"720p.mp4"`) when
+ *   [com.davotoula.lightcompressor.hls.HlsConfig.singleFilePerRendition] is enabled,
+ *   `null` in multi-file mode
+ */
+data class HlsRenditionSummary(
+    val rendition: Rendition,
+    val mediaPlaylist: String,
+    val playlistFilename: String,
+    val width: Int,
+    val height: Int,
+    val codecString: String,
+    val combinedFilename: String?,
+)
+
+/**
+ * Convenience base class for consumers that only care about a subset of HLS events. Override
+ * the callbacks you need; unoverridden ones are no-ops. Consumers that want compile-time
+ * safety against new interface methods being added in future library versions should
+ * implement [HlsListener] directly.
+ */
+abstract class SimpleHlsListener : HlsListener {
+    override fun onStart(renditionCount: Int) = Unit
+
+    override fun onRenditionStart(rendition: Rendition) = Unit
+
+    override fun onSegmentReady(
+        rendition: Rendition,
+        segment: HlsSegment,
+    ) = Unit
+
+    override fun onRenditionComplete(
+        rendition: Rendition,
+        summary: HlsRenditionSummary,
+    ) = Unit
+
+    override fun onComplete(masterPlaylist: String) = Unit
+
+    override fun onFailure(error: HlsError) = Unit
+
+    override fun onProgress(
+        rendition: Rendition,
+        percent: Float,
+    ) = Unit
+
+    override fun onCancelled() = Unit
+}

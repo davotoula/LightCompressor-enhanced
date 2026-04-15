@@ -233,7 +233,7 @@ class MyStorageConfiguration : StorageConfiguration {
 - `HlsConfig(ladder, codec, segmentDurationSeconds, disableAudio, singleFilePerRendition)` — configuration. Defaults: `HlsLadder.default()`, `VideoCodec.H264`, 6 s segments, audio enabled, multi-file output. Set `singleFilePerRendition = true` to emit one combined fMP4 file per rendition (init + every media segment) referenced by `#EXT-X-BYTERANGE` in the playlist — useful when the consumer wants a single upload per rendition instead of dozens of segment files.
 - `HlsLadder` — ordered list of `Rendition`s. Use `HlsLadder.default()` (360p / 540p / 720p / 1080p / 4K) and chain `.drop("1080p", "4K")` or `.add(Rendition(Resolution.HD_720, 2500))` to customise. Renditions whose short side exceeds the source are automatically dropped at `start`.
 - `Rendition(resolution: Resolution, bitrateKbps: Int)` — a single ladder entry. `Resolution` is the same enum used by `VideoCompressor` (`SD_360`, `SD_540`, `HD_720`, `FHD_1080`, `UHD_4K`).
-- `HlsListener` — 8 callbacks: `onStart(renditionCount)`, `onRenditionStart(rendition)`, `onSegmentReady(rendition, segment)`, `onRenditionComplete(rendition, playlist)`, `onComplete(masterPlaylist)`, `onFailure(error)`, `onProgress(rendition, percent)`, `onCancelled()`.
+- `HlsListener` — 8 callbacks: `onStart(renditionCount)`, `onRenditionStart(rendition)`, `onSegmentReady(rendition, segment)`, `onRenditionComplete(rendition, summary)`, `onComplete(masterPlaylist)`, `onFailure(error)`, `onProgress(rendition, percent)`, `onCancelled()`. `HlsRenditionSummary` carries the media playlist plus output dimensions, codec string, and the library's chosen filenames. Subclass `SimpleHlsListener` if you only care about a subset of events.
 - `HlsSegment(file, index, durationSeconds, isInitSegment, isCombinedRendition)` — one emitted segment. `file` is a temp file that is **valid only until `onSegmentReady` returns** — copy or upload it synchronously. In multi-file mode `isInitSegment = true` for the per-rendition `init.mp4`. In single-file mode the listener receives exactly one callback per rendition with `isCombinedRendition = true`; the file contains the init segment followed by every media fragment.
 - `HlsError(message, failedRenditions, completedRenditions)` — delivered to `onFailure` when every rendition fails. Partial failures still trigger `onComplete`.
 
@@ -252,8 +252,10 @@ import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsLadder
 import com.davotoula.lightcompressor.hls.HlsListener
+import com.davotoula.lightcompressor.hls.HlsRenditionSummary
 import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
+import com.davotoula.lightcompressor.hls.suggestedFilename
 import java.io.File
 
 val outputRoot = File(context.filesDir, "hls-out").apply { mkdirs() }
@@ -277,20 +279,15 @@ HlsPreparer.start(
         override fun onSegmentReady(rendition: Rendition, segment: HlsSegment) {
             // Called on a background thread. Copy synchronously — the temp
             // file is deleted as soon as this method returns.
-            val dir = File(outputRoot, rendition.resolution.label).apply { mkdirs() }
-            val name =
-                when {
-                    segment.isCombinedRendition -> "${rendition.resolution.label}.mp4"
-                    segment.isInitSegment -> "init.mp4"
-                    else -> "segment_%03d.m4s".format(segment.index)
-                }
-            segment.file.copyTo(File(dir, name), overwrite = true)
+            val dest = File(outputRoot, rendition.suggestedFilename(segment))
+            dest.parentFile?.mkdirs()
+            segment.file.copyTo(dest, overwrite = true)
         }
 
-        override fun onRenditionComplete(rendition: Rendition, playlist: String) {
-            File(outputRoot, rendition.resolution.label).also { it.mkdirs() }
-                .resolve("media.m3u8")
-                .writeText(playlist)
+        override fun onRenditionComplete(rendition: Rendition, summary: HlsRenditionSummary) {
+            val mediaPlaylistFile = File(outputRoot, summary.playlistFilename)
+            mediaPlaylistFile.parentFile?.mkdirs()
+            mediaPlaylistFile.writeText(summary.mediaPlaylist)
         }
 
         override fun onComplete(masterPlaylist: String) {
@@ -312,6 +309,126 @@ HlsPreparer.start(
 // To cancel:
 HlsPreparer.cancel()
 ```
+
+### Integrating with an upload pipeline
+
+Most real integrations transcode → upload each segment → rewrite the playlist filenames to URLs → publish the rewritten master. The library ships the pieces you need.
+
+#### Shortcut: `HlsUploadHelper`
+
+The uploader lambda returns `HlsUploaded<T>(url, metadata)` where `T` is a caller-chosen type. Use it to thread per-upload data you need later — content hashes, sizes, server IDs, anything — without maintaining a side-channel map. Callers who only want URLs use `T = Unit`.
+
+```kotlin
+import com.davotoula.lightcompressor.hls.HlsConfig
+import com.davotoula.lightcompressor.hls.HlsContentTypes
+import com.davotoula.lightcompressor.hls.HlsUploaded
+import com.davotoula.lightcompressor.hls.HlsUploadHelper
+import com.davotoula.lightcompressor.hls.HlsUploadResult
+
+data class UploadedBlob(val sha256: String, val sizeBytes: Long)
+
+suspend fun uploadHls(context: Context, videoUri: Uri): String {
+    val result: HlsUploadResult<UploadedBlob> = HlsUploadHelper.run(
+        context = context,
+        uri = videoUri,
+        config = HlsConfig(),
+    ) { file, suggestedFilename ->
+        // Invoked on Dispatchers.IO. Upload the file and return the URL + any metadata
+        // you need downstream (e.g. for NIP-71 `imeta` tags, signed manifests, analytics).
+        val contentType = if (suggestedFilename.endsWith(".m3u8")) {
+            HlsContentTypes.HLS_PLAYLIST
+        } else {
+            HlsContentTypes.FMP4_SEGMENT
+        }
+        val blob = myUploader.upload(file, filename = suggestedFilename, contentType = contentType)
+        HlsUploaded(url = blob.url, metadata = UploadedBlob(blob.sha256, blob.sizeBytes))
+    }
+
+    // Look up any upload's metadata by the same identifiers the library already gave you:
+    //   result.uploads[summary.combinedFilename] // single-file rendition
+    //   result.uploads[summary.playlistFilename] // media playlist
+    //   result.uploads[rendition.suggestedFilename(segment)] // individual segment
+    result.renditions.forEach { summary ->
+        val renditionFile = summary.combinedFilename ?: return@forEach
+        val blob = result.uploads[renditionFile]?.metadata ?: return@forEach
+        println("${summary.rendition.resolution.label}: ${summary.width}x${summary.height}, sha256=${blob.sha256}, ${blob.sizeBytes} bytes")
+    }
+
+    // result.masterPlaylist is already rewritten to point at the uploaded URLs.
+    // Publish it however you want — write to disk, post to your CDN, insert into a DB row…
+    return myUploader.uploadText(
+        content = result.masterPlaylist,
+        filename = "master.m3u8",
+        contentType = HlsContentTypes.HLS_PLAYLIST,
+    ).url
+}
+```
+
+If you only need URLs and don't want to define a metadata type, use `Unit`:
+
+```kotlin
+val result: HlsUploadResult<Unit> = HlsUploadHelper.run(ctx, videoUri) { file, name ->
+    HlsUploaded(url = myUploader.upload(file).url, metadata = Unit)
+}
+```
+
+`HlsUploadResult.renditions` carries per-rendition `HlsRenditionSummary` objects — use `summary.width`, `summary.height`, and `summary.codecString` to build downstream metadata (e.g. Nostr `imeta` tags) without re-parsing the master playlist. `HlsUploadResult.uploads` is a `LinkedHashMap` preserving the upload timeline: all segments first (across renditions, in emission order), then all media playlists (in rendition order). Map keys match exactly what `rendition.suggestedFilename(segment)`, `summary.playlistFilename`, and `summary.combinedFilename` return — consumers can look up entries by the same identifiers they already hold.
+
+#### Manual integration with `PlaylistRewriter`
+
+If you need custom orchestration (retry, concurrency, progress reporting), wire the pieces yourself:
+
+```kotlin
+import com.davotoula.lightcompressor.hls.HlsRenditionSummary
+import com.davotoula.lightcompressor.hls.PlaylistRewriter
+import com.davotoula.lightcompressor.hls.SimpleHlsListener
+import com.davotoula.lightcompressor.hls.suggestedFilename
+
+class UploadingListener(private val uploader: Uploader) : SimpleHlsListener() {
+    private val segmentUrls = mutableMapOf<Rendition, MutableMap<String, String>>()
+    private val renditionPlaylistUrls = mutableMapOf<String, String>()
+
+    override fun onSegmentReady(rendition: Rendition, segment: HlsSegment) {
+        val key = rendition.suggestedFilename(segment)
+        val url = uploader.upload(segment.file, filename = key)
+        segmentUrls.getOrPut(rendition) { mutableMapOf() }[key] = url
+    }
+
+    override fun onRenditionComplete(rendition: Rendition, summary: HlsRenditionSummary) {
+        // The media playlist references segments by bare filename (e.g. "init.mp4",
+        // "segment_000.m4s"), while the rewrite map is keyed by the library's full
+        // rendition.suggestedFilename(segment) output (e.g. "720p/init.mp4"). Strip the
+        // "<label>/" prefix before rewriting so the keys match what the playlist actually
+        // contains. Combined-rendition keys like "720p.mp4" have no prefix to strip.
+        val prefix = "${rendition.resolution.label}/"
+        val perRenditionMap =
+            (segmentUrls[rendition] ?: emptyMap()).entries.associate { (key, url) ->
+                (if (key.startsWith(prefix)) key.removePrefix(prefix) else key) to url
+            }
+        val rewritten = PlaylistRewriter.rewrite(
+            playlist = summary.mediaPlaylist,
+            urlMap = perRenditionMap,
+        )
+        val url = uploader.uploadText(rewritten, filename = summary.playlistFilename)
+        renditionPlaylistUrls[summary.playlistFilename] = url
+    }
+
+    override fun onComplete(masterPlaylist: String) {
+        val rewrittenMaster = PlaylistRewriter.rewrite(masterPlaylist, renditionPlaylistUrls)
+        uploader.uploadText(rewrittenMaster, filename = "master.m3u8")
+    }
+}
+```
+
+Rewrite-map keys are whatever `Rendition.suggestedFilename(segment)` / `HlsRenditionSummary.playlistFilename` return — the library guarantees the two are consistent, so your rewrite map just needs to match its own lookups.
+
+#### MIME types
+
+`.m3u8` playlists must be served as `application/vnd.apple.mpegurl`. Android's `MimeTypeMap` does **not** know this type, so if your upload pipeline derives content types from file extensions you must special-case it. Use `HlsContentTypes.HLS_PLAYLIST` / `HlsContentTypes.FMP4_SEGMENT` as the canonical source.
+
+#### Per-variant metadata
+
+`HlsRenditionSummary` carries `width`, `height`, `codecString`, `playlistFilename`, and `combinedFilename`. Consumers building manifest metadata (e.g. Nostr `imeta` tags with `variant`, `dim`, `codec`) should read these from the summary rather than regex-parsing the master playlist.
 
 HLS playback on the consumer side requires the Media3 HLS module:
 

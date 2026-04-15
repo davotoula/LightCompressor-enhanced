@@ -7,6 +7,7 @@ import android.util.Log
 import com.davotoula.lightcompressor.hls.HlsConfig
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsListener
+import com.davotoula.lightcompressor.hls.HlsRenditionSummary
 import com.davotoula.lightcompressor.hls.HlsTranscoder
 import com.davotoula.lightcompressor.hls.PlaylistGenerator
 import com.davotoula.lightcompressor.hls.Rendition
@@ -179,8 +180,23 @@ object HlsPreparer : CoroutineScope by MainScope() {
 
                     if (result != null) {
                         completed.add(result)
+                        val summary =
+                            HlsRenditionSummary(
+                                rendition = result.rendition,
+                                mediaPlaylist = result.mediaPlaylist,
+                                playlistFilename = result.playlistFilename,
+                                width = result.actualWidth,
+                                height = result.actualHeight,
+                                codecString = result.codecString,
+                                combinedFilename =
+                                    if (config.singleFilePerRendition) {
+                                        "${rendition.resolution.label}.mp4"
+                                    } else {
+                                        null
+                                    },
+                            )
                         withContext(Dispatchers.Main) {
-                            listener.onRenditionComplete(rendition, result.mediaPlaylist)
+                            listener.onRenditionComplete(rendition, summary)
                         }
                     } else {
                         failed.add(rendition)

@@ -2,6 +2,7 @@ package com.davotoula.lce.ui.hls
 
 import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.hls.HlsError
+import com.davotoula.lightcompressor.hls.HlsRenditionSummary
 import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
 import org.junit.Assert.assertEquals
@@ -145,11 +146,23 @@ class HlsTestSessionTest {
     fun `onRenditionComplete writes media m3u8 and marks row Complete`() {
         session.onStart(renditionCount = 2)
         session.onRenditionStart(rendition360)
-        session.onRenditionComplete(rendition360, playlist = "#EXTM3U\n# fake\n")
+        val playlistContent = "#EXTM3U\n# fake\n"
+        session.onRenditionComplete(
+            rendition360,
+            HlsRenditionSummary(
+                rendition = rendition360,
+                mediaPlaylist = playlistContent,
+                playlistFilename = "360p/media.m3u8",
+                width = 640,
+                height = 360,
+                codecString = "avc1.64001F",
+                combinedFilename = null,
+            ),
+        )
 
         val mediaFile = File(rootDir, "360p/media.m3u8")
         assertTrue(mediaFile.exists())
-        assertEquals("#EXTM3U\n# fake\n", mediaFile.readText())
+        assertEquals(playlistContent, mediaFile.readText())
 
         val row = state!!.renditions.first { it.label == "360p" }
         assertEquals(HlsRenditionStatus.Complete, row.status)

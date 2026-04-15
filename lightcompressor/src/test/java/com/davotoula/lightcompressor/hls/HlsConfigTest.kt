@@ -66,4 +66,32 @@ class HlsConfigTest {
         assertEquals(6, config.segmentDurationSeconds)
         assertEquals(false, config.disableAudio)
     }
+
+    @Test
+    fun `defaultForSource matches default forSource chain`() {
+        val viaShortcut = HlsLadder.defaultForSource(sourceShortSide = 720)
+        val viaChain = HlsLadder.default().forSource(sourceShortSide = 720)
+        assertEquals(
+            viaChain.renditions.map { it.resolution.label },
+            viaShortcut.renditions.map { it.resolution.label },
+        )
+    }
+
+    @Test
+    fun `defaultForSource drops renditions larger than source`() {
+        val ladder = HlsLadder.defaultForSource(sourceShortSide = 540)
+        assertEquals(listOf("360p", "540p"), ladder.renditions.map { it.resolution.label })
+    }
+
+    @Test
+    fun `defaultForSource with huge source keeps full ladder`() {
+        val ladder = HlsLadder.defaultForSource(sourceShortSide = 4000)
+        assertEquals(5, ladder.renditions.size)
+    }
+
+    @Test
+    fun `defaultForSource with tiny source returns empty ladder`() {
+        val ladder = HlsLadder.defaultForSource(sourceShortSide = 100)
+        assertEquals(0, ladder.renditions.size)
+    }
 }

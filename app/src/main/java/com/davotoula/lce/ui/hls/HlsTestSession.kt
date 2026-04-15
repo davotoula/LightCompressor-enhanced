@@ -2,6 +2,7 @@ package com.davotoula.lce.ui.hls
 
 import com.davotoula.lightcompressor.hls.HlsError
 import com.davotoula.lightcompressor.hls.HlsListener
+import com.davotoula.lightcompressor.hls.HlsRenditionSummary
 import com.davotoula.lightcompressor.hls.HlsSegment
 import com.davotoula.lightcompressor.hls.Rendition
 import java.io.File
@@ -104,14 +105,14 @@ class HlsTestSession(
 
     override fun onRenditionComplete(
         rendition: Rendition,
-        playlist: String,
+        summary: HlsRenditionSummary,
     ) {
         try {
             val targetDir = File(rootDir, rendition.resolution.label)
             if (!targetDir.exists() && !targetDir.mkdirs()) {
                 throw IOException("Could not create $targetDir")
             }
-            File(targetDir, "media.m3u8").writeText(playlist)
+            File(targetDir, "media.m3u8").writeText(summary.mediaPlaylist)
         } catch (e: IOException) {
             failWithIoError("Failed to write media.m3u8: ${e.message}")
             return

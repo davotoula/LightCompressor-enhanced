@@ -398,7 +398,7 @@ internal class HlsTranscoder(
                 actualWidth = actualWidth,
                 actualHeight = actualHeight,
                 codecString = codecString,
-                playlistFilename = "${rendition.resolution.label}/media.m3u8",
+                playlistFilename = rendition.mediaPlaylistFilename(),
                 mediaPlaylist = playlist,
             )
         } catch (e: CancellationException) {

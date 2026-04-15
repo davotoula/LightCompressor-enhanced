@@ -77,12 +77,25 @@ fun HlsScreen(
             }
         }
 
+    val hlsUploadVideoPickerLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia(),
+        ) { uri ->
+            if (uri != null) {
+                viewModel.onAction(HlsAction.StartUploadPreparation(uri))
+            }
+        }
+
     LaunchedEffect(Unit) {
         AnalyticsTracker.logHlsScreenOpened()
         viewModel.events.collectLatest { event ->
             when (event) {
                 HlsEvent.LaunchPicker ->
                     hlsVideoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
+                    )
+                HlsEvent.LaunchUploadPicker ->
+                    hlsUploadVideoPickerLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
                     )
             }
@@ -129,6 +142,7 @@ fun HlsScreen(
                 isRunning = uiState.testState?.isRunning == true,
                 onSelectCodec = { codec -> viewModel.onAction(HlsAction.SetCodec(codec)) },
                 onPrepareHls = { viewModel.onAction(HlsAction.PickVideo) },
+                onPrepareHlsUpload = { viewModel.onAction(HlsAction.PickVideoForUpload) },
             )
 
             HlsSingleFileToggleRow(
@@ -158,51 +172,62 @@ private fun HlsControlsRow(
     isRunning: Boolean,
     onSelectCodec: (Codec) -> Unit,
     onPrepareHls: () -> Unit,
+    onPrepareHlsUpload: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { if (!isRunning) expanded = !expanded },
-            modifier = Modifier.weight(1f),
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
-                value = selectedCodec.displayName,
-                onValueChange = {},
-                readOnly = true,
-                enabled = !isRunning,
-                label = { Text(stringResource(R.string.hls_codec_label)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-            )
-            ExposedDropdownMenu(
+            ExposedDropdownMenuBox(
                 expanded = expanded,
-                onDismissRequest = { expanded = false },
+                onExpandedChange = { if (!isRunning) expanded = !expanded },
+                modifier = Modifier.weight(1f),
             ) {
-                Codec.entries.forEach { codec ->
-                    DropdownMenuItem(
-                        text = { Text(codec.displayName) },
-                        onClick = {
-                            onSelectCodec(codec)
-                            expanded = false
-                        },
-                    )
+                OutlinedTextField(
+                    value = selectedCodec.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    enabled = !isRunning,
+                    label = { Text(stringResource(R.string.hls_codec_label)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    Codec.entries.forEach { codec ->
+                        DropdownMenuItem(
+                            text = { Text(codec.displayName) },
+                            onClick = {
+                                onSelectCodec(codec)
+                                expanded = false
+                            },
+                        )
+                    }
                 }
+            }
+
+            Button(
+                onClick = onPrepareHls,
+                enabled = !isRunning,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.hls_prepare_button))
             }
         }
 
         Button(
-            onClick = onPrepareHls,
+            onClick = onPrepareHlsUpload,
             enabled = !isRunning,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(stringResource(R.string.hls_prepare_button))
+            Text(stringResource(R.string.hls_upload_button))
         }
     }
 }

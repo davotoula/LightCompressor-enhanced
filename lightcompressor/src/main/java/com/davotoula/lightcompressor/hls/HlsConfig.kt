@@ -43,6 +43,12 @@ class HlsLadder(
                     Rendition(Resolution.UHD_4K, 15000),
                 ),
             )
+
+        /**
+         * Shortcut for `default().forSource(sourceShortSide)`. Returns the default encoding
+         * ladder filtered to renditions whose short side is at most [sourceShortSide].
+         */
+        fun defaultForSource(sourceShortSide: Int): HlsLadder = default().forSource(sourceShortSide)
     }
 }
 
