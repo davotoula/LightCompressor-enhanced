@@ -312,7 +312,14 @@ object GifToMp4Converter {
             var muxerStarted = false
             val bufferInfo = MediaCodec.BufferInfo()
 
-            bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            // Create the bitmap at the GIF's native dimensions, not the padded encoder
+            // dimensions. Movie.draw paints only gifWidth x gifHeight at (0,0); if the
+            // bitmap is larger (because width/height were rounded up to even for H.264),
+            // the trailing row/column stays filled with the Color.WHITE clear and appears
+            // as a 1-pixel white border along the right and bottom of the output MP4.
+            // GL stretches the texture to fill the encoder viewport during drawBitmapFrame,
+            // so the ≤1-pixel difference is absorbed there with GL_LINEAR filtering.
+            bitmap = Bitmap.createBitmap(gifWidth, gifHeight, Bitmap.Config.ARGB_8888)
             val bitmapCanvas = Canvas(bitmap)
 
             var presentationTimeUs = 0L
