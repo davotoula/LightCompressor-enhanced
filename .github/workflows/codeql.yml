@@ -1,0 +1,63 @@
+# CodeQL static analysis for the Kotlin/Java sources in :app and
+# :lightcompressor.
+#
+# NOT PART OF THE BUILD GATE. gradle.yml is the gate
+# (assembleDebug / testDebugUnitTest / ktlintCheck / detekt); this workflow is
+# a scanner whose alerts are triaged in the Security tab. detekt answers "is
+# this code shaped badly"; CodeQL answers "is there a taint path from an input
+# we do not control to something that matters" — the two miss different
+# things.
+#
+# Advanced setup rather than GitHub's default setup, so the action versions
+# live in this file and Dependabot's github-actions entry bumps them.
+#
+# build-mode: none. CodeQL extracts Kotlin/Java without running Gradle, which
+# means no Android SDK provisioning and no second full build per PR — the gate
+# already proves the project compiles. If a future query needs a real build,
+# that is a deliberate switch to build-mode: manual plus an assembleDebug step,
+# not an accident.
+name: CodeQL
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  # Same code, newer queries: CodeQL's query packs improve between runs, so a
+  # weekly re-scan of unchanged code is not a no-op. Wednesday, off the hour —
+  # Dependabot opens its PRs on Monday and each of those triggers this workflow
+  # anyway, and GitHub's scheduler drops runs booked on the hour.
+  schedule:
+    - cron: "17 3 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (java-kotlin)
+    runs-on: ubuntu-latest
+    permissions:
+      # Exactly what the SARIF upload needs. `actions: read` is required only
+      # for private repositories; this one is public.
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: none
+          # No `queries:` input — that input means ADDITIONAL queries, and its
+          # absence selects the default code-scanning suite. security-extended
+          # adds lower-precision queries; turning those on before the default
+          # suite is clean produces a page nobody triages.
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java-kotlin"
