@@ -18,6 +18,9 @@ android {
     defaultConfig {
         applicationId "com.davotoula.lce"
         minSdkVersion 24
+        // Pinned explicitly: without this AGP defaults targetSdk to compileSdk,
+        // so a compileSdk bump would silently change app behaviour on device.
+        targetSdk libs.versions.targetSdk.get().toInteger()
         versionCode project.property('appVersionCode').toInteger()
         versionName project.property('appVersionName')
         buildConfigField "String", "LIBRARY_VERSION", "\"${rootProject.project(':lightcompressor').property('version')}\""

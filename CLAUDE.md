@@ -95,4 +95,4 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 
 ## Dependencies
 
-Managed via version catalog (`gradle/libs.versions.toml`). Key versions: minSdk=21, compileSdk=36, Kotlin 2.2.21, Media3 1.9.0, Compose BOM 2025.12.01.
+Managed via version catalog (`gradle/libs.versions.toml`). Key versions: minSdk=21, compileSdk=37, Kotlin 2.3.20, Media3 1.10.0, Compose BOM 2026.03.01.
