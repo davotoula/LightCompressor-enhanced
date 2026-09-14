@@ -45,7 +45,7 @@ androidx-test-core = "1.7.0"
 # Minimum SDK
 minSdk = "21"
 targetSdk = "36"
-compileSdk = "37"
+compileSdk = "37.0"
 
 [libraries]
 # Build Tools (for buildscript classpath)

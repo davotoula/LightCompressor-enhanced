@@ -17,7 +17,11 @@ release {
 def targetSdkVersion = libs.versions.targetSdk.get().toInteger()
 
 android {
-    compileSdkVersion libs.versions.compileSdk.get().toInteger()
+    // Full platform hash string ("android-37.0"), not a bare integer. Android 17 ships
+    // as platform "37.0" under the minor-version scheme; with a bare 37 AGP 9.1 resolves
+    // the hash "android-37", which fails on JitPack right after AGP auto-installs the
+    // platform mid-build (2.2.2 build log). The exact hash matches everywhere.
+    compileSdkVersion "android-${libs.versions.compileSdk.get()}"
     defaultConfig {
         minSdkVersion libs.versions.minSdk.get().toInteger()
 
