@@ -1,3 +1,19 @@
+## [app-v2.0.0] - 2026-09-14
+
+### Added
+- "Prepare HLS + Upload" smoke-test affordance with per-rendition upload progress
+- Per-app language support; hardcoded strings extracted and translations completed
+- Analytics events for the HLS screen (open, prepare start, result)
+- Bundles LightCompressor library **2.2.2** (unified H.264/H.265 Transcoder, HLS preparation with optional single-file-per-rendition output, `HlsUploadHelper` orchestrator)
+
+### Changed
+- compileSdk 37 (targetSdk stays 36)
+- Dependencies updated to latest stable: Kotlin 2.3.20, AGP 9.1, Compose BOM 2026.09.00, Media3 1.11.1, Gradle 9.7.1
+- CI: Dependabot for Gradle and GitHub Actions; CodeQL scanning of Kotlin sources and workflow files
+
+### Fixed
+- 1px white border on GIF-to-MP4 output for odd-sized GIFs (library)
+
 ## [app-v1.4.0] - 2026-04-11
 
 ### Added
