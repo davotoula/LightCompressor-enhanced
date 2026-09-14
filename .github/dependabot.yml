@@ -1,0 +1,62 @@
+# Automated dependency proposals for LCe.
+#
+# Two things move on their own in this repo, and both are proposed here
+# rather than noticed by hand:
+#
+#   gradle          library and plugin versions — gradle/libs.versions.toml is
+#                   the single source for module dependencies, and the root
+#                   build.gradle carries the ktlint/detekt plugin versions.
+#                   Dependabot follows settings.gradle's `include` into :app
+#                   and :lightcompressor, so one "/" entry covers the tree.
+#   github-actions  every `uses:` in .github/workflows/, including the CodeQL
+#                   actions in codeql.yml (both tag refs and the SHA pins in
+#                   gradle.yml).
+#
+# A Dependabot PR is a proposal, not a merge: gradle.yml runs
+# `assembleDebug testDebugUnitTest ktlintCheck detekt` on it like any other
+# change, and codeql.yml scans it. An Android toolchain bump (AGP, Kotlin,
+# Compose BOM) is the one to read rather than wave through — those arrive as
+# their own PRs, since only minor/patch are grouped.
+#
+# Dependabot ALERTS and SECURITY UPDATES are repository settings, not part of
+# this file. Alerts are fed by the dependency graph that gradle.yml's
+# dependency-submission job already uploads on every master push.
+
+version: 2
+
+updates:
+  # Library and plugin versions. Minor and patch arrive as one PR — reviewing
+  # a dozen separate AndroidX bumps individually is how a real one gets waved
+  # through. Majors are excluded from the group on purpose: AGP 9 -> 10 or a
+  # Kotlin major is its own decision, with its own build to prove.
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      gradle-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # The workflow action versions. Same day as the gradle entry so the week's
+  # proposals arrive together.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
