@@ -1,5 +1,5 @@
 # CodeQL static analysis for the Kotlin/Java sources in :app and
-# :lightcompressor.
+# :lightcompressor, and for the workflow files in .github/workflows/.
 #
 # NOT PART OF THE BUILD GATE. gradle.yml is the gate
 # (assembleDebug / testDebugUnitTest / ktlintCheck / detekt); this workflow is
@@ -16,6 +16,13 @@
 # already proves the project compiles. If a future query needs a real build,
 # that is a deliberate switch to build-mode: manual plus an assembleDebug step,
 # not an accident.
+#
+# The `actions` language scans the four workflow files themselves: expression
+# injection via untrusted ${{ }} contexts, over-broad permissions, unpinned or
+# mutable action refs, and checkout of PR head code in privileged workflows.
+# app-release.yml and library-release.yml hold signing secrets, which is why
+# that matters here. The two languages are one matrix so each runs on its own
+# runner and uploads under its own category.
 name: CodeQL
 
 on:
@@ -35,13 +42,18 @@ permissions:
 
 jobs:
   analyze:
-    name: analyze (java-kotlin)
+    name: analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
       # Exactly what the SARIF upload needs. `actions: read` is required only
       # for private repositories; this one is public.
       contents: read
       security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ java-kotlin, actions ]
 
     steps:
       - name: Checkout code
@@ -50,7 +62,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: java-kotlin
+          languages: ${{ matrix.language }}
           build-mode: none
           # No `queries:` input — that input means ADDITIONAL queries, and its
           # absence selects the default code-scanning suite. security-extended
@@ -60,4 +72,4 @@ jobs:
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:java-kotlin"
+          category: "/language:${{ matrix.language }}"
