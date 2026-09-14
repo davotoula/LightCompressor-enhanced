@@ -1,6 +1,6 @@
 # Automated dependency proposals for LCe.
 #
-# Three things move on their own in this repo, and all three are proposed here
+# Two things move on their own in this repo, and both are proposed here
 # rather than noticed by hand:
 #
 #   gradle          library and plugin versions — gradle/libs.versions.toml is
