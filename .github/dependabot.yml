@@ -29,6 +29,13 @@ updates:
   # a dozen separate AndroidX bumps individually is how a real one gets waved
   # through. Majors are excluded from the group on purpose: AGP 9 -> 10 or a
   # Kotlin major is its own decision, with its own build to prove.
+  #
+  # The toolchain is excluded from the group at EVERY semver level, because
+  # semver is the wrong lens for it: Kotlin 2.3 -> 2.4 is a "minor" that
+  # changes the language and can outrun CodeQL's extractor (the first group
+  # PR failed exactly that way), and AGP minors change build behaviour.
+  # exclude-patterns keeps them proposed, just as their own PRs — unlike an
+  # `ignore`, which would silence them until someone remembered to remove it.
   - package-ecosystem: gradle
     directory: "/"
     schedule:
@@ -43,6 +50,17 @@ updates:
       gradle-minor-and-patch:
         applies-to: version-updates
         update-types: ["minor", "patch"]
+        exclude-patterns:
+          # Kotlin: stdlib and the compose-compiler plugin share version.ref
+          # `kotlin`, so Dependabot moves them together as one PR. The `:` and
+          # `.` forms cover group:artifact coordinates and plugin ids without
+          # catching org.jetbrains.kotlinx (coroutines), which stays grouped.
+          - "org.jetbrains.kotlin:*"
+          - "org.jetbrains.kotlin.*"
+          # Android Gradle Plugin, as a coordinate or a plugin id.
+          - "com.android.tools.build:*"
+          - "com.android.application"
+          - "com.android.library"
 
   # The workflow action versions. Same day as the gradle entry so the week's
   # proposals arrive together.
