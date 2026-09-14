@@ -65,7 +65,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Same toolchain as gradle.yml so the traced compile is the one the gate
       # already proves works. ubuntu-latest ships the Android SDK.
