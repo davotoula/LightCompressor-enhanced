@@ -1,5 +1,5 @@
-# CodeQL static analysis for the Kotlin/Java sources in :app and
-# :lightcompressor, and for the workflow files in .github/workflows/.
+# CodeQL static analysis for the Kotlin sources in :app and :lightcompressor,
+# and for the workflow files in .github/workflows/.
 #
 # NOT PART OF THE BUILD GATE. gradle.yml is the gate
 # (assembleDebug / testDebugUnitTest / ktlintCheck / detekt); this workflow is
@@ -11,18 +11,22 @@
 # Advanced setup rather than GitHub's default setup, so the action versions
 # live in this file and Dependabot's github-actions entry bumps them.
 #
-# build-mode: none. CodeQL extracts Kotlin/Java without running Gradle, which
-# means no Android SDK provisioning and no second full build per PR — the gate
-# already proves the project compiles. If a future query needs a real build,
-# that is a deliberate switch to build-mode: manual plus an assembleDebug step,
-# not an accident.
+# java-kotlin runs in build-mode: manual. The codebase is 100% Kotlin, and
+# CodeQL's buildless extraction (build-mode: none) handles Java only — with
+# Kotlin present it extracts nothing and the analyze step fails with "could
+# not process any code". The Kotlin extractor is a compiler plugin, so the
+# compiler has to actually run under CodeQL's tracer. compileDebugKotlin on
+# both modules is the cheapest invocation that does that: no dexing, no
+# packaging, no tests. --no-build-cache matters because gradle.properties
+# turns the build cache on and a FROM-CACHE compile task never launches the
+# compiler. --no-daemon mirrors what CodeQL's own Gradle autobuilder does.
 #
 # The `actions` language scans the four workflow files themselves: expression
 # injection via untrusted ${{ }} contexts, over-broad permissions, unpinned or
 # mutable action refs, and checkout of PR head code in privileged workflows.
 # app-release.yml and library-release.yml hold signing secrets, which is why
-# that matters here. The two languages are one matrix so each runs on its own
-# runner and uploads under its own category.
+# that matters here. That leg needs no toolchain, so the JDK/Gradle/compile
+# steps are gated on the matrix language.
 name: CodeQL
 
 on:
@@ -53,21 +57,48 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ java-kotlin, actions ]
+        include:
+          - language: java-kotlin
+            build-mode: manual
+          - language: actions
+            build-mode: none
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Same toolchain as gradle.yml so the traced compile is the one the gate
+      # already proves works. ubuntu-latest ships the Android SDK.
+      - name: Set up JDK 17
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        if: matrix.language == 'java-kotlin'
+        uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
           # No `queries:` input — that input means ADDITIONAL queries, and its
           # absence selects the default code-scanning suite. security-extended
           # adds lower-precision queries; turning those on before the default
           # suite is clean produces a page nobody triages.
+
+      # Must come AFTER init: the tracer is installed by init and only sees
+      # compilers launched from then on.
+      - name: Compile Kotlin under the CodeQL tracer
+        if: matrix.language == 'java-kotlin'
+        run: >
+          ./gradlew
+          :lightcompressor:compileDebugKotlin
+          :app:compileDebugKotlin
+          --no-daemon --no-build-cache
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
