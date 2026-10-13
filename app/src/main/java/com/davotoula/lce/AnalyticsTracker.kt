@@ -15,6 +15,7 @@ object AnalyticsTracker {
     private const val PARAM_STREAMABLE = "streamable"
     private const val PARAM_STATUS = "status"
     private const val PARAM_PATH_PRESENT = "path_present"
+    private const val PARAM_ORIGINAL_AUDIO_MIME = "original_audio_mime"
 
     fun logAppOpen() {
         Firebase.analytics.logEvent(FirebaseAnalytics.Event.APP_OPEN, null)
@@ -120,19 +121,25 @@ object AnalyticsTracker {
         }
     }
 
-    /** Call only when the original had an audio track and the compressed output does not. */
+    /**
+     * Call only when the original had an audio track and the compressed output does not.
+     * [originalAudioMime] is the original's audio MIME type, so reports show which formats get dropped.
+     */
     fun logVideoWithoutSound(
         codec: String,
         source: String,
+        originalAudioMime: String,
     ) {
         Firebase.crashlytics.setCustomKey(PARAM_CODEC, codec)
         Firebase.crashlytics.setCustomKey(PARAM_SOURCE, source)
-        Firebase.crashlytics.log("compressed_video_no_audio")
+        Firebase.crashlytics.setCustomKey(PARAM_ORIGINAL_AUDIO_MIME, originalAudioMime)
+        Firebase.crashlytics.log("compressed_video_no_audio: original_audio_mime=$originalAudioMime")
         Firebase.crashlytics.recordException(NoAudioException("Compressed video has no audio track"))
 
         Firebase.analytics.logEvent("video_no_audio") {
             param(PARAM_CODEC, codec)
             param(PARAM_SOURCE, source)
+            param(PARAM_ORIGINAL_AUDIO_MIME, originalAudioMime)
         }
     }
 }
