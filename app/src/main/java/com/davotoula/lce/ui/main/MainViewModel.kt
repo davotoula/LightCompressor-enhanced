@@ -404,22 +404,24 @@ class MainViewModel(
                                 val sizeString = getFileSize(size)
                                 updateVideoComplete(originalIndex, path, sizeString)
 
-                                // Check if compressed video lost audio
-                                path?.let { compressedPath ->
-                                    val compressedHasAudio = hasAudioTrack(compressedPath)
-                                    if (!compressedHasAudio) {
-                                        val originalUri = videoUris[index]
-                                        val originalHasAudio = hasAudioTrack(originalUri)
-                                        Log.w(
-                                            "MainViewModel",
-                                            "Compressed video has no audio. Original had audio: $originalHasAudio",
-                                        )
-                                        AnalyticsTracker.logVideoWithoutSound(
-                                            codec = videoCodec.name,
-                                            source = "main_screen",
-                                            originalHasAudio = originalHasAudio,
-                                        )
+                                // Report only when compression dropped audio the original had;
+                                // a silent source legitimately yields a silent output.
+                                val lostAudioMime =
+                                    if (path != null && !hasAudioTrack(path)) {
+                                        audioTrackMime(videoUris[index])
+                                    } else {
+                                        null
                                     }
+                                if (lostAudioMime != null) {
+                                    Log.w(
+                                        "MainViewModel",
+                                        "Compressed video lost the original's $lostAudioMime audio track",
+                                    )
+                                    AnalyticsTracker.logVideoWithoutSound(
+                                        codec = videoCodec.name,
+                                        source = "main_screen",
+                                        originalAudioMime = lostAudioMime,
+                                    )
                                 }
                             }
                             checkCompressionComplete()
@@ -737,7 +739,8 @@ class MainViewModel(
         }
     }
 
-    private fun hasAudioTrack(uri: Uri): Boolean {
+    /** MIME type of the first audio track in [uri], or null if it has none or can't be read. */
+    private fun audioTrackMime(uri: Uri): String? {
         val extractor = MediaExtractor()
         return try {
             extractor.setDataSource(context, uri, null)
@@ -745,13 +748,13 @@ class MainViewModel(
                 val format = extractor.getTrackFormat(i)
                 val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
                 if (mime.startsWith("audio/")) {
-                    return true
+                    return mime
                 }
             }
-            false
+            null
         } catch (e: Exception) {
             Log.e("MainViewModel", "Error checking audio track for uri: $uri", e)
-            false
+            null
         } finally {
             extractor.release()
         }
