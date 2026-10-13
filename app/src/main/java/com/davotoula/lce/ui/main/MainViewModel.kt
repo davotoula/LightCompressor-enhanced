@@ -406,14 +406,12 @@ class MainViewModel(
 
                                 // Report only when compression dropped audio the original had;
                                 // a silent source legitimately yields a silent output.
-                                path?.let { compressedPath ->
-                                    if (!hasAudioTrack(compressedPath) && hasAudioTrack(videoUris[index])) {
-                                        Log.w("MainViewModel", "Compressed video lost the original's audio track")
-                                        AnalyticsTracker.logVideoWithoutSound(
-                                            codec = videoCodec.name,
-                                            source = "main_screen",
-                                        )
-                                    }
+                                if (path != null && !hasAudioTrack(path) && hasAudioTrack(videoUris[index])) {
+                                    Log.w("MainViewModel", "Compressed video lost the original's audio track")
+                                    AnalyticsTracker.logVideoWithoutSound(
+                                        codec = videoCodec.name,
+                                        source = "main_screen",
+                                    )
                                 }
                             }
                             checkCompressionComplete()
