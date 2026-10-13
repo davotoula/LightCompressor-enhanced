@@ -404,20 +404,14 @@ class MainViewModel(
                                 val sizeString = getFileSize(size)
                                 updateVideoComplete(originalIndex, path, sizeString)
 
-                                // Check if compressed video lost audio
+                                // Report only when compression dropped audio the original had;
+                                // a silent source legitimately yields a silent output.
                                 path?.let { compressedPath ->
-                                    val compressedHasAudio = hasAudioTrack(compressedPath)
-                                    if (!compressedHasAudio) {
-                                        val originalUri = videoUris[index]
-                                        val originalHasAudio = hasAudioTrack(originalUri)
-                                        Log.w(
-                                            "MainViewModel",
-                                            "Compressed video has no audio. Original had audio: $originalHasAudio",
-                                        )
+                                    if (!hasAudioTrack(compressedPath) && hasAudioTrack(videoUris[index])) {
+                                        Log.w("MainViewModel", "Compressed video lost the original's audio track")
                                         AnalyticsTracker.logVideoWithoutSound(
                                             codec = videoCodec.name,
                                             source = "main_screen",
-                                            originalHasAudio = originalHasAudio,
                                         )
                                     }
                                 }

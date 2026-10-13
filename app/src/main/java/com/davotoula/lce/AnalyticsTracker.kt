@@ -120,21 +120,19 @@ object AnalyticsTracker {
         }
     }
 
+    /** Call only when the original had an audio track and the compressed output does not. */
     fun logVideoWithoutSound(
         codec: String,
         source: String,
-        originalHasAudio: Boolean,
     ) {
         Firebase.crashlytics.setCustomKey(PARAM_CODEC, codec)
         Firebase.crashlytics.setCustomKey(PARAM_SOURCE, source)
-        Firebase.crashlytics.setCustomKey("original_has_audio", originalHasAudio)
-        Firebase.crashlytics.log("compressed_video_no_audio: original_had_audio=$originalHasAudio")
+        Firebase.crashlytics.log("compressed_video_no_audio")
         Firebase.crashlytics.recordException(NoAudioException("Compressed video has no audio track"))
 
         Firebase.analytics.logEvent("video_no_audio") {
             param(PARAM_CODEC, codec)
             param(PARAM_SOURCE, source)
-            param("original_has_audio", if (originalHasAudio) 1L else 0L)
         }
     }
 }
