@@ -1,3 +1,14 @@
+## [app-v2.0.1] - 2026-10-14
+
+### Changed
+- Bundles LightCompressor library **2.2.3** (no library code changes since 2.2.2; build fix for JitPack)
+- Firebase BoM 35.0.0 (Crashlytics 21, Analytics 24, Sessions 4)
+- Dependencies updated: Kotlin 2.4.21, Gradle 9.8.1, androidx-core 1.19.1, androidx-annotation 1.11.0, navigation-compose 2.10.2
+
+### Fixed
+- "Compressed video has no audio track" report no longer fires when the original video had no audio
+- The report now includes the original's audio MIME type (`original_audio_mime`) to diagnose which formats lose audio
+
 ## [app-v2.0.0] - 2026-09-14
 
 ### Added
