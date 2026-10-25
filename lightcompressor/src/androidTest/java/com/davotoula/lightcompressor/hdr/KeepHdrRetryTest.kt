@@ -136,8 +136,9 @@ class KeepHdrRetryTest {
         val format = videoFormat(output)
         val transfer = format.intOrNull(MediaFormat.KEY_COLOR_TRANSFER)
         assertNotEquals("output is still HLG: $format", MediaFormat.COLOR_TRANSFER_HLG, transfer)
+        // Not BT.709 exactly: older encoders (e.g. Qualcomm OMX on API 29) ignore KEY_COLOR_STANDARD and write BT.601.
         format.intOrNull(MediaFormat.KEY_COLOR_STANDARD)?.let {
-            assertEquals("output colour standard: $format", MediaFormat.COLOR_STANDARD_BT709, it)
+            assertNotEquals("output is still tagged BT.2020: $format", MediaFormat.COLOR_STANDARD_BT2020, it)
         }
         format.intOrNull(MediaFormat.KEY_PROFILE)?.let {
             assertNotEquals("output is still Main10: $format", CodecProfileLevel.HEVCProfileMain10, it)
