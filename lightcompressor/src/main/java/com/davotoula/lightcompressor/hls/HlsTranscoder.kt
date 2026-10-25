@@ -6,8 +6,14 @@ import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
-import android.os.Build
 import android.util.Log
+import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.hdr.ColorInfo
+import com.davotoula.lightcompressor.hdr.GlSurfaceFactory
+import com.davotoula.lightcompressor.hdr.HdrCapabilities
+import com.davotoula.lightcompressor.hdr.HdrDecision
+import com.davotoula.lightcompressor.hdr.HdrPolicy
+import com.davotoula.lightcompressor.hdr.MediaCodecHdrCapabilities
 import com.davotoula.lightcompressor.muxer.EncodedSample
 import com.davotoula.lightcompressor.muxer.Mp4SegmentWriter
 import com.davotoula.lightcompressor.utils.CompressorUtils
@@ -19,15 +25,21 @@ import kotlin.math.min
 /**
  * Internal transcoder for HLS preparation.
  * Encodes a single rendition, segmenting output into fMP4 chunks
- * and emitting them via [HlsListener.onSegmentReady].
+ * and emitting them via [HlsListener.onSegmentReady]. HDR input is always tone mapped to SDR
+ * (HLS renditions never keep HDR).
  */
 internal class HlsTranscoder(
     private val context: Context,
     private val srcUri: Uri,
     private val config: HlsConfig,
+    private val hdrCapabilities: Lazy<HdrCapabilities> = lazy { MediaCodecHdrCapabilities() },
 ) {
     @Volatile
     var isCancelled = false
+
+    /** HLS renditions never keep HDR (spec decision): the policy yields Sdr or ToneMapToSdr only. */
+    internal fun planFor(info: ColorInfo): HdrDecision =
+        HdrPolicy.decide(info, config.codec, HdrMode.KEEP_IF_SUPPORTED, isHls = true, hdrCapabilities.value)
 
     private var nextAudioSampleIndex = 0
 
@@ -106,6 +118,10 @@ internal class HlsTranscoder(
                 Log.d(TAG, "Audio disabled by config")
             }
 
+            // HLS never keeps HDR: HDR input is tone mapped to 8-bit BT.709 SDR
+            val decision = planFor(ColorInfo.from(inputFormat))
+            Log.i("HdrPolicy", decision.reason)
+
             // Configure encoder
             val encoderFormat =
                 MediaFormat
@@ -132,38 +148,20 @@ internal class HlsTranscoder(
                             MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
                         )
 
-                        // Set color metadata - read from input, default to BT.709 if missing
-                        // Prevents encoder from using device-specific defaults (e.g., sRGB)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            val colorStandard =
-                                if (inputFormat.containsKey(MediaFormat.KEY_COLOR_STANDARD)) {
-                                    inputFormat.getInteger(MediaFormat.KEY_COLOR_STANDARD)
-                                } else {
-                                    MediaFormat.COLOR_STANDARD_BT709
-                                }
-                            setInteger(MediaFormat.KEY_COLOR_STANDARD, colorStandard)
-
-                            val colorTransfer =
-                                if (inputFormat.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
-                                    inputFormat.getInteger(MediaFormat.KEY_COLOR_TRANSFER)
-                                } else {
-                                    MediaFormat.COLOR_TRANSFER_SDR_VIDEO
-                                }
-                            setInteger(MediaFormat.KEY_COLOR_TRANSFER, colorTransfer)
-
-                            setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
-                        }
+                        decision.plan.applyTo(this)
                     }
 
             encoder = MediaCodec.createEncoderByType(config.codec.mimeType)
             encoder.configure(encoderFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
 
-            inputSurface = InputSurface(encoder.createInputSurface())
-            inputSurface.makeCurrent()
+            // On failure the factory releases everything it created (including the encoder Surface),
+            // so inputSurface/outputSurface stay null for `finally`. The input surface comes back current.
+            val surfaces = GlSurfaceFactory.create(encoder.createInputSurface(), decision.plan)
+            inputSurface = surfaces.input
+            outputSurface = surfaces.output
             encoder.start()
 
             // Configure decoder
-            outputSurface = OutputSurface()
             decoder = MediaCodec.createDecoderByType(sourceMime)
             decoder.configure(inputFormat, outputSurface.getSurface(), null, 0)
             decoder.start()
