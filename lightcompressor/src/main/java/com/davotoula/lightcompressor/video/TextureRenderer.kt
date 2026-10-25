@@ -4,12 +4,31 @@ import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.Matrix
+import com.davotoula.lightcompressor.hdr.RenderShader
+import com.davotoula.lightcompressor.hdr.Sampling
+import com.davotoula.lightcompressor.hdr.ShaderSources
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
+/**
+ * Draws the decoder's [SurfaceTexture] frame with GLSL from [ShaderSources].
+ *
+ * @param shader the fragment shader; [RenderShader.Passthrough] is the SDR path.
+ * @param sampling how the shader reads the frame; [Sampling.YUV_TARGET] needs a current ES3 context.
+ * @param lw tone-map peak relative to reference white (`uLw`); only the tone-map shaders use it.
+ * @param limitedRange whether the source is limited range (`uLimitedRange`); only YUV_TARGET shaders use it.
+ */
 @Suppress("TooGenericExceptionThrown")
-class TextureRenderer {
+class TextureRenderer internal constructor(
+    shader: RenderShader,
+    sampling: Sampling,
+    private val lw: Float,
+    private val limitedRange: Boolean,
+) {
+    /** Today's SDR passthrough renderer. */
+    constructor() : this(RenderShader.Passthrough, Sampling.EXTERNAL_RGB, 1f, true)
+
     companion object {
         private const val FLOAT_SIZE_BYTES = 4
         private const val COMPONENTS_PER_VERTEX = 5
@@ -19,6 +38,7 @@ class TextureRenderer {
         private const val QUAD_VERTEX_COUNT = 4
         private const val TEXCOORD_COMPONENTS = 2
         private const val INVALID_TEXTURE_ID = -12345
+        private const val NOT_PRESENT = -1
     }
 
     private val triangleVerticesDataStrideBytes = COMPONENTS_PER_VERTEX * FLOAT_SIZE_BYTES
@@ -26,25 +46,9 @@ class TextureRenderer {
     private val triangleVerticesDataUvOffset = TEXCOORD_OFFSET
     private var mTriangleVertices: FloatBuffer
 
-    private val vertexShader = """uniform mat4 uMVPMatrix;
-uniform mat4 uSTMatrix;
-attribute vec4 aPosition;
-attribute vec4 aTextureCoord;
-varying vec2 vTextureCoord;
-void main() {
-  gl_Position = uMVPMatrix * aPosition;
-  vTextureCoord = (uSTMatrix * aTextureCoord).xy;
-}
-"""
+    private val vertexShader = ShaderSources.vertex(sampling)
 
-    private val fragmentShader = """#extension GL_OES_EGL_image_external : require
-precision mediump float;
-varying vec2 vTextureCoord;
-uniform samplerExternalOES sTexture;
-void main() {
-  gl_FragColor = texture2D(sTexture, vTextureCoord);
-}
-"""
+    private val fragmentShader = ShaderSources.fragment(shader, sampling)
 
     private val mMVPMatrix = FloatArray(MATRIX_SIZE)
     private val mSTMatrix = FloatArray(MATRIX_SIZE)
@@ -55,6 +59,8 @@ void main() {
     private var muSTMatrixHandle = 0
     private var maPositionHandle = 0
     private var maTextureHandle = 0
+    private var muLwHandle = NOT_PRESENT
+    private var muLimitedRangeHandle = NOT_PRESENT
 
     init {
         val mTriangleVerticesData =
@@ -135,6 +141,13 @@ void main() {
         Matrix.setIdentityM(mMVPMatrix, 0)
         GLES20.glUniformMatrix4fv(muMVPMatrixHandle, 1, false, mMVPMatrix, 0)
         GLES20.glUniformMatrix4fv(muSTMatrixHandle, 1, false, mSTMatrix, 0)
+        // Optional uniforms: only the HDR shaders declare them (location -1 = not present).
+        if (muLwHandle != NOT_PRESENT) {
+            GLES20.glUniform1f(muLwHandle, lw)
+        }
+        if (muLimitedRangeHandle != NOT_PRESENT) {
+            GLES20.glUniform1f(muLimitedRangeHandle, if (limitedRange) 1f else 0f)
+        }
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, QUAD_VERTEX_COUNT)
         checkGlError("glDrawArrays")
@@ -173,6 +186,10 @@ void main() {
             throw RuntimeException("Could not get attrib location for uSTMatrix")
         }
 
+        muLwHandle = GLES20.glGetUniformLocation(mProgram, ShaderSources.UNIFORM_LW)
+        muLimitedRangeHandle = GLES20.glGetUniformLocation(mProgram, ShaderSources.UNIFORM_LIMITED_RANGE)
+        checkGlError("glGetUniformLocation optional uniforms")
+
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
         mTextureID = textures[0]
@@ -202,36 +219,32 @@ void main() {
         checkGlError("glTexParameter")
     }
 
+    /** Compiles [source]; throws with the driver's info log on failure. */
     private fun loadShader(
         shaderType: Int,
         source: String,
     ): Int {
-        var shader = GLES20.glCreateShader(shaderType)
+        val shader = GLES20.glCreateShader(shaderType)
         checkGlError("glCreateShader type=$shaderType")
         GLES20.glShaderSource(shader, source)
         GLES20.glCompileShader(shader)
         val compiled = IntArray(1)
         GLES20.glGetShaderiv(shader, GLES20.GL_COMPILE_STATUS, compiled, 0)
         if (compiled[0] == 0) {
+            val log = GLES20.glGetShaderInfoLog(shader)
             GLES20.glDeleteShader(shader)
-            shader = 0
+            val stage = if (shaderType == GLES20.GL_VERTEX_SHADER) "vertex" else "fragment"
+            throw RuntimeException("failed creating program: $stage shader compile failed: $log")
         }
         return shader
     }
 
-    @Suppress("ReturnCount")
+    /** Returns 0 only if `glCreateProgram` does; compile and link failures throw with the info log. */
     private fun createProgram(): Int {
         val vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vertexShader)
-        if (vertexShader == 0) {
-            return 0
-        }
-
         val pixelShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShader)
-        if (pixelShader == 0) {
-            return 0
-        }
 
-        var program = GLES20.glCreateProgram()
+        val program = GLES20.glCreateProgram()
         checkGlError("glCreateProgram")
         if (program == 0) {
             return 0
@@ -244,8 +257,9 @@ void main() {
         val linkStatus = IntArray(1)
         GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0)
         if (linkStatus[0] != GLES20.GL_TRUE) {
+            val log = GLES20.glGetProgramInfoLog(program)
             GLES20.glDeleteProgram(program)
-            program = 0
+            throw RuntimeException("failed creating program: link failed: $log")
         }
         return program
     }
