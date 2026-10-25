@@ -25,12 +25,14 @@ internal class EglConfigUnavailableException(
  */
 @Suppress("TooGenericExceptionThrown")
 class InputSurface
-    @JvmOverloads
-    constructor(
+    internal constructor(
         surface: Surface?,
-        gles3: Boolean = false,
-        tenBit: Boolean = false,
+        gles3: Boolean,
+        tenBit: Boolean,
     ) {
+        /** 8-bit RGB888 ES2 recordable surface (the pre-HDR behaviour). */
+        constructor(surface: Surface?) : this(surface, false, false)
+
         companion object {
             private const val TAG = "InputSurface"
             private const val EGL_RECORDABLE_ANDROID = 0x3142
@@ -199,12 +201,14 @@ class InputSurface
             tenBit: Boolean,
         ): String = "${if (tenBit) "10-bit RGBA1010102" else "RGB888"} ${if (gles3) "ES3" else "ES2"}"
 
+        /** Releases the EGL surface and context, and the encoder's input [Surface]. */
+        fun release() = release(releaseSurface = true)
+
         /**
          * Releases the EGL surface and context. With [releaseSurface] false the encoder's input [Surface]
          * stays alive (disconnected from EGL), so another [InputSurface] can be built on it.
          */
-        @JvmOverloads
-        fun release(releaseSurface: Boolean = true) {
+        internal fun release(releaseSurface: Boolean) {
             destroyEglObjects()
 
             if (releaseSurface) {
@@ -255,7 +259,7 @@ class InputSurface
          * Whether the current GL context advertises extension [name] (matched as a whole token).
          * Must be called after [makeCurrent]; the extension string is read once and cached.
          */
-        fun hasExtension(name: String): Boolean {
+        internal fun hasExtension(name: String): Boolean {
             val cached =
                 extensions ?: run {
                     val raw = GLES20.glGetString(GLES20.GL_EXTENSIONS)
