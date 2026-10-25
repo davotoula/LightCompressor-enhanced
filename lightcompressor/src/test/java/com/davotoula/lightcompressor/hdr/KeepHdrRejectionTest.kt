@@ -98,4 +98,9 @@ class KeepHdrRejectionTest {
         assertNotNull(rejection)
         assertSame(error, rejection!!.cause)
     }
+
+    @Test
+    fun errorBeforeMuxer_isNotARejection() {
+        assertNull(rejectionFor(keep, muxerStarted = false, isCancellation = false, error = OutOfMemoryError()))
+    }
 }

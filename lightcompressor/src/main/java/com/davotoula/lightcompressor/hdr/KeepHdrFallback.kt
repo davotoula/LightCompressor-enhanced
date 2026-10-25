@@ -17,6 +17,8 @@ internal fun rejectionFor(
 ): KeepHdrRejected? =
     when {
         plan !is ColorPlan.KeepHdr || muxerStarted || isCancellation -> null
+        // OutOfMemoryError and friends must not start a second transcode.
+        error is Error -> null
         error is KeepHdrRejected -> error
         else ->
             KeepHdrRejected(
