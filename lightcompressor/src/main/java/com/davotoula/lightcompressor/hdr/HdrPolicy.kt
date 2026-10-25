@@ -21,7 +21,10 @@ internal object HdrPolicy {
         isHls: Boolean,
         caps: HdrCapabilities,
     ): HdrDecision {
-        if (!info.isHdr) return HdrDecision(ColorPlan.Sdr(info), "SDR or untagged input → Sdr")
+        if (!info.isHdr) {
+            val tags = "transfer=${info.transfer}, standard=${info.standard}"
+            return HdrDecision(ColorPlan.Sdr(info), "SDR or untagged input ($tags) → Sdr")
+        }
         val kind = if (info.isHlg) "HLG" else "PQ"
         val prefix = "$kind input, $codec, $mode"
         val toneMap = fallbackFor(info)

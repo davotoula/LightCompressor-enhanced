@@ -49,12 +49,17 @@ class HdrPolicyTest {
     fun sdrInput_isSdr() {
         val d = decide(info(MediaFormat.COLOR_TRANSFER_SDR_VIDEO, MediaFormat.COLOR_STANDARD_BT709))
         assertTrue(d.plan is ColorPlan.Sdr)
+        val expected =
+            "SDR or untagged input (transfer=${MediaFormat.COLOR_TRANSFER_SDR_VIDEO}, " +
+                "standard=${MediaFormat.COLOR_STANDARD_BT709}) → Sdr"
+        assertEquals(expected, d.reason)
     }
 
     @Test
     fun untaggedTenBitInput_isSdr() {
         val d = decide(info(null, null), caps = caps())
         assertTrue(d.plan is ColorPlan.Sdr)
+        assertEquals("SDR or untagged input (transfer=null, standard=null) → Sdr", d.reason)
     }
 
     @Test
