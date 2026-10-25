@@ -37,6 +37,7 @@ import com.davotoula.lce.R
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lce.ui.components.SettingsSummary
 import com.davotoula.lightcompressor.Resolution
+import com.davotoula.lightcompressor.config.HdrMode
 
 @Composable
 fun CollapsibleSettingsCard(
@@ -231,6 +232,35 @@ fun CollapsibleSettingsCard(
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // HDR Section
+                    Text(
+                        text = stringResource(R.string.hdr_label),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        SegmentedButton(
+                            selected = uiState.selectedHdrMode == HdrMode.KEEP_IF_SUPPORTED,
+                            onClick = { onAction(MainAction.SetHdrMode(HdrMode.KEEP_IF_SUPPORTED)) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) {
+                            Text(stringResource(R.string.hdr_keep))
+                        }
+                        SegmentedButton(
+                            selected = uiState.selectedHdrMode == HdrMode.TONE_MAP_TO_SDR,
+                            onClick = { onAction(MainAction.SetHdrMode(HdrMode.TONE_MAP_TO_SDR)) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) {
+                            Text(stringResource(R.string.hdr_tone_map))
+                        }
                     }
                 }
             }

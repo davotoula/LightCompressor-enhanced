@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
+import com.davotoula.lightcompressor.config.HdrMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -19,6 +20,7 @@ data class VideoSettings(
     val isStreamableEnabled: Boolean = true,
     val bitrateKbps: Int? = null,
     val hlsCodec: Codec = Codec.H264,
+    val hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
 )
 
 class VideoSettingsPreferences(
@@ -29,6 +31,7 @@ class VideoSettingsPreferences(
     private val streamableKey = booleanPreferencesKey("streamable")
     private val bitrateKey = intPreferencesKey("bitrate_kbps")
     private val hlsCodecKey = stringPreferencesKey("hls_codec")
+    private val hdrModeKey = stringPreferencesKey("hdr_mode")
 
     val settings: Flow<VideoSettings> =
         context.videoSettingsDataStore.data.map { prefs ->
@@ -47,6 +50,10 @@ class VideoSettingsPreferences(
                     prefs[hlsCodecKey]?.let { name ->
                         Codec.entries.find { it.name == name }
                     } ?: Codec.H264,
+                hdrMode =
+                    prefs[hdrModeKey]
+                        ?.let { runCatching { HdrMode.valueOf(it) }.getOrNull() }
+                        ?: HdrMode.KEEP_IF_SUPPORTED,
             )
         }
 
@@ -55,12 +62,14 @@ class VideoSettingsPreferences(
         codec: Codec,
         isStreamableEnabled: Boolean,
         bitrateKbps: Int,
+        hdrMode: HdrMode,
     ) {
         context.videoSettingsDataStore.edit { prefs ->
             prefs[resolutionKey] = resolution.name
             prefs[codecKey] = codec.name
             prefs[streamableKey] = isStreamableEnabled
             prefs[bitrateKey] = bitrateKbps
+            prefs[hdrModeKey] = hdrMode.name
         }
     }
 
