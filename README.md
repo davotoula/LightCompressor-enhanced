@@ -470,6 +470,8 @@ The `app/` module contains a Jetpack Compose sample app demonstrating the librar
 
 Minimum Android SDK: API level 21
 
+**Upgrading from 2.2.x to 2.3.0:** source compatible, but not binary compatible for Kotlin callers. Adding `hdrMode` to `Configuration` changed the signatures Kotlin compiles default arguments and `copy()` into, so code compiled against 2.2.x must be recompiled (a normal JitPack dependency always is). A prebuilt library compiled against 2.2.x that creates a `Configuration` fails at runtime with `NoSuchMethodError` until it is rebuilt against 2.3.0. Java callers are unaffected.
+
 ## Attribution
 
 Originally forked from [AbedElazizShe/LightCompressor](https://github.com/AbedElazizShe/LightCompressor). Based on [Telegram](https://github.com/DrKLO/Telegram) for Android.
