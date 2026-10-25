@@ -7,6 +7,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
+import com.davotoula.lightcompressor.compressor.isOutputBuffersChanged
 import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.hdr.ColorInfo
 import com.davotoula.lightcompressor.hdr.GlSurfaceFactory
@@ -235,6 +236,7 @@ internal class HlsTranscoder(
                             encoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                                 encoderOutputAvailable = false
                             }
+                            isOutputBuffersChanged(encoderStatus) -> { /* deprecated no-op */ }
                             encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                 val encoderOutputFormat = encoder.outputFormat
                                 // Pixel AVC encoders split SPS into csd-0 and PPS into csd-1.
@@ -334,6 +336,7 @@ internal class HlsTranscoder(
                             decoderStatus == MediaCodec.INFO_TRY_AGAIN_LATER -> {
                                 decoderOutputAvailable = false
                             }
+                            isOutputBuffersChanged(decoderStatus) -> { /* deprecated no-op */ }
                             decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> { /* no-op */ }
                             decoderStatus >= 0 -> {
                                 val doRender = bufferInfo.size > 0

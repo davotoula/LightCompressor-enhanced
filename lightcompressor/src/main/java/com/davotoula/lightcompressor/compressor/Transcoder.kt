@@ -429,6 +429,10 @@ internal open class Transcoder(
                             encoderOutputAvailable = false
                         }
 
+                        isOutputBuffersChanged(encoderStatus) -> {
+                            // Deprecated; older OMX codecs still emit it. Ignore and dequeue again.
+                        }
+
                         encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                             val newFormat = encoder.outputFormat
                             if (!plan.matchesEncoderOutput(newFormat)) {
@@ -488,6 +492,10 @@ internal open class Transcoder(
 
                         decoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                             // No-op for surface decoding.
+                        }
+
+                        isOutputBuffersChanged(decoderStatus) -> {
+                            // Deprecated; older OMX codecs still emit it. Ignore and dequeue again.
                         }
 
                         decoderStatus < 0 -> {
