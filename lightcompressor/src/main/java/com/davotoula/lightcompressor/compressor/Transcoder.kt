@@ -95,7 +95,8 @@ internal open class Transcoder(
         } finally {
             try {
                 extractor?.release()
-            } catch (_: Exception) {
+            } catch (releaseError: Exception) {
+                Log.w(HDR_TAG, "Failed to release colour info extractor: ${releaseError.message}")
             }
         }
     }
@@ -724,7 +725,8 @@ internal open class Transcoder(
                 // Free the codec instance before the tone-map retry needs one.
                 try {
                     encoder.release()
-                } catch (_: Exception) {
+                } catch (releaseError: Exception) {
+                    Log.w(HDR_TAG, "Failed to release keep-HDR encoder: ${releaseError.message}")
                 }
                 throw e
             }
