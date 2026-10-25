@@ -5,6 +5,7 @@ import android.media.MediaCodecInfo.CodecCapabilities
 import android.media.MediaCodecInfo.CodecProfileLevel
 import android.media.MediaCodecList
 import android.os.Build
+import android.util.Log
 import androidx.annotation.VisibleForTesting
 
 /** A specific encoder (by codec name) and the profile it will be configured with. */
@@ -31,7 +32,7 @@ internal class MediaCodecHdrCapabilities(
 
     override fun pqEncoder(mime: String): HdrEncoder? = lookup(mime, pq = true)
 
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "TooGenericExceptionCaught")
     private fun lookup(
         mime: String,
         pq: Boolean,
@@ -42,7 +43,15 @@ internal class MediaCodecHdrCapabilities(
             if (cache.containsKey(key)) return cache[key]
         }
         // Enumerating outside the lock; a benign duplicate walk under a race is harmless.
-        val found = codecInfos().firstNotNullOfOrNull { encoderFor(it, mime, pq) }
+        val found =
+            try {
+                codecInfos().firstNotNullOfOrNull { encoderFor(it, mime, pq) }
+            } catch (e: Exception) {
+                // Never let a codec-list quirk fail the job: no encoder means tone map. Not cached,
+                // so a transient failure doesn't stick for the life of the process.
+                Log.w(TAG, "HDR encoder lookup for $mime failed, treating as unsupported: ${e.message}", e)
+                return null
+            }
         synchronized(cache) { cache[key] = found }
         return found
     }
@@ -72,6 +81,7 @@ internal class MediaCodecHdrCapabilities(
     internal companion object {
         private const val API_HDR_EDITING = 33
         private const val API_HLG_EDITING = 35
+        private const val TAG = "HdrCapabilities"
         private val cache = HashMap<CacheKey, HdrEncoder?>()
 
         @VisibleForTesting

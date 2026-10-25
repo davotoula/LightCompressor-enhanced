@@ -3,9 +3,13 @@ package com.davotoula.lightcompressor.hdr
 import android.media.MediaCodecInfo
 import android.media.MediaCodecInfo.CodecCapabilities
 import android.media.MediaCodecInfo.CodecProfileLevel
+import android.util.Log
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -18,6 +22,13 @@ class MediaCodecHdrCapabilitiesTest {
     @Before
     fun setUp() {
         MediaCodecHdrCapabilities.clearCache()
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>(), any()) } returns 0
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(Log::class)
     }
 
     private fun codec(
@@ -121,5 +132,28 @@ class MediaCodecHdrCapabilitiesTest {
         assertNull(c.hlgEncoder(hevc))
         assertNull(MediaCodecHdrCapabilities(sdkInt = 33, codecInfos = { emptyArray() }).hlgEncoder(hevc))
         assertEquals(1, calls)
+    }
+
+    @Test
+    fun codecListThatThrows_meansNoEncoder() {
+        val c = MediaCodecHdrCapabilities(sdkInt = 33, codecInfos = { throw IllegalStateException("codec list") })
+        assertNull(c.hlgEncoder(hevc))
+        assertNull(c.pqEncoder(hevc))
+    }
+
+    @Test
+    fun featureCheckThatThrows_meansNoEncoder() {
+        val caps =
+            mockk<CodecCapabilities>(relaxed = true).apply {
+                every { isFeatureSupported(any()) } throws IllegalArgumentException("feature")
+            }
+        val info =
+            mockk<MediaCodecInfo>().apply {
+                every { name } returns "enc"
+                every { isEncoder } returns true
+                every { supportedTypes } returns arrayOf(hevc)
+                every { getCapabilitiesForType(any()) } returns caps
+            }
+        assertNull(caps(33, info).hlgEncoder(hevc))
     }
 }
