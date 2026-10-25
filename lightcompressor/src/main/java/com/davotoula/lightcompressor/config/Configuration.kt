@@ -20,6 +20,7 @@ data class Configuration(
     val resizer: VideoResizer? = VideoResizer.auto,
     var videoNames: List<String>,
     var videoCodec: VideoCodec = VideoCodec.H264,
+    var hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
 ) {
     @Deprecated(
         "Use VideoResizer to override the output video dimensions.",
@@ -44,6 +45,7 @@ data class Configuration(
         getVideoResizer(keepOriginalResolution, null, null),
         videoNames,
         VideoCodec.H264,
+        HdrMode.KEEP_IF_SUPPORTED,
     )
 
     @Deprecated(
@@ -71,6 +73,7 @@ data class Configuration(
         getVideoResizer(keepOriginalResolution, videoHeight, videoWidth),
         videoNames,
         VideoCodec.H264,
+        HdrMode.KEEP_IF_SUPPORTED,
     )
 
     /**
@@ -97,6 +100,7 @@ data class Configuration(
          * Creates a Configuration with bitrate specified in bps for granular control
          */
         @JvmStatic
+        @Suppress("LongParameterList")
         fun withBitrateInBps(
             quality: VideoQuality = VideoQuality.MEDIUM,
             isMinBitrateCheckEnabled: Boolean = true,
@@ -105,6 +109,7 @@ data class Configuration(
             resizer: VideoResizer? = VideoResizer.auto,
             videoNames: List<String>,
             videoCodec: VideoCodec = VideoCodec.H264,
+            hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
         ): Configuration =
             Configuration(
                 quality = quality,
@@ -115,12 +120,14 @@ data class Configuration(
                 resizer = resizer,
                 videoNames = videoNames,
                 videoCodec = videoCodec,
+                hdrMode = hdrMode,
             )
 
         /**
          * Creates a Configuration with bitrate specified in Mbps (legacy approach)
          */
         @JvmStatic
+        @Suppress("LongParameterList")
         fun withBitrateInMbps(
             quality: VideoQuality = VideoQuality.MEDIUM,
             isMinBitrateCheckEnabled: Boolean = true,
@@ -129,6 +136,7 @@ data class Configuration(
             resizer: VideoResizer? = VideoResizer.auto,
             videoNames: List<String>,
             videoCodec: VideoCodec = VideoCodec.H264,
+            hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
         ): Configuration =
             Configuration(
                 quality = quality,
@@ -139,6 +147,7 @@ data class Configuration(
                 resizer = resizer,
                 videoNames = videoNames,
                 videoCodec = videoCodec,
+                hdrMode = hdrMode,
             )
     }
 }
