@@ -11,146 +11,152 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 
-data class Configuration(
-    var quality: VideoQuality = VideoQuality.MEDIUM,
-    var isMinBitrateCheckEnabled: Boolean = true,
-    var videoBitrateInMbps: Int? = null,
-    var videoBitrateInBps: Long? = null,
-    var disableAudio: Boolean = false,
-    val resizer: VideoResizer? = VideoResizer.auto,
-    var videoNames: List<String>,
-    var videoCodec: VideoCodec = VideoCodec.H264,
-    var hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
-) {
-    @Deprecated(
-        "Use VideoResizer to override the output video dimensions.",
-        ReplaceWith(
-            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
-                "resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)",
-        ),
-    )
+// @JvmOverloads keeps the Java-visible signatures that existed before hdrMode was appended (the
+// 8-argument constructor and the 7-argument factories).
+data class Configuration
+    @JvmOverloads
     constructor(
-        quality: VideoQuality = VideoQuality.MEDIUM,
-        isMinBitrateCheckEnabled: Boolean = true,
-        videoBitrateInMbps: Int? = null,
-        disableAudio: Boolean = false,
-        keepOriginalResolution: Boolean,
-        videoNames: List<String>,
-    ) : this(
-        quality,
-        isMinBitrateCheckEnabled,
-        videoBitrateInMbps,
-        null,
-        disableAudio,
-        getVideoResizer(keepOriginalResolution, null, null),
-        videoNames,
-        VideoCodec.H264,
-        HdrMode.KEEP_IF_SUPPORTED,
-    )
-
-    @Deprecated(
-        "Use VideoResizer to override the output video dimensions.",
-        ReplaceWith(
-            "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
-                "resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)",
-        ),
-    )
-    constructor(
-        quality: VideoQuality = VideoQuality.MEDIUM,
-        isMinBitrateCheckEnabled: Boolean = true,
-        videoBitrateInMbps: Int? = null,
-        disableAudio: Boolean = false,
-        keepOriginalResolution: Boolean = false,
-        videoHeight: Double? = null,
-        videoWidth: Double? = null,
-        videoNames: List<String>,
-    ) : this(
-        quality,
-        isMinBitrateCheckEnabled,
-        videoBitrateInMbps,
-        null,
-        disableAudio,
-        getVideoResizer(keepOriginalResolution, videoHeight, videoWidth),
-        videoNames,
-        VideoCodec.H264,
-        HdrMode.KEEP_IF_SUPPORTED,
-    )
-
-    /**
-     * Validates the bitrate configuration to ensure only one bitrate field is used at a time
-     * for better clarity, though both can be specified with bps taking precedence.
-     */
-    internal fun getEffectiveBitrateInBps(): Long? =
-        when {
-            videoBitrateInBps != null -> {
-                require(videoBitrateInBps!! > 0) { "videoBitrateInBps must be positive" }
-                videoBitrateInBps
-            }
-            videoBitrateInMbps != null -> {
-                require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
-                videoBitrateInMbps!! * BPS_PER_MBPS
-            }
-            else -> null
-        }
-
-    companion object {
-        private const val BPS_PER_MBPS = 1_000_000L
-
-        /**
-         * Creates a Configuration with bitrate specified in bps for granular control
-         */
-        @JvmStatic
-        @Suppress("LongParameterList")
-        fun withBitrateInBps(
-            quality: VideoQuality = VideoQuality.MEDIUM,
-            isMinBitrateCheckEnabled: Boolean = true,
-            videoBitrateInBps: Long? = null,
-            disableAudio: Boolean = false,
-            resizer: VideoResizer? = VideoResizer.auto,
-            videoNames: List<String>,
-            videoCodec: VideoCodec = VideoCodec.H264,
-            hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
-        ): Configuration =
-            Configuration(
-                quality = quality,
-                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
-                videoBitrateInMbps = null,
-                videoBitrateInBps = videoBitrateInBps,
-                disableAudio = disableAudio,
-                resizer = resizer,
-                videoNames = videoNames,
-                videoCodec = videoCodec,
-                hdrMode = hdrMode,
-            )
-
-        /**
-         * Creates a Configuration with bitrate specified in Mbps (legacy approach)
-         */
-        @JvmStatic
-        @Suppress("LongParameterList")
-        fun withBitrateInMbps(
+        var quality: VideoQuality = VideoQuality.MEDIUM,
+        var isMinBitrateCheckEnabled: Boolean = true,
+        var videoBitrateInMbps: Int? = null,
+        var videoBitrateInBps: Long? = null,
+        var disableAudio: Boolean = false,
+        val resizer: VideoResizer? = VideoResizer.auto,
+        var videoNames: List<String>,
+        var videoCodec: VideoCodec = VideoCodec.H264,
+        var hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
+    ) {
+        @Deprecated(
+            "Use VideoResizer to override the output video dimensions.",
+            ReplaceWith(
+                "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                    "resizer = if (keepOriginalResolution) null else VideoResizer.auto, videoNames)",
+            ),
+        )
+        constructor(
             quality: VideoQuality = VideoQuality.MEDIUM,
             isMinBitrateCheckEnabled: Boolean = true,
             videoBitrateInMbps: Int? = null,
             disableAudio: Boolean = false,
-            resizer: VideoResizer? = VideoResizer.auto,
+            keepOriginalResolution: Boolean,
             videoNames: List<String>,
-            videoCodec: VideoCodec = VideoCodec.H264,
-            hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
-        ): Configuration =
-            Configuration(
-                quality = quality,
-                isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
-                videoBitrateInMbps = videoBitrateInMbps,
-                videoBitrateInBps = null,
-                disableAudio = disableAudio,
-                resizer = resizer,
-                videoNames = videoNames,
-                videoCodec = videoCodec,
-                hdrMode = hdrMode,
-            )
+        ) : this(
+            quality,
+            isMinBitrateCheckEnabled,
+            videoBitrateInMbps,
+            null,
+            disableAudio,
+            getVideoResizer(keepOriginalResolution, null, null),
+            videoNames,
+            VideoCodec.H264,
+            HdrMode.KEEP_IF_SUPPORTED,
+        )
+
+        @Deprecated(
+            "Use VideoResizer to override the output video dimensions.",
+            ReplaceWith(
+                "Configuration(quality, isMinBitrateCheckEnabled, videoBitrateInMbps, disableAudio, " +
+                    "resizer = VideoResizer.matchSize(videoWidth, videoHeight), videoNames)",
+            ),
+        )
+        constructor(
+            quality: VideoQuality = VideoQuality.MEDIUM,
+            isMinBitrateCheckEnabled: Boolean = true,
+            videoBitrateInMbps: Int? = null,
+            disableAudio: Boolean = false,
+            keepOriginalResolution: Boolean = false,
+            videoHeight: Double? = null,
+            videoWidth: Double? = null,
+            videoNames: List<String>,
+        ) : this(
+            quality,
+            isMinBitrateCheckEnabled,
+            videoBitrateInMbps,
+            null,
+            disableAudio,
+            getVideoResizer(keepOriginalResolution, videoHeight, videoWidth),
+            videoNames,
+            VideoCodec.H264,
+            HdrMode.KEEP_IF_SUPPORTED,
+        )
+
+        /**
+         * Validates the bitrate configuration to ensure only one bitrate field is used at a time
+         * for better clarity, though both can be specified with bps taking precedence.
+         */
+        internal fun getEffectiveBitrateInBps(): Long? =
+            when {
+                videoBitrateInBps != null -> {
+                    require(videoBitrateInBps!! > 0) { "videoBitrateInBps must be positive" }
+                    videoBitrateInBps
+                }
+                videoBitrateInMbps != null -> {
+                    require(videoBitrateInMbps!! > 0) { "videoBitrateInMbps must be positive" }
+                    videoBitrateInMbps!! * BPS_PER_MBPS
+                }
+                else -> null
+            }
+
+        companion object {
+            private const val BPS_PER_MBPS = 1_000_000L
+
+            /**
+             * Creates a Configuration with bitrate specified in bps for granular control
+             */
+            @JvmStatic
+            @JvmOverloads
+            @Suppress("LongParameterList")
+            fun withBitrateInBps(
+                quality: VideoQuality = VideoQuality.MEDIUM,
+                isMinBitrateCheckEnabled: Boolean = true,
+                videoBitrateInBps: Long? = null,
+                disableAudio: Boolean = false,
+                resizer: VideoResizer? = VideoResizer.auto,
+                videoNames: List<String>,
+                videoCodec: VideoCodec = VideoCodec.H264,
+                hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
+            ): Configuration =
+                Configuration(
+                    quality = quality,
+                    isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                    videoBitrateInMbps = null,
+                    videoBitrateInBps = videoBitrateInBps,
+                    disableAudio = disableAudio,
+                    resizer = resizer,
+                    videoNames = videoNames,
+                    videoCodec = videoCodec,
+                    hdrMode = hdrMode,
+                )
+
+            /**
+             * Creates a Configuration with bitrate specified in Mbps (legacy approach)
+             */
+            @JvmStatic
+            @JvmOverloads
+            @Suppress("LongParameterList")
+            fun withBitrateInMbps(
+                quality: VideoQuality = VideoQuality.MEDIUM,
+                isMinBitrateCheckEnabled: Boolean = true,
+                videoBitrateInMbps: Int? = null,
+                disableAudio: Boolean = false,
+                resizer: VideoResizer? = VideoResizer.auto,
+                videoNames: List<String>,
+                videoCodec: VideoCodec = VideoCodec.H264,
+                hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
+            ): Configuration =
+                Configuration(
+                    quality = quality,
+                    isMinBitrateCheckEnabled = isMinBitrateCheckEnabled,
+                    videoBitrateInMbps = videoBitrateInMbps,
+                    videoBitrateInBps = null,
+                    disableAudio = disableAudio,
+                    resizer = resizer,
+                    videoNames = videoNames,
+                    videoCodec = videoCodec,
+                    hdrMode = hdrMode,
+                )
+        }
     }
-}
 
 private const val COPY_BUFFER_SIZE = 4096
 
