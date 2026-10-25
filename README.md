@@ -142,7 +142,7 @@ If `VideoCodec.H265` is requested on a device that does not support HEVC encodin
 
 ### HDR video
 
-*Available from 2.3.0.* HLG and PQ (HDR10) input is controlled by `hdrMode`. SDR input is never affected.
+*Available from 2.3.0.* HLG and PQ (HDR10/HDR10+) input is controlled by `hdrMode`. SDR input is never affected.
 
 ```kotlin
 import com.davotoula.lightcompressor.VideoCodec
@@ -159,10 +159,10 @@ val config = Configuration.withBitrateInBps(
 
 | Mode                          | Result                                                                                                           |
 |-------------------------------|------------------------------------------------------------------------------------------------------------------|
-| `HdrMode.KEEP_IF_SUPPORTED`   | H.265 on a device whose HEVC encoder supports HDR editing (Android 13+) keeps 10-bit HDR. Everything else is tone mapped to 8-bit SDR. |
+| `HdrMode.KEEP_IF_SUPPORTED`   | BT.2020 input encoded as H.265 on a device whose HEVC encoder supports HDR editing (Android 13+) keeps 10-bit HDR. Everything else is tone mapped to 8-bit SDR. |
 | `HdrMode.TONE_MAP_TO_SDR`     | HDR input is always tone mapped to 8-bit SDR (BT.709).                                                           |
 
-Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), and on older or unsupported devices. HDR10+ dynamic metadata is dropped, so kept HDR output is plain HDR10.
+Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), for input tagged with a colour standard other than BT.2020, and on older or unsupported devices. Kept HDR output keeps the input's transfer: HLG stays HLG, and PQ is written as plain HDR10 because HDR10+ dynamic metadata is dropped.
 
 ## Storage Options
 
