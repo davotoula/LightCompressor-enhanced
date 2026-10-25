@@ -140,6 +140,30 @@ val config = Configuration(
 
 If `VideoCodec.H265` is requested on a device that does not support HEVC encoding, `onFailure` is called with a descriptive error message.
 
+### HDR video
+
+*Available from 2.3.0.* HLG and PQ (HDR10) input is controlled by `hdrMode`. SDR input is never affected.
+
+```kotlin
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.HdrMode
+
+val config = Configuration.withBitrateInBps(
+    videoNames = listOf("output.mp4"),
+    videoBitrateInBps = 6_000_000L,
+    videoCodec = VideoCodec.H265,
+    hdrMode = HdrMode.KEEP_IF_SUPPORTED, // default
+)
+```
+
+| Mode                          | Result                                                                                                           |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `HdrMode.KEEP_IF_SUPPORTED`   | H.265 on a device whose HEVC encoder supports HDR editing (Android 13+) keeps 10-bit HDR. Everything else is tone mapped to 8-bit SDR. |
+| `HdrMode.TONE_MAP_TO_SDR`     | HDR input is always tone mapped to 8-bit SDR (BT.709).                                                           |
+
+Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), and on older or unsupported devices. HDR10+ dynamic metadata is dropped, so kept HDR output is plain HDR10.
+
 ## Storage Options
 
 ### SharedStorageConfiguration

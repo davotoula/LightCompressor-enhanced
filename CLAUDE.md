@@ -70,6 +70,15 @@ Package: `com.davotoula.lightcompressor`
 - `StreamableVideo` moves moov atom for progressive download support
 - `limitShortSide` is preferred over `limitSize` for resolution targeting — `limitSize` creates a landscape-oriented bounding box that crushes portrait/non-standard aspect ratio videos (e.g., 1080x2400 → 480x1088). `limitShortSide` constrains `min(width, height)` which is orientation-agnostic.
 
+**HDR handling** (HLG/PQ input, `hdr/` package, controlled by `Configuration.hdrMode: HdrMode`):
+- `HdrPolicy.decide()` picks a `ColorPlan` once per job from `ColorInfo`, codec, `HdrMode`, an HLS flag and `HdrCapabilities`: `Sdr`, `KeepHdr` (H.265 only, non-HLS, BT.2020 input, an encoder with HDR editing support) or `ToneMapToSdr`. `HdrPolicy.fallbackFor()` builds the tone-map plan.
+- `ColorPlan` is the single place encoder colour tags (and for `KeepHdr` the profile and static info) are set, and carries the `RenderSpec` (GLES version, bit depth, shader). Output is never tagged BT.709 unless tone mapped, and never HLG/PQ unless 10-bit.
+- `GlSurfaceFactory` builds the GL pipeline for a plan. `KeepHdr` uses ES3 / 10-bit and any failure becomes `KeepHdrRejected`; `ToneMapToSdr` prefers ES3 with `GL_EXT_YUV_target` and falls back to ES2.
+- Keep-HDR retry window: `Transcoder.transcode()` retries a rejected `KeepHdr` attempt exactly once as `ToneMapToSdr`, but only before `muxer.start()`. After the muxer starts a failure is a normal failure, and progress is held back until then.
+- No EGL colour-space attribute is ever set on the encoder input surface: as Media3's `GlUtil` documents, BT2020 PQ/HLG window attributes make the encoder switch to full range even when configured for limited.
+- `HlsTranscoder` always tone maps HDR sources (`isHls = true`).
+- JVM unit tests run against the stub android.jar where `Build.VERSION.SDK_INT` is 0, so tests of SDK-gated code must pass `sdkInt` explicitly (`ColorPlan.applyTo`/`matchesEncoderOutput` take it as a parameter).
+
 ### App (`app/`)
 
 Package: `com.davotoula.lce`
@@ -92,6 +101,17 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `PlaylistRewriterTest` — URL remapping
 - `SegmentAccumulatorTest` — keyframe boundary detection
 - `SegmentSinkTest` — multi-file vs single-file rendition emission
+- `ColorInfoTest` — colour metadata extraction from `MediaFormat`
+- `ToneMapMathTest` — tone-map curve maths
+- `ColorPlanTest` — encoder colour tags per plan (passes `sdkInt`)
+- `HdrPolicyTest` — keep-HDR vs tone-map decision table
+- `MediaCodecHdrCapabilitiesTest` — HDR encoder discovery
+- `KeepHdrRejectionTest` — keep-HDR rejection and retry window
+- `ShaderSourcesTest` — generated GLSL sources
+- `HlsTranscoderPlanTest` — HLS always tone maps HDR
+- `CodecStatusTest` — transcoders ignore `MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED` from older OMX codecs
+
+One instrumented test, `ToneMapFallbackTest` (ES2/ES3 tone-map fallback), needs `orig2.mp4` pushed to the test app's external files dir. Run it with `installDebugAndroidTest` plus `adb shell am instrument`, not `connectedDebugAndroidTest`, which uninstalls the app and deletes its outputs.
 
 ## Dependencies
 
