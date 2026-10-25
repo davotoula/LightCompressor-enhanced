@@ -13,6 +13,8 @@ import android.util.Log
 import android.view.Surface
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.hdr.ColorInfo
+import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.utils.CompressorUtils.findTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
 import com.davotoula.lightcompressor.utils.CompressorUtils.printException
@@ -99,7 +101,12 @@ internal open class Transcoder(
                     request.width,
                     request.height,
                 )
-            setOutputFileParameters(inputFormat, encoderFormat, request.bitrate)
+            setOutputFileParameters(
+                inputFormat,
+                encoderFormat,
+                request.bitrate,
+                ColorPlan.Sdr(ColorInfo.from(inputFormat)),
+            )
             tuneEncoderFormat(encoderFormat)
 
             val encoderOrNull =

@@ -8,6 +8,7 @@ import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
 import com.davotoula.lightcompressor.VideoQuality
+import com.davotoula.lightcompressor.hdr.ColorPlan
 import kotlin.math.roundToInt
 
 object CompressorUtils {
@@ -52,16 +53,20 @@ object CompressorUtils {
     /**
      * Set output parameters like bitrate and frame rate
      */
-    fun setOutputFileParameters(
+    internal fun setOutputFileParameters(
         inputFormat: MediaFormat,
         outputFormat: MediaFormat,
         newBitrate: Long,
+        colorPlan: ColorPlan,
+        sdkInt: Int = Build.VERSION.SDK_INT,
     ) {
         val newFrameRate = getFrameRate(inputFormat)
         val iFrameInterval = getIFrameIntervalRate(inputFormat)
         outputFormat.apply {
             // according to https://developer.android.com/media/optimize/sharing#b-frames_and_encoding_profiles
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (colorPlan is ColorPlan.KeepHdr) {
+                Log.i(LOG_TAG_OUTPUT_PARAMS, "KeepHdr: profile and level are left to ColorPlan")
+            } else if (sdkInt >= Build.VERSION_CODES.O) {
                 val type = outputFormat.getString(MediaFormat.KEY_MIME)
                 val higherLevel = getHighestCodecProfileLevel(type)
                 Log.i(LOG_TAG_OUTPUT_PARAMS, "Selected CodecProfileLevel: $higherLevel")
@@ -90,31 +95,7 @@ object CompressorUtils {
                 MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
             )
 
-            // Only attempt changing colour range if device supports it
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Default to BT.709 if input doesn't specify - standard for SDR HD content
-                // Some devices don't populate color metadata from MediaExtractor, causing
-                // encoder to use device-specific defaults (e.g., sRGB instead of BT.709)
-                val colorStandard =
-                    getColorStandard(inputFormat)
-                        ?: MediaFormat.COLOR_STANDARD_BT709
-                setInteger(MediaFormat.KEY_COLOR_STANDARD, colorStandard)
-
-                val colorTransfer =
-                    getColorTransfer(inputFormat)
-                        ?: MediaFormat.COLOR_TRANSFER_SDR_VIDEO
-                setInteger(MediaFormat.KEY_COLOR_TRANSFER, colorTransfer)
-
-                val targetColorRange = MediaFormat.COLOR_RANGE_LIMITED
-                val inputColorRange = getColorRange(inputFormat)
-                if (inputColorRange != null && inputColorRange != targetColorRange) {
-                    Log.w(
-                        LOG_TAG_OUTPUT_PARAMS,
-                        "Overriding input color range $inputColorRange with limited range $targetColorRange",
-                    )
-                }
-                setInteger(MediaFormat.KEY_COLOR_RANGE, targetColorRange)
-            }
+            colorPlan.applyTo(this, sdkInt)
 
             Log.i(
                 LOG_TAG_OUTPUT_PARAMS,
@@ -139,54 +120,6 @@ object CompressorUtils {
             )
         } else {
             I_FRAME_INTERVAL
-        }
-
-    private fun getColorStandard(format: MediaFormat): Int? =
-        if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) {
-            if (Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.N
-            ) {
-                format.getInteger(
-                    MediaFormat.KEY_COLOR_STANDARD,
-                )
-            } else {
-                // should not be used on older devices
-                0
-            }
-        } else {
-            null
-        }
-
-    private fun getColorTransfer(format: MediaFormat): Int? =
-        if (format.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
-            if (Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.N
-            ) {
-                format.getInteger(
-                    MediaFormat.KEY_COLOR_TRANSFER,
-                )
-            } else {
-                // should not be used on older devices
-                0
-            }
-        } else {
-            null
-        }
-
-    private fun getColorRange(format: MediaFormat): Int? =
-        if (format.containsKey(MediaFormat.KEY_COLOR_RANGE)) {
-            if (Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.N
-            ) {
-                format.getInteger(
-                    MediaFormat.KEY_COLOR_RANGE,
-                )
-            } else {
-                // should not be used on older devices
-                0
-            }
-        } else {
-            null
         }
 
     /**
