@@ -8,6 +8,7 @@ import android.util.Log
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.utils.CompressorUtils.getBitrate
 import com.davotoula.lightcompressor.utils.CompressorUtils.isHevcEncodingSupported
 import com.davotoula.lightcompressor.utils.CompressorUtils.prepareVideoHeight
@@ -166,6 +167,7 @@ object Compressor {
                 duration,
                 rotation,
                 configuration.videoCodec,
+                configuration.hdrMode,
             )
         }
 
@@ -185,6 +187,7 @@ object Compressor {
         duration: Long,
         rotation: Int,
         videoCodec: VideoCodec,
+        hdrMode: HdrMode,
     ): Result {
         // Use native MediaMuxer-based transcoders for better performance
         extractor.release()
@@ -211,6 +214,7 @@ object Compressor {
                 duration,
                 rotation,
                 videoCodec,
+                hdrMode,
             )
         } catch (
             @Suppress("TooGenericExceptionCaught") e: Exception,
@@ -238,6 +242,7 @@ object Compressor {
                 duration,
                 rotation,
                 videoCodec,
+                hdrMode,
             )
         }
     }
@@ -257,6 +262,7 @@ object Compressor {
         duration: Long,
         rotation: Int,
         videoCodec: VideoCodec,
+        hdrMode: HdrMode,
     ): Result =
         Transcoder(
             codec = videoCodec,
@@ -274,6 +280,7 @@ object Compressor {
                     rotation = rotation,
                     durationUs = duration,
                     listener = listener,
+                    hdrMode = hdrMode,
                 ),
         ).transcode()
 }
