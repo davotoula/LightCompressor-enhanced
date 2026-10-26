@@ -172,6 +172,12 @@ class ColorPlanTest {
     }
 
     @Test
+    fun keepPq_rejectsOutput_whenTransferIsHlg() {
+        val f = outputWith(MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10, MediaFormat.COLOR_TRANSFER_HLG)
+        assertFalse(keepPq().matchesEncoderOutput(f, 33))
+    }
+
+    @Test
     fun keepPq_rejectsOutput_whenProfileIsMain() {
         val f = outputWith(MediaCodecInfo.CodecProfileLevel.HEVCProfileMain, MediaFormat.COLOR_TRANSFER_ST2084)
         assertFalse(keepPq().matchesEncoderOutput(f, 33))

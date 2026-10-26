@@ -84,7 +84,7 @@ internal sealed class ColorPlan {
             sdkInt: Int,
         ): Boolean {
             if (sdkInt < MIN_COLOR_API) return true
-            // Any 10-bit HEVC profile is fine: encoders may report HDR10 output as plain Main10.
+            // Any Main10-family profile is fine: encoders may report HDR10 output as plain Main10.
             val profileOk =
                 !format.containsKey(MediaFormat.KEY_PROFILE) ||
                     format.getInteger(MediaFormat.KEY_PROFILE) in TEN_BIT_HEVC_PROFILES
