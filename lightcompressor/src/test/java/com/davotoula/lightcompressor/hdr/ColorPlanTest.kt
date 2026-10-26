@@ -149,6 +149,34 @@ class ColorPlanTest {
         assertFalse(keepHlg().matchesEncoderOutput(f, 33))
     }
 
+    private fun keepPq() =
+        ColorPlan.KeepHdr(
+            MediaFormat.COLOR_TRANSFER_ST2084,
+            MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
+            "c2.x",
+            null,
+            MediaFormat.COLOR_RANGE_LIMITED,
+        )
+
+    /** Exynos reports HDR10 output as plain Main10: HDR10 is Main10 plus metadata, not a bitstream profile. */
+    @Test
+    fun keepPq_matchesOutput_whenEncoderReportsMain10() {
+        val f = outputWith(MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10, MediaFormat.COLOR_TRANSFER_ST2084)
+        assertTrue(keepPq().matchesEncoderOutput(f, 33))
+    }
+
+    @Test
+    fun keepPq_matchesOutput_whenEncoderReportsMain10Hdr10() {
+        val f = outputWith(MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10, MediaFormat.COLOR_TRANSFER_ST2084)
+        assertTrue(keepPq().matchesEncoderOutput(f, 33))
+    }
+
+    @Test
+    fun keepPq_rejectsOutput_whenProfileIsMain() {
+        val f = outputWith(MediaCodecInfo.CodecProfileLevel.HEVCProfileMain, MediaFormat.COLOR_TRANSFER_ST2084)
+        assertFalse(keepPq().matchesEncoderOutput(f, 33))
+    }
+
     @Test
     fun keep_matchesOutput_whenKeysAbsent() {
         assertTrue(keepHlg().matchesEncoderOutput(outputWith(), 33))

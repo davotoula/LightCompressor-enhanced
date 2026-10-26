@@ -1,5 +1,6 @@
 package com.davotoula.lightcompressor.hdr
 
+import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.os.Build
 import android.util.Log
@@ -83,9 +84,10 @@ internal sealed class ColorPlan {
             sdkInt: Int,
         ): Boolean {
             if (sdkInt < MIN_COLOR_API) return true
+            // Any 10-bit HEVC profile is fine: encoders may report HDR10 output as plain Main10.
             val profileOk =
                 !format.containsKey(MediaFormat.KEY_PROFILE) ||
-                    format.getInteger(MediaFormat.KEY_PROFILE) == profile
+                    format.getInteger(MediaFormat.KEY_PROFILE) in TEN_BIT_HEVC_PROFILES
             val transferOk =
                 !format.containsKey(MediaFormat.KEY_COLOR_TRANSFER) ||
                     format.getInteger(MediaFormat.KEY_COLOR_TRANSFER) == transfer
@@ -148,5 +150,11 @@ internal sealed class ColorPlan {
     internal companion object {
         const val MIN_COLOR_API = 24
         const val LOG_TAG = "Output file parameters"
+        private val TEN_BIT_HEVC_PROFILES =
+            setOf(
+                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
+                MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus,
+            )
     }
 }
