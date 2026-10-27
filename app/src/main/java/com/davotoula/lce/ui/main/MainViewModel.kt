@@ -1,7 +1,6 @@
 package com.davotoula.lce.ui.main
 
 import android.app.Application
-import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
@@ -24,6 +23,7 @@ import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.config.SaveLocation
 import com.davotoula.lightcompressor.config.SharedStorageConfiguration
 import com.davotoula.lightcompressor.config.VideoResizer
+import com.davotoula.lightcompressor.utils.CompressorUtils
 import com.davotoula.lightcompressor.video.GifToMp4Converter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -80,11 +80,13 @@ class MainViewModel(
                 state.copy(
                     selectedResolution = settings.resolution,
                     customResolutionInput = settings.resolution.shortSide.toString(),
-                    selectedCodec = settings.codec,
+                    // Settings restored from another device may name a codec this one can't encode.
+                    selectedCodec = supportedCodec(settings.codec),
                     isStreamableEnabled = settings.isStreamableEnabled,
                     bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
                     bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput,
                     selectedHdrMode = settings.hdrMode,
+                    isSettingsLoaded = true,
                 )
             }
             if (settings.bitrateKbps == null) {
@@ -197,13 +199,10 @@ class MainViewModel(
     }
 
     private fun handleSetCodec(codec: Codec) {
-        val effectiveCodec =
-            if (codec == Codec.H265 && !isH265Supported()) {
-                showToast(context.getString(R.string.h265_not_supported_fallback))
-                Codec.H264
-            } else {
-                codec
-            }
+        val effectiveCodec = supportedCodec(codec)
+        if (effectiveCodec != codec) {
+            showToast(context.getString(R.string.h265_not_supported_fallback))
+        }
 
         _uiState.update { state ->
             state.copy(selectedCodec = effectiveCodec)
@@ -311,7 +310,7 @@ class MainViewModel(
         val videoCodec =
             when (state.selectedCodec) {
                 Codec.H264 -> VideoCodec.H264
-                Codec.H265 -> if (isH265Supported()) VideoCodec.H265 else VideoCodec.H264
+                Codec.H265 -> if (CompressorUtils.isHevcEncodingSupported()) VideoCodec.H265 else VideoCodec.H264
             }
 
         AnalyticsTracker.logCompressionStarted(
@@ -717,19 +716,8 @@ class MainViewModel(
         }
     }
 
-    private fun isH265Supported(): Boolean =
-        try {
-            val codecList = MediaCodecList(MediaCodecList.ALL_CODECS)
-            codecList.codecInfos.any { codecInfo ->
-                codecInfo.isEncoder &&
-                    codecInfo.supportedTypes.any { type ->
-                        type.equals(MediaFormat.MIMETYPE_VIDEO_HEVC, ignoreCase = true)
-                    }
-            }
-        } catch (e: Exception) {
-            Log.d("MainViewModel", "Error checking H.265 support: ${e.message}")
-            false
-        }
+    private fun supportedCodec(codec: Codec): Codec =
+        if (codec == Codec.H265 && !CompressorUtils.isHevcEncodingSupported()) Codec.H264 else codec
 
     private fun hasAudioTrack(path: String): Boolean {
         val extractor = MediaExtractor()

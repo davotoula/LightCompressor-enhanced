@@ -31,6 +31,8 @@ internal object HdrPolicy {
         if (mode == HdrMode.TONE_MAP_TO_SDR) {
             return HdrDecision(toneMap, "$prefix → ToneMapToSdr")
         }
+        // H.264 can't keep HDR: Android hardware encoders don't encode 10-bit H.264 (High 10), and
+        // few hardware decoders could play it.
         if (codec != VideoCodec.H265) {
             return HdrDecision(toneMap, "$prefix, codec is not H265 → ToneMapToSdr")
         }

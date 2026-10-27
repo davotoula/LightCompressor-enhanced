@@ -22,6 +22,7 @@
     <string name="hdr_label">5. HDR video:</string>
     <string name="hdr_keep">Zachovat HDR</string>
     <string name="hdr_tone_map">Převést na SDR</string>
+    <string name="hdr_h264_hint">H.264 neumí zachovat HDR, proto se HDR video převede na SDR. Pro zachování HDR zvolte H.265.</string>
     <string name="hdr_explanation">Zachovat HDR uchová 10bitové HDR při použití H.265 na zařízeních, která to podporují; jinak se video převede na SDR. Převést na SDR vždy vytvoří standardní video, které se přehraje všude.</string>
     <string name="bitrate_too_low">Datový tok je příliš nízký. Minimum je %1$d kb/s. Používá se %1$d kb/s.</string>
     <string name="bitrate_too_high">Datový tok je příliš vysoký. Maximum je %1$d kb/s. Používá se %1$d kb/s.</string>

@@ -164,7 +164,9 @@ val config = Configuration.withBitrateInBps(
 | `HdrMode.KEEP_IF_SUPPORTED`   | BT.2020 input encoded as H.265 on a device whose HEVC encoder supports HDR editing (Android 13+) keeps 10-bit HDR. Everything else is tone mapped to 8-bit SDR. |
 | `HdrMode.TONE_MAP_TO_SDR`     | HDR input is always tone mapped to 8-bit SDR (BT.709).                                                           |
 
-Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), for input tagged with a colour standard other than BT.2020, and on older or unsupported devices. Kept HDR output keeps the input's transfer: HLG stays HLG, and PQ is written as plain HDR10 because HDR10+ dynamic metadata is dropped.
+**H.264 can't keep HDR.** With `VideoCodec.H264`, HDR input is always tone mapped to SDR, whatever the mode: Android hardware encoders don't encode 10-bit H.264 (High 10), and few hardware decoders could play it. Use `VideoCodec.H265` to keep HDR. The sample app disables its Keep HDR option while H.264 is selected.
+
+HDR input is also tone mapped to 8-bit SDR for HLS (which always converts HDR to SDR, whatever the mode), for input tagged with a colour standard other than BT.2020, and on older or unsupported devices. Kept HDR output keeps the input's transfer: HLG stays HLG, and PQ is written as plain HDR10 because HDR10+ dynamic metadata is dropped.
 
 Dolby Vision video with a backward-compatible base layer (profile 8.1 or 8.4, which includes iPhone HDR recordings) is compressed from that base layer, so it comes out as HDR10 or HLG, or as SDR when tone mapped. The Dolby Vision metadata is dropped. Profile 5, which has no base layer, needs a Dolby Vision decoder on the device.
 

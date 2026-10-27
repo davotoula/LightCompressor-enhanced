@@ -21,7 +21,19 @@ data class MainUiState(
     val errorMessage: String? = null,
     val toastMessage: String? = null,
     val isSettingsExpanded: Boolean = true,
-)
+    // False until the saved settings load, so defaults (H.264) don't flash the H.264 HDR hint.
+    val isSettingsLoaded: Boolean = false,
+) {
+    /** Keeping HDR needs H.265: the library always tone maps H.264 output (see [HdrMode]). */
+    val isKeepHdrAvailable: Boolean get() = selectedCodec == Codec.H265
+
+    /**
+     * The HDR mode a compression actually gets, shown as selected in the settings. [selectedHdrMode]
+     * keeps the user's choice, so Keep HDR comes back when H.265 is selected again.
+     */
+    val effectiveHdrMode: HdrMode
+        get() = if (isKeepHdrAvailable) selectedHdrMode else HdrMode.TONE_MAP_TO_SDR
+}
 
 sealed class MainAction {
     data class SelectVideos(
