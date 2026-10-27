@@ -263,7 +263,7 @@ fun CollapsibleSettingsCard(
                             Text(stringResource(R.string.hdr_tone_map))
                         }
                     }
-                    if (!uiState.isKeepHdrAvailable) {
+                    if (uiState.isSettingsLoaded && !uiState.isKeepHdrAvailable) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = stringResource(R.string.hdr_h264_hint),
