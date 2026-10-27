@@ -106,7 +106,7 @@ internal class HlsTranscoder(
         try {
             // Setup video extractor
             videoExtractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-            val videoTrackIndex = CompressorUtils.findTrack(videoExtractor, true)
+            val videoTrackIndex = CompressorUtils.findVideoTrack(videoExtractor)
             if (videoTrackIndex < 0) return null
             val inputFormat = videoExtractor.getTrackFormat(videoTrackIndex)
             videoExtractor.selectTrack(videoTrackIndex)
@@ -120,7 +120,7 @@ internal class HlsTranscoder(
             }
 
             // HLS never keeps HDR: HDR input is tone mapped to 8-bit BT.709 SDR
-            val decision = planFor(ColorInfo.from(inputFormat))
+            val decision = planFor(ColorInfo.forVideoTrack(videoExtractor, videoTrackIndex))
             Log.i("HdrPolicy", decision.reason)
 
             // Configure encoder

@@ -1,7 +1,9 @@
 package com.davotoula.lightcompressor.hdr
 
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.os.Build
+import com.davotoula.lightcompressor.utils.CompressorUtils
 
 /**
  * Colour description of an input video track, read from its [MediaFormat].
@@ -60,6 +62,31 @@ internal class ColorInfo(
         private const val MASTERING_OFFSET = 17
         private const val CLL_OFFSET = 21
         private const val MIN_COLOR_API = 24
+
+        /**
+         * Reads track [trackIndex] of [extractor], filling any colour key it lacks from the file's Dolby Vision
+         * track. The HEVC base layer chosen by [CompressorUtils.findVideoTrack] describes the same pictures, but
+         * if it came back untagged an HLG/PQ source would plan as SDR and get tagged BT.709 without tone mapping.
+         */
+        fun forVideoTrack(
+            extractor: MediaExtractor,
+            trackIndex: Int,
+            sdkInt: Int = Build.VERSION.SDK_INT,
+        ): ColorInfo {
+            val own = from(extractor.getTrackFormat(trackIndex), sdkInt)
+            val dolbyVisionIndex =
+                (0 until extractor.trackCount).firstOrNull {
+                    it != trackIndex &&
+                        CompressorUtils.trackMime(extractor, it) == MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION
+                } ?: return own
+            val dv = from(extractor.getTrackFormat(dolbyVisionIndex), sdkInt)
+            return ColorInfo(
+                own.standard ?: dv.standard,
+                own.transfer ?: dv.transfer,
+                own.range ?: dv.range,
+                own.staticInfo ?: dv.staticInfo,
+            )
+        }
 
         fun from(
             format: MediaFormat,

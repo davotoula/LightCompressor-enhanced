@@ -24,6 +24,7 @@ import com.davotoula.lightcompressor.hdr.MediaCodecHdrCapabilities
 import com.davotoula.lightcompressor.hdr.rejectionFor
 import com.davotoula.lightcompressor.hdr.runWithFallback
 import com.davotoula.lightcompressor.utils.CompressorUtils.findTrack
+import com.davotoula.lightcompressor.utils.CompressorUtils.findVideoTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
 import com.davotoula.lightcompressor.utils.CompressorUtils.printException
 import com.davotoula.lightcompressor.utils.CompressorUtils.setOutputFileParameters
@@ -87,8 +88,8 @@ internal open class Transcoder(
         var extractor: MediaExtractor? = null
         return try {
             extractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-            val trackIndex = findTrack(extractor, true)
-            if (trackIndex < 0) untaggedColorInfo() else ColorInfo.from(extractor.getTrackFormat(trackIndex))
+            val trackIndex = findVideoTrack(extractor)
+            if (trackIndex < 0) untaggedColorInfo() else ColorInfo.forVideoTrack(extractor, trackIndex)
         } catch (e: Exception) {
             Log.w(HDR_TAG, "Colour info pre-read failed, treating input as SDR: ${e.message}")
             untaggedColorInfo()
@@ -151,7 +152,7 @@ internal open class Transcoder(
                 MediaExtractor().apply {
                     setDataSource(context, srcUri, null)
                 }
-            val videoTrackIndex = findTrack(videoExtractor, true)
+            val videoTrackIndex = findVideoTrack(videoExtractor)
             if (videoTrackIndex < 0) {
                 return failOrReject(plan, "No video track found in source")
             }

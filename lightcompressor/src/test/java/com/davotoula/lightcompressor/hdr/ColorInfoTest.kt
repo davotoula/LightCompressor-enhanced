@@ -1,5 +1,6 @@
 package com.davotoula.lightcompressor.hdr
 
+import android.media.MediaExtractor
 import android.media.MediaFormat
 import io.mockk.every
 import io.mockk.mockk
@@ -119,5 +120,63 @@ class ColorInfoTest {
         val info = ColorInfo.from(format(staticInfo = blob(mastering = 0, cll = 0)), 33)
         assertNull(info.maxMasteringLuminance)
         assertNull(info.maxContentLightLevel)
+    }
+
+    private fun extractor(vararg tracks: Pair<String, MediaFormat>): MediaExtractor {
+        val e = mockk<MediaExtractor>()
+        every { e.trackCount } returns tracks.size
+        tracks.forEachIndexed { i, (mime, f) ->
+            every { f.getString(MediaFormat.KEY_MIME) } returns mime
+            every { e.getTrackFormat(i) } returns f
+        }
+        return e
+    }
+
+    private fun hlgDolbyVision() =
+        "video/dolby-vision" to
+            format(
+                MediaFormat.COLOR_STANDARD_BT2020,
+                MediaFormat.COLOR_TRANSFER_HLG,
+                MediaFormat.COLOR_RANGE_LIMITED,
+            )
+
+    /** An untagged HEVC base layer must not plan as SDR (and get tagged BT.709) when the DV track says HLG. */
+    @Test
+    fun forVideoTrack_untaggedBaseLayer_takesDolbyVisionColour() {
+        val e = extractor(hlgDolbyVision(), "video/hevc" to format())
+        val info = ColorInfo.forVideoTrack(e, 1, 33)
+        assertEquals(MediaFormat.COLOR_STANDARD_BT2020, info.standard)
+        assertEquals(MediaFormat.COLOR_TRANSFER_HLG, info.transfer)
+        assertEquals(MediaFormat.COLOR_RANGE_LIMITED, info.range)
+    }
+
+    @Test
+    fun forVideoTrack_partlyTaggedBaseLayer_fillsOnlyMissingKeys() {
+        val pqStatic = blob()
+        val dv =
+            "video/dolby-vision" to
+                format(
+                    MediaFormat.COLOR_STANDARD_BT2020,
+                    MediaFormat.COLOR_TRANSFER_ST2084,
+                    MediaFormat.COLOR_RANGE_LIMITED,
+                    pqStatic,
+                )
+        val base = "video/hevc" to format(MediaFormat.COLOR_STANDARD_BT2020, MediaFormat.COLOR_TRANSFER_HLG)
+        val info = ColorInfo.forVideoTrack(extractor(dv, base), 1, 33)
+        assertEquals(MediaFormat.COLOR_TRANSFER_HLG, info.transfer)
+        assertEquals(MediaFormat.COLOR_RANGE_LIMITED, info.range)
+        assertTrue(pqStatic contentEquals info.staticInfo)
+    }
+
+    @Test
+    fun forVideoTrack_noDolbyVisionTrack_readsTrackAsIs() {
+        val e = extractor("video/hevc" to format(), "audio/mp4a-latm" to format())
+        assertEquals(ColorInfo(null, null, null, null), ColorInfo.forVideoTrack(e, 0, 33))
+    }
+
+    @Test
+    fun forVideoTrack_dolbyVisionTrackItself_readsIt() {
+        val info = ColorInfo.forVideoTrack(extractor(hlgDolbyVision()), 0, 33)
+        assertTrue(info.isHlg)
     }
 }

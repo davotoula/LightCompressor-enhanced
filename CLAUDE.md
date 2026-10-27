@@ -77,6 +77,7 @@ Package: `com.davotoula.lightcompressor`
 - Keep-HDR retry window: `Transcoder.transcode()` retries a rejected `KeepHdr` attempt exactly once as `ToneMapToSdr`, but only before `muxer.start()`. After the muxer starts a failure is a normal failure, and progress is held back until then.
 - No EGL colour-space attribute is ever set on the encoder input surface: as Media3's `GlUtil` documents, BT2020 PQ/HLG window attributes make the encoder switch to full range even when configured for limited.
 - `HlsTranscoder` always tone maps HDR sources (`isHls = true`).
+- Dolby Vision: Android lists a DV 8.x file (iPhone HDR) as a `video/dolby-vision` track plus its HEVC base layer. `CompressorUtils.findVideoTrack` prefers the first non-DV video track (no DV decoder needed, and DV can't be encoded); profile 5 has no base layer and still fails the decoder check. `ColorInfo.forVideoTrack` fills colour keys the chosen track lacks from the DV track, so an untagged base layer never plans as SDR.
 - JVM unit tests run against the stub android.jar where `Build.VERSION.SDK_INT` is 0, so tests of SDK-gated code must pass `sdkInt` explicitly (`ColorPlan.applyTo`/`matchesEncoderOutput` take it as a parameter).
 
 ### App (`app/`)
@@ -106,6 +107,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `ColorPlanTest` — encoder colour tags per plan (passes `sdkInt`)
 - `HdrPolicyTest` — keep-HDR vs tone-map decision table
 - `MediaCodecHdrCapabilitiesTest` — HDR encoder discovery
+- `VideoTrackSelectionTest` — Dolby Vision base-layer track selection
 - `KeepHdrRejectionTest` — keep-HDR rejection and retry window
 - `ShaderSourcesTest` — generated GLSL sources
 - `HlsTranscoderPlanTest` — HLS always tone maps HDR

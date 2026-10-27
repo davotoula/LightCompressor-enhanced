@@ -148,6 +148,25 @@ object CompressorUtils {
         return TRACK_NOT_FOUND
     }
 
+    /**
+     * Index of the video track to decode: the first video track that isn't Dolby Vision, else the first video
+     * track. Android lists a Dolby Vision 8.x file (iPhone HDR) as a `video/dolby-vision` track followed by its
+     * backward-compatible HEVC base layer. Decoding the base layer works without a DV decoder, and DV can't be
+     * encoded anyway. A file with no base layer (profile 5) returns the DV track and fails the decoder check.
+     */
+    internal fun findVideoTrack(extractor: MediaExtractor): Int {
+        val videoTracks =
+            (0 until extractor.trackCount).filter { trackMime(extractor, it)?.startsWith("video/") == true }
+        return videoTracks.firstOrNull { trackMime(extractor, it) != MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION }
+            ?: videoTracks.firstOrNull()
+            ?: TRACK_NOT_FOUND
+    }
+
+    internal fun trackMime(
+        extractor: MediaExtractor,
+        index: Int,
+    ): String? = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
+
     fun printException(exception: Exception) {
         var message = "An error has occurred!"
         exception.localizedMessage?.let {
