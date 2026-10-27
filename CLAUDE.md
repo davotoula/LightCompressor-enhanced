@@ -68,6 +68,7 @@ Package: `com.davotoula.lightcompressor`
 - H.265 support is runtime-detected via `CompressorUtils.isHevcEncodingSupported()` (cached)
 - Uses native Android `MediaMuxer` instead of third-party MP4 muxer
 - `StreamableVideo` moves moov atom for progressive download support
+- Encoder stall watchdog: `EncoderWatchdog` (in `compressor/`, used by `Transcoder` and `HlsTranscoder`) releases the encoder from its own thread when frames are awaiting output and the encoder has produced nothing for 10 s, or when a cancel has gone unnoticed for 1 s. Some vendor encoders (Exynos HEVC under concurrent hardware codec load) stop emitting output and the pipeline thread then blocks inside GL (`glClear`/`eglSwapBuffers`), where no flag check can reach it; releasing the encoder is the only thing that unblocks it. The caller maps `watchdog.verdict` to the outcome (`MSG_ENCODER_STALLED` failure, or cancelled), and `finally` closes the watchdog first so a trip in progress finishes before cleanup. No automatic retry (an immediate retry under the same load stalled again), except that a keep-HDR attempt stalling before muxer start takes the normal tone-map retry.
 - `limitShortSide` is preferred over `limitSize` for resolution targeting — `limitSize` creates a landscape-oriented bounding box that crushes portrait/non-standard aspect ratio videos (e.g., 1080x2400 → 480x1088). `limitShortSide` constrains `min(width, height)` which is orientation-agnostic.
 
 **HDR handling** (HLG/PQ input, `hdr/` package, controlled by `Configuration.hdrMode: HdrMode`):
@@ -111,6 +112,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `KeepHdrRejectionTest` — keep-HDR rejection and retry window
 - `ShaderSourcesTest` — generated GLSL sources
 - `HlsTranscoderPlanTest` — HLS always tone maps HDR
+- `EncoderWatchdogTest` — encoder stall/cancel watchdog trip rules (injected clock)
 - `CodecStatusTest` — transcoders ignore `MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED` from older OMX codecs
 
 One instrumented test, `ToneMapFallbackTest` (ES2/ES3 tone-map fallback), needs `orig2.mp4` pushed to the test app's external files dir. Run it with `installDebugAndroidTest` plus `adb shell am instrument`, not `connectedDebugAndroidTest`, which uninstalls the app and deletes its outputs.

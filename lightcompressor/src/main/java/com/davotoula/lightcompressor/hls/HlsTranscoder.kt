@@ -7,6 +7,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import android.util.Log
+import com.davotoula.lightcompressor.compressor.EncoderWatchdog
 import com.davotoula.lightcompressor.compressor.isOutputBuffersChanged
 import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.hdr.ColorInfo
@@ -96,6 +97,7 @@ internal class HlsTranscoder(
         var encoder: MediaCodec? = null
         var inputSurface: InputSurface? = null
         var outputSurface: OutputSurface? = null
+        var watchdog: EncoderWatchdog? = null
         val sink: SegmentSink =
             if (config.singleFilePerRendition) {
                 SingleFileSegmentSink(rendition, listener, tempDir)
@@ -161,6 +163,7 @@ internal class HlsTranscoder(
             inputSurface = surfaces.input
             outputSurface = surfaces.output
             encoder.start()
+            watchdog = EncoderWatchdog.startFor(encoder, TAG) { isCancelled }
 
             // Configure decoder
             decoder = MediaCodec.createDecoderByType(sourceMime)
@@ -238,6 +241,7 @@ internal class HlsTranscoder(
                             }
                             isOutputBuffersChanged(encoderStatus) -> { /* deprecated no-op */ }
                             encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                                watchdog.outputReceived(isFrame = false)
                                 val encoderOutputFormat = encoder.outputFormat
                                 // Pixel AVC encoders split SPS into csd-0 and PPS into csd-1.
                                 // Both buffers must be merged so the avcC box gets a complete
@@ -260,7 +264,9 @@ internal class HlsTranscoder(
                                     encoder.getOutputBuffer(encoderStatus)
                                         ?: throw RuntimeException("Null encoder output buffer")
 
-                                if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
+                                val isCodecConfig = encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+                                watchdog.outputReceived(isFrame = !isCodecConfig && encoderBufferInfo.size > 0)
+                                if (isCodecConfig) {
                                     encoder.releaseOutputBuffer(encoderStatus, false)
                                     continue
                                 }
@@ -344,6 +350,8 @@ internal class HlsTranscoder(
                                 if (doRender) {
                                     if (isCancelled) throw CancellationException()
                                     outputSurface.awaitNewImage()
+                                    // Counted before drawing: a stalled encoder blocks the draw itself.
+                                    watchdog.frameSubmitted()
                                     outputSurface.drawImage()
                                     inputSurface.setPresentationTime(
                                         bufferInfo.presentationTimeUs * NS_PER_US,
@@ -353,12 +361,15 @@ internal class HlsTranscoder(
                                 if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                     decoderDone = true
                                     encoder.signalEndOfInputStream()
+                                    watchdog.inputEnded()
                                 }
                             }
                         }
                     }
                 }
             }
+
+            watchdog.close()
 
             // Emit any deferred output (single-file mode flushes the combined rendition here).
             val finishStart = System.nanoTime()
@@ -405,9 +416,17 @@ internal class HlsTranscoder(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Rendition ${rendition.resolution.label} failed", e)
+            // A watchdog trip released the encoder, so `e` is only the symptom.
+            when (watchdog?.verdict) {
+                EncoderWatchdog.Verdict.CANCELLED -> throw CancellationException()
+                EncoderWatchdog.Verdict.STALLED ->
+                    Log.e(TAG, "Rendition ${rendition.resolution.label} failed: video encoder stopped responding", e)
+                null -> Log.e(TAG, "Rendition ${rendition.resolution.label} failed", e)
+            }
             return null
         } finally {
+            // Joins a trip in progress, so its encoder release is done before the cleanup below.
+            runCatching { watchdog?.close() }
             runCatching { sink.close() }
             runCatching { decoder?.stop() }
             runCatching { decoder?.release() }

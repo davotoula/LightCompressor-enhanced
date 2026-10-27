@@ -145,6 +145,7 @@ internal open class Transcoder(
         var audioTrackInfo: AudioTrackInfo? = null
         var encoderStarted = false
         var decoderStarted = false
+        var watchdog: EncoderWatchdog? = null
         val state = PipelineState()
 
         return try {
@@ -200,6 +201,7 @@ internal open class Transcoder(
             outputSurface = surfaces.output
             encoder.start()
             encoderStarted = true
+            watchdog = EncoderWatchdog.startFor(encoder, TAG) { !Compressor.isRunning }
 
             val decoderOrNull =
                 createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
@@ -224,6 +226,7 @@ internal open class Transcoder(
                 sourceMime = sourceMime,
                 plan = plan,
                 state = state,
+                watchdog = watchdog,
             )
 
             try {
@@ -239,19 +242,29 @@ internal open class Transcoder(
             muxer = null
 
             finalizeOutput(muxerOutputFile, streamableRequested)
-        } catch (_: CancellationException) {
-            request.listener.onProgressCancelled(request.index)
-            failure("Compression cancelled")
         } catch (
             @Suppress("TooGenericExceptionCaught") throwable: Throwable,
         ) {
-            // Before the muxer starts, a keep-HDR failure (including a KeepHdrRejected thrown above)
-            // becomes a rejection for runWithFallback; `finally` still releases everything first.
-            val isCancellation = throwable is java.util.concurrent.CancellationException
-            rejectionFor(plan, state.muxerStarted, isCancellation, throwable)?.let { throw it }
-            printException(Exception(throwable))
-            failure(throwable.message ?: "${codec.name} transcoding failed")
+            // After a watchdog trip released the encoder, `throwable` is only the symptom.
+            val verdict = watchdog?.verdict
+            if (throwable is CancellationException || verdict == EncoderWatchdog.Verdict.CANCELLED) {
+                request.listener.onProgressCancelled(request.index)
+                failure("Compression cancelled")
+            } else {
+                // Before the muxer starts, a keep-HDR failure (including a KeepHdrRejected thrown above)
+                // becomes a rejection for runWithFallback; `finally` still releases everything first.
+                val isCancellation = throwable is java.util.concurrent.CancellationException
+                rejectionFor(plan, state.muxerStarted, isCancellation, throwable)?.let { throw it }
+                printException(Exception(throwable))
+                if (verdict == EncoderWatchdog.Verdict.STALLED) {
+                    failure(MSG_ENCODER_STALLED)
+                } else {
+                    failure(throwable.message ?: "${codec.name} transcoding failed")
+                }
+            }
         } finally {
+            // Joins a trip in progress, so its encoder release is done before the cleanup below.
+            watchdog?.close()
             try {
                 videoExtractor?.release()
             } catch (_: Exception) {
@@ -363,6 +376,7 @@ internal open class Transcoder(
         sourceMime: String,
         plan: ColorPlan,
         state: PipelineState,
+        watchdog: EncoderWatchdog,
     ) {
         val timeoutUs = TIMEOUT_US
         val bufferInfo = MediaCodec.BufferInfo()
@@ -436,6 +450,7 @@ internal open class Transcoder(
                         }
 
                         encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            watchdog.outputReceived(isFrame = false)
                             val newFormat = encoder.outputFormat
                             if (!plan.matchesEncoderOutput(newFormat)) {
                                 throw KeepHdrRejected("encoder output $newFormat does not match plan")
@@ -461,6 +476,7 @@ internal open class Transcoder(
                             if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                                 encoderBufferInfo.size = 0
                             }
+                            watchdog.outputReceived(isFrame = encoderBufferInfo.size > 0)
 
                             if (encoderBufferInfo.size > 0 && state.muxerStarted) {
                                 encodedData.position(encoderBufferInfo.offset)
@@ -514,6 +530,8 @@ internal open class Transcoder(
                                     throw CancellationException()
                                 }
                                 outputSurface.awaitNewImage()
+                                // Counted before drawing: a stalled encoder blocks the draw itself.
+                                watchdog.frameSubmitted()
                                 outputSurface.drawImage()
 
                                 val presentationTimeUs = bufferInfo.presentationTimeUs
@@ -528,6 +546,7 @@ internal open class Transcoder(
                             if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                 decoderDone = true
                                 encoder.signalEndOfInputStream()
+                                watchdog.inputEnded()
                             }
                         }
                     }
@@ -535,6 +554,7 @@ internal open class Transcoder(
             }
         }
 
+        watchdog.close()
         if (audioTrack != null && state.muxerStarted) {
             copyAudioTrack(audioTrack, muxer)
         }
@@ -890,5 +910,8 @@ internal open class Transcoder(
         internal const val MSG_DECODER_FAILED_PREFIX = "Failed to create decoder for "
         internal const val MSG_DECODER_FAILED_SUFFIX = ". The device may not have a free decoder instance."
         internal const val MSG_EGL_SETUP_FAILED_PREFIX = "EGL/OpenGL setup failed: "
+        internal const val MSG_ENCODER_STALLED =
+            "The device's video encoder stopped responding. Try again; closing other apps that play or " +
+                "record video may help."
     }
 }
