@@ -145,6 +145,21 @@ class EncoderWatchdogTest {
     }
 
     @Test
+    fun cancelWhileEncoderDraining_waitsForOutputToStop() {
+        val w = watchdog()
+        repeat(8) { w.frameSubmitted() }
+        cancelled = true
+        assertNull(w.check())
+        repeat(4) {
+            advance(GRACE / 2)
+            w.outputReceived(flags = 0, size = FRAME_SIZE)
+            assertNull(w.check())
+        }
+        advance(GRACE)
+        assertEquals(Verdict.CANCELLED, w.check())
+    }
+
+    @Test
     fun cancelDuringStall_reportsCancelled() {
         val w = watchdog()
         w.frameSubmitted()

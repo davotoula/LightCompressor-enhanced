@@ -15,8 +15,9 @@ import java.util.concurrent.TimeUnit
  *
  * The pipeline reports [frameSubmitted], [inputEnded] and [outputReceived]. A background thread
  * calls [check]: it trips [Verdict.STALLED] once frames are awaiting output and the encoder has made
- * no progress for [stallTimeoutNs], or [Verdict.CANCELLED] once [isCancelled] has held for
- * [cancelGraceNs] (a pipeline that isn't stuck notices the cancel itself well within that). On a
+ * no progress for [stallTimeoutNs], or [Verdict.CANCELLED] once [isCancelled] has held and the
+ * encoder has made no progress for [cancelGraceNs] (a pipeline that isn't stuck notices the cancel
+ * itself well within that, and one still draining output must not lose its buffers mid-write). On a
  * trip it calls [onTrip], which releases the encoder, so the pipeline thread's next codec or GL call
  * fails and the caller maps [verdict] to the job's outcome. The encoder's end-of-stream output retires
  * the watchdog, so work after encoding (audio copy, segment flush) is never judged.
@@ -100,7 +101,7 @@ internal class EncoderWatchdog(
     private fun evaluate(now: Long): Verdict? {
         val newVerdict =
             when {
-                cancelExpired(now) -> Verdict.CANCELLED
+                cancelExpired(now) && now - lastProgressNs >= cancelGraceNs -> Verdict.CANCELLED
                 isAwaitingOutput() && now - lastProgressNs >= stallTimeoutNs -> Verdict.STALLED
                 else -> null
             }
