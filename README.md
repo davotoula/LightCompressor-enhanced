@@ -84,6 +84,8 @@ VideoCompressor.start(
 VideoCompressor.cancel()
 ```
 
+**Encoder stalls:** a device's hardware encoder can occasionally stop producing output partway through a job (seen with Samsung Exynos HEVC encoders while other apps hold hardware video codecs). If the encoder produces nothing for 10 seconds while it has frames to encode, the library releases it: the job ends through `onFailure` with a message saying the video encoder stopped responding, rather than hanging, and `cancel()` still works during the stall. There is no automatic retry; a later attempt usually succeeds. In HLS preparation the stalled rendition fails and the remaining renditions continue.
+
 ## Features
 
 - H.264 (AVC) and H.265 (HEVC) codec support

@@ -38,6 +38,8 @@ object Compressor {
         "The provided bitrate is smaller than what is needed for compression " +
             "try to set isMinBitRateEnabled to false"
 
+    // Read by the encoder watchdog's thread.
+    @Volatile
     var isRunning = true
 
     suspend fun compressVideo(
