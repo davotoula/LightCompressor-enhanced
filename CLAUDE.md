@@ -72,7 +72,7 @@ Package: `com.davotoula.lightcompressor`
 - `limitShortSide` is preferred over `limitSize` for resolution targeting — `limitSize` creates a landscape-oriented bounding box that crushes portrait/non-standard aspect ratio videos (e.g., 1080x2400 → 480x1088). `limitShortSide` constrains `min(width, height)` which is orientation-agnostic.
 
 **HDR handling** (HLG/PQ input, `hdr/` package, controlled by `Configuration.hdrMode: HdrMode`):
-- `HdrPolicy.decide()` picks a `ColorPlan` once per job from `ColorInfo`, codec, `HdrMode`, an HLS flag and `HdrCapabilities`: `Sdr`, `KeepHdr` (H.265 only, non-HLS, BT.2020 input, an encoder with HDR editing support) or `ToneMapToSdr`. `HdrPolicy.fallbackFor()` builds the tone-map plan.
+- `HdrPolicy.decide()` picks a `ColorPlan` once per job from `ColorInfo`, codec, `HdrMode`, an HLS flag and `HdrCapabilities`: `Sdr`, `KeepHdr` (H.265 only, non-HLS, BT.2020 input, an encoder with HDR editing support) or `ToneMapToSdr`. H.264 always tone maps: Android hardware encoders don't encode 10-bit H.264 (High 10), and few hardware decoders could play it. `HdrPolicy.fallbackFor()` builds the tone-map plan.
 - `ColorPlan` is the single place encoder colour tags (and for `KeepHdr` the profile and static info) are set, and carries the `RenderSpec` (GLES version, bit depth, shader). Output is never tagged BT.709 unless tone mapped, and never HLG/PQ unless 10-bit.
 - `GlSurfaceFactory` builds the GL pipeline for a plan. `KeepHdr` uses ES3 / 10-bit and any failure becomes `KeepHdrRejected`; `ToneMapToSdr` prefers ES3 with `GL_EXT_YUV_target` and falls back to ES2.
 - Keep-HDR retry window: `Transcoder.transcode()` retries a rejected `KeepHdr` attempt exactly once as `ToneMapToSdr`, but only before `muxer.start()`. After the muxer starts a failure is a normal failure, and progress is held back until then.
@@ -85,7 +85,7 @@ Package: `com.davotoula.lightcompressor`
 
 Package: `com.davotoula.lce`
 
-Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 for playback, Coil for thumbnails, DataStore for preferences, Firebase for analytics/crashlytics. Resolution control uses `VideoResizer.limitShortSide()` for orientation-aware resizing.
+Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 for playback, Coil for thumbnails, DataStore for preferences, Firebase for analytics/crashlytics. Resolution control uses `VideoResizer.limitShortSide()` for orientation-aware resizing. The Keep HDR option is disabled while H.264 is selected: `MainUiState.effectiveHdrMode` is what compression uses (always `TONE_MAP_TO_SDR` for H.264), while `selectedHdrMode` keeps the user's choice, which is what gets saved, so Keep HDR returns when H.265 is selected again.
 
 **HLS test affordance:** A "Prepare HLS" button on `MainScreen` (with an HLS codec dropdown) exercises `HlsPreparer` end-to-end against a single picked video. Output is written to `filesDir/hls/current/` (wiped before every run) by `HlsTestSession`, an `HlsListener` impl in `app/src/main/java/com/davotoula/lce/hls/`. The resulting `master.m3u8` plays back via the existing `PlayerScreen`, which uses Media3's HLS source (`media3-exoplayer-hls`).
 

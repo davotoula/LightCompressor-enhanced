@@ -354,7 +354,7 @@ class MainViewModel(
                 resizer = VideoResizer.limitShortSide(resolutionPixels),
                 videoNames = videoNames,
                 videoCodec = videoCodec,
-                hdrMode = state.selectedHdrMode,
+                hdrMode = state.effectiveHdrMode,
             )
 
         VideoCompressor.start(

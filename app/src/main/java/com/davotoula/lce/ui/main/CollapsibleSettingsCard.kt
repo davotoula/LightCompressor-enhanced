@@ -247,20 +247,30 @@ fun CollapsibleSettingsCard(
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
+                        // Disabled for H.264, which can't keep HDR (see MainUiState.isKeepHdrAvailable).
                         SegmentedButton(
-                            selected = uiState.selectedHdrMode == HdrMode.KEEP_IF_SUPPORTED,
+                            selected = uiState.effectiveHdrMode == HdrMode.KEEP_IF_SUPPORTED,
                             onClick = { onAction(MainAction.SetHdrMode(HdrMode.KEEP_IF_SUPPORTED)) },
+                            enabled = uiState.isKeepHdrAvailable,
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         ) {
                             Text(stringResource(R.string.hdr_keep))
                         }
                         SegmentedButton(
-                            selected = uiState.selectedHdrMode == HdrMode.TONE_MAP_TO_SDR,
+                            selected = uiState.effectiveHdrMode == HdrMode.TONE_MAP_TO_SDR,
                             onClick = { onAction(MainAction.SetHdrMode(HdrMode.TONE_MAP_TO_SDR)) },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         ) {
                             Text(stringResource(R.string.hdr_tone_map))
                         }
+                    }
+                    if (!uiState.isKeepHdrAvailable) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.hdr_h264_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

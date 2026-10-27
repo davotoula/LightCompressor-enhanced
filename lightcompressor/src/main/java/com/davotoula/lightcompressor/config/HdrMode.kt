@@ -10,6 +10,9 @@ package com.davotoula.lightcompressor.config
  *   the video is tone mapped to 8-bit SDR and tagged BT.709.
  * - [TONE_MAP_TO_SDR]: HLG and PQ input is always tone mapped to 8-bit SDR, tagged BT.709.
  *
+ * Keeping HDR needs H.265: H.264 output is always tone mapped, because Android hardware encoders
+ * don't encode 10-bit H.264 (High 10) and few hardware decoders could play it.
+ *
  * HLS preparation always tone maps HDR input to SDR, whatever the mode.
  */
 enum class HdrMode {
