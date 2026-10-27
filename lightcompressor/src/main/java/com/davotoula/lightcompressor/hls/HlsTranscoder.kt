@@ -241,7 +241,7 @@ internal class HlsTranscoder(
                             }
                             isOutputBuffersChanged(encoderStatus) -> { /* deprecated no-op */ }
                             encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                                watchdog.outputReceived(isFrame = false)
+                                watchdog.formatChanged()
                                 val encoderOutputFormat = encoder.outputFormat
                                 // Pixel AVC encoders split SPS into csd-0 and PPS into csd-1.
                                 // Both buffers must be merged so the avcC box gets a complete
@@ -264,9 +264,8 @@ internal class HlsTranscoder(
                                     encoder.getOutputBuffer(encoderStatus)
                                         ?: throw RuntimeException("Null encoder output buffer")
 
-                                val isCodecConfig = encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
-                                watchdog.outputReceived(isFrame = !isCodecConfig && encoderBufferInfo.size > 0)
-                                if (isCodecConfig) {
+                                watchdog.outputReceived(encoderBufferInfo.flags, encoderBufferInfo.size)
+                                if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                                     encoder.releaseOutputBuffer(encoderStatus, false)
                                     continue
                                 }
@@ -368,8 +367,6 @@ internal class HlsTranscoder(
                     }
                 }
             }
-
-            watchdog.close()
 
             // Emit any deferred output (single-file mode flushes the combined rendition here).
             val finishStart = System.nanoTime()

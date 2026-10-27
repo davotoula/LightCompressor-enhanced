@@ -256,11 +256,13 @@ internal open class Transcoder(
                 val isCancellation = throwable is java.util.concurrent.CancellationException
                 rejectionFor(plan, state.muxerStarted, isCancellation, throwable)?.let { throw it }
                 printException(Exception(throwable))
-                if (verdict == EncoderWatchdog.Verdict.STALLED) {
-                    failure(MSG_ENCODER_STALLED)
-                } else {
-                    failure(throwable.message ?: "${codec.name} transcoding failed")
-                }
+                failure(
+                    if (verdict == EncoderWatchdog.Verdict.STALLED) {
+                        MSG_ENCODER_STALLED
+                    } else {
+                        throwable.message ?: "${codec.name} transcoding failed"
+                    },
+                )
             }
         } finally {
             // Joins a trip in progress, so its encoder release is done before the cleanup below.
@@ -450,7 +452,7 @@ internal open class Transcoder(
                         }
 
                         encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                            watchdog.outputReceived(isFrame = false)
+                            watchdog.formatChanged()
                             val newFormat = encoder.outputFormat
                             if (!plan.matchesEncoderOutput(newFormat)) {
                                 throw KeepHdrRejected("encoder output $newFormat does not match plan")
@@ -476,7 +478,7 @@ internal open class Transcoder(
                             if (encoderBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                                 encoderBufferInfo.size = 0
                             }
-                            watchdog.outputReceived(isFrame = encoderBufferInfo.size > 0)
+                            watchdog.outputReceived(encoderBufferInfo.flags, encoderBufferInfo.size)
 
                             if (encoderBufferInfo.size > 0 && state.muxerStarted) {
                                 encodedData.position(encoderBufferInfo.offset)
@@ -554,7 +556,6 @@ internal open class Transcoder(
             }
         }
 
-        watchdog.close()
         if (audioTrack != null && state.muxerStarted) {
             copyAudioTrack(audioTrack, muxer)
         }

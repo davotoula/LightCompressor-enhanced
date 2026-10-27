@@ -1,5 +1,6 @@
 package com.davotoula.lightcompressor.compressor
 
+import android.media.MediaCodec
 import com.davotoula.lightcompressor.compressor.EncoderWatchdog.Verdict
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -55,7 +56,7 @@ class EncoderWatchdogTest {
             w.frameSubmitted()
             w.frameSubmitted()
             advance(TIMEOUT - 1)
-            w.outputReceived(isFrame = true)
+            w.outputReceived(flags = 0, size = FRAME_SIZE)
             assertNull(w.check())
         }
         assertTrue(trips.isEmpty())
@@ -66,7 +67,7 @@ class EncoderWatchdogTest {
         val w = watchdog()
         w.frameSubmitted()
         advance(TIMEOUT - 1)
-        w.outputReceived(isFrame = false)
+        w.outputReceived(MediaCodec.BUFFER_FLAG_CODEC_CONFIG, CONFIG_SIZE)
         advance(TIMEOUT - 1)
         assertNull(w.check())
         advance(1)
@@ -77,7 +78,7 @@ class EncoderWatchdogTest {
     fun drainedEncoder_waitingOnDecoder_doesNotTrip() {
         val w = watchdog()
         w.frameSubmitted()
-        w.outputReceived(isFrame = true)
+        w.outputReceived(flags = 0, size = FRAME_SIZE)
         advance(TIMEOUT * 3)
         assertNull(w.check())
     }
@@ -86,7 +87,7 @@ class EncoderWatchdogTest {
     fun frameAfterLongIdle_startsTimerAtSubmission() {
         val w = watchdog()
         w.frameSubmitted()
-        w.outputReceived(isFrame = true)
+        w.outputReceived(flags = 0, size = FRAME_SIZE)
         advance(TIMEOUT * 3)
         w.frameSubmitted()
         advance(TIMEOUT - 1)
@@ -99,13 +100,35 @@ class EncoderWatchdogTest {
     fun noFinalOutputAfterEndOfStream_tripsStalled() {
         val w = watchdog()
         w.frameSubmitted()
-        w.outputReceived(isFrame = true)
+        w.outputReceived(flags = 0, size = FRAME_SIZE)
         advance(TIMEOUT * 2)
         w.inputEnded()
         advance(TIMEOUT - 1)
         assertNull(w.check())
         advance(1)
         assertEquals(Verdict.STALLED, w.check())
+    }
+
+    @Test
+    fun formatChange_countsAsProgress() {
+        val w = watchdog()
+        w.frameSubmitted()
+        advance(TIMEOUT - 1)
+        w.formatChanged()
+        advance(TIMEOUT - 1)
+        assertNull(w.check())
+    }
+
+    @Test
+    fun endOfStreamOutput_retiresWatchdog() {
+        val w = watchdog()
+        w.frameSubmitted()
+        w.inputEnded()
+        w.outputReceived(MediaCodec.BUFFER_FLAG_END_OF_STREAM, 0)
+        cancelled = true
+        advance(TIMEOUT * 2)
+        assertNull(w.check())
+        assertTrue(trips.isEmpty())
     }
 
     @Test
@@ -160,5 +183,7 @@ class EncoderWatchdogTest {
     private companion object {
         const val TIMEOUT = 10_000_000_000L
         const val GRACE = 1_000_000_000L
+        const val FRAME_SIZE = 4096
+        const val CONFIG_SIZE = 32
     }
 }

@@ -3,6 +3,7 @@ package com.davotoula.lightcompressor.compressor
 import android.media.MediaCodec
 import android.util.Log
 import java.io.Closeable
+import java.util.concurrent.TimeUnit
 
 /**
  * Unblocks a pipeline whose video encoder has stopped producing output.
@@ -17,7 +18,8 @@ import java.io.Closeable
  * no progress for [stallTimeoutNs], or [Verdict.CANCELLED] once [isCancelled] has held for
  * [cancelGraceNs] (a pipeline that isn't stuck notices the cancel itself well within that). On a
  * trip it calls [onTrip], which releases the encoder, so the pipeline thread's next codec or GL call
- * fails and the caller maps [verdict] to the job's outcome.
+ * fails and the caller maps [verdict] to the job's outcome. The encoder's end-of-stream output retires
+ * the watchdog, so work after encoding (audio copy, segment flush) is never judged.
  */
 internal class EncoderWatchdog(
     private val isCancelled: () -> Boolean,
@@ -46,9 +48,7 @@ internal class EncoderWatchdog(
         thread =
             Thread({
                 try {
-                    while (!Thread.currentThread().isInterrupted && check() == null && !isClosed()) {
-                        Thread.sleep(POLL_INTERVAL_MS)
-                    }
+                    while (check() == null) Thread.sleep(POLL_INTERVAL_MS)
                 } catch (_: InterruptedException) {
                     // close() stops the poller.
                 }
@@ -74,12 +74,20 @@ internal class EncoderWatchdog(
             inputHasEnded = true
         }
 
-    /** The encoder emitted an output buffer; [isFrame] is false for codec config and empty buffers. */
-    fun outputReceived(isFrame: Boolean) =
-        synchronized(lock) {
-            lastProgressNs = clock()
-            if (isFrame && framesAwaitingOutput > 0) framesAwaitingOutput--
-        }
+    /** The encoder reported a new output format. */
+    fun formatChanged() = synchronized(lock) { lastProgressNs = clock() }
+
+    /** The encoder emitted an output buffer with these [flags] and [size]. */
+    fun outputReceived(
+        flags: Int,
+        size: Int,
+    ) = synchronized(lock) {
+        lastProgressNs = clock()
+        val isFrame = size > 0 && flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
+        if (isFrame && framesAwaitingOutput > 0) framesAwaitingOutput--
+        // The encoder has finished; nothing after this is its to stall.
+        if (flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) closed = true
+    }
 
     /** Evaluates the trip conditions once. Returns the verdict only from the call that trips. */
     fun check(): Verdict? {
@@ -120,8 +128,6 @@ internal class EncoderWatchdog(
         }
     }
 
-    private fun isClosed() = synchronized(lock) { closed }
-
     private fun isAwaitingOutput() = framesAwaitingOutput > 0 || inputHasEnded
 
     private fun cancelExpired(now: Long): Boolean {
@@ -135,7 +141,6 @@ internal class EncoderWatchdog(
 
     internal companion object {
         /** Starts a watchdog that releases [encoder] when it trips. */
-        @Suppress("TooGenericExceptionCaught")
         fun startFor(
             encoder: MediaCodec,
             tag: String,
@@ -143,18 +148,13 @@ internal class EncoderWatchdog(
         ): EncoderWatchdog =
             EncoderWatchdog(isCancelled) { verdict ->
                 Log.w(tag, "Encoder watchdog tripped ($verdict), releasing the encoder")
-                try {
-                    encoder.release()
-                } catch (e: Exception) {
-                    Log.w(tag, "Watchdog encoder release failed: ${e.message}")
-                }
+                runCatching { encoder.release() }
+                    .onFailure { Log.w(tag, "Watchdog encoder release failed: ${it.message}") }
             }.start()
 
-        private const val NS_PER_MS = 1_000_000L
-
         /** Normal gaps between encoder outputs are milliseconds, even under heavy codec load. */
-        const val STALL_TIMEOUT_NS = 10_000L * NS_PER_MS
-        const val CANCEL_GRACE_NS = 1_000L * NS_PER_MS
+        val STALL_TIMEOUT_NS = TimeUnit.SECONDS.toNanos(10)
+        val CANCEL_GRACE_NS = TimeUnit.SECONDS.toNanos(1)
         private const val POLL_INTERVAL_MS = 250L
         private const val JOIN_TIMEOUT_MS = 5_000L
     }
