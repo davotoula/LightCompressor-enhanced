@@ -247,7 +247,6 @@ fun CollapsibleSettingsCard(
                     SingleChoiceSegmentedButtonRow(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        // Disabled for H.264, which can't keep HDR (see MainUiState.isKeepHdrAvailable).
                         SegmentedButton(
                             selected = uiState.effectiveHdrMode == HdrMode.KEEP_IF_SUPPORTED,
                             onClick = { onAction(MainAction.SetHdrMode(HdrMode.KEEP_IF_SUPPORTED)) },

@@ -22,15 +22,12 @@ data class MainUiState(
     val toastMessage: String? = null,
     val isSettingsExpanded: Boolean = true,
 ) {
-    /**
-     * Keeping HDR needs H.265: the library always tone maps HDR to SDR for H.264, because Android
-     * hardware encoders don't encode 10-bit H.264 (High 10) and few decoders could play it.
-     */
+    /** Keeping HDR needs H.265: the library always tone maps H.264 output (see [HdrMode]). */
     val isKeepHdrAvailable: Boolean get() = selectedCodec == Codec.H265
 
     /**
-     * The HDR mode a compression uses. [selectedHdrMode] keeps the user's choice, so Keep HDR comes
-     * back when H.265 is selected again.
+     * The HDR mode a compression actually gets, shown as selected in the settings. [selectedHdrMode]
+     * keeps the user's choice, so Keep HDR comes back when H.265 is selected again.
      */
     val effectiveHdrMode: HdrMode
         get() = if (isKeepHdrAvailable) selectedHdrMode else HdrMode.TONE_MAP_TO_SDR

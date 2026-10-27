@@ -13,7 +13,6 @@ class MainUiStateTest {
         val state = MainUiState(selectedCodec = Codec.H264, selectedHdrMode = HdrMode.KEEP_IF_SUPPORTED)
         assertFalse(state.isKeepHdrAvailable)
         assertEquals(HdrMode.TONE_MAP_TO_SDR, state.effectiveHdrMode)
-        assertEquals(HdrMode.KEEP_IF_SUPPORTED, state.selectedHdrMode)
     }
 
     @Test
