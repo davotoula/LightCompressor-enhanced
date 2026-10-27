@@ -57,6 +57,7 @@ class ToneMapFallbackTest {
                 rotation = 0,
                 durationUs = 4_610_400L,
                 listener = NoOpListener,
+                isCancelled = { false },
                 hdrMode = HdrMode.TONE_MAP_TO_SDR,
             )
         val context = InstrumentationRegistry.getInstrumentation().targetContext

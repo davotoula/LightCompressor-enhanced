@@ -105,6 +105,7 @@ class KeepHdrRetryTest {
             rotation = 0,
             durationUs = 4_610_400L,
             listener = NoOpListener,
+            isCancelled = { false },
             hdrMode = HdrMode.KEEP_IF_SUPPORTED,
         )
 
