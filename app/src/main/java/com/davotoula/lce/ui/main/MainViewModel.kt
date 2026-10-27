@@ -76,19 +76,7 @@ class MainViewModel(
     private fun loadSavedSettings() {
         viewModelScope.launch {
             val settings = videoSettingsPreferences.settings.first()
-            _uiState.update { state ->
-                state.copy(
-                    selectedResolution = settings.resolution,
-                    customResolutionInput = settings.resolution.shortSide.toString(),
-                    // Settings restored from another device may name a codec this one can't encode.
-                    selectedCodec = supportedCodec(settings.codec),
-                    isStreamableEnabled = settings.isStreamableEnabled,
-                    bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
-                    bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput,
-                    selectedHdrMode = settings.hdrMode,
-                    isSettingsLoaded = true,
-                )
-            }
+            _uiState.update { it.withSavedSettings(settings, CompressorUtils.isHevcEncodingSupported()) }
             if (settings.bitrateKbps == null) {
                 calculateAutoBitrate()
             }
@@ -199,7 +187,7 @@ class MainViewModel(
     }
 
     private fun handleSetCodec(codec: Codec) {
-        val effectiveCodec = supportedCodec(codec)
+        val effectiveCodec = supportedCodec(codec, CompressorUtils.isHevcEncodingSupported())
         if (effectiveCodec != codec) {
             showToast(context.getString(R.string.h265_not_supported_fallback))
         }
@@ -715,9 +703,6 @@ class MainViewModel(
             }
         }
     }
-
-    private fun supportedCodec(codec: Codec): Codec =
-        if (codec == Codec.H265 && !CompressorUtils.isHevcEncodingSupported()) Codec.H264 else codec
 
     private fun hasAudioTrack(path: String): Boolean {
         val extractor = MediaExtractor()

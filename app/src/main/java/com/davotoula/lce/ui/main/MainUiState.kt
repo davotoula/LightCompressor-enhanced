@@ -2,6 +2,7 @@ package com.davotoula.lce.ui.main
 
 import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
+import com.davotoula.lce.data.VideoSettings
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.config.HdrMode
@@ -34,6 +35,29 @@ data class MainUiState(
     val effectiveHdrMode: HdrMode
         get() = if (isKeepHdrAvailable) selectedHdrMode else HdrMode.TONE_MAP_TO_SDR
 }
+
+/** [codec], or H.264 when it is H.265 and the device can't encode HEVC. */
+internal fun supportedCodec(
+    codec: Codec,
+    isHevcSupported: Boolean,
+): Codec = if (codec == Codec.H265 && !isHevcSupported) Codec.H264 else codec
+
+/** This state with the saved [settings] applied. */
+internal fun MainUiState.withSavedSettings(
+    settings: VideoSettings,
+    isHevcSupported: Boolean,
+): MainUiState =
+    copy(
+        selectedResolution = settings.resolution,
+        customResolutionInput = settings.resolution.shortSide.toString(),
+        // Settings restored from another device may name a codec this one can't encode.
+        selectedCodec = supportedCodec(settings.codec, isHevcSupported),
+        isStreamableEnabled = settings.isStreamableEnabled,
+        bitrateKbps = settings.bitrateKbps ?: bitrateKbps,
+        bitrateInput = settings.bitrateKbps?.toString() ?: bitrateInput,
+        selectedHdrMode = settings.hdrMode,
+        isSettingsLoaded = true,
+    )
 
 sealed class MainAction {
     data class SelectVideos(
