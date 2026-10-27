@@ -140,6 +140,30 @@ val config = Configuration(
 
 If `VideoCodec.H265` is requested on a device that does not support HEVC encoding, `onFailure` is called with a descriptive error message.
 
+### HDR video
+
+*Available from 2.3.0.* HLG and PQ (HDR10/HDR10+) input is controlled by `hdrMode`. SDR input is never affected.
+
+```kotlin
+import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.HdrMode
+
+val config = Configuration.withBitrateInBps(
+    videoNames = listOf("output.mp4"),
+    videoBitrateInBps = 6_000_000L,
+    videoCodec = VideoCodec.H265,
+    hdrMode = HdrMode.KEEP_IF_SUPPORTED, // default
+)
+```
+
+| Mode                          | Result                                                                                                           |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `HdrMode.KEEP_IF_SUPPORTED`   | BT.2020 input encoded as H.265 on a device whose HEVC encoder supports HDR editing (Android 13+) keeps 10-bit HDR. Everything else is tone mapped to 8-bit SDR. |
+| `HdrMode.TONE_MAP_TO_SDR`     | HDR input is always tone mapped to 8-bit SDR (BT.709).                                                           |
+
+Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), for input tagged with a colour standard other than BT.2020, and on older or unsupported devices. Kept HDR output keeps the input's transfer: HLG stays HLG, and PQ is written as plain HDR10 because HDR10+ dynamic metadata is dropped.
+
 ## Storage Options
 
 ### SharedStorageConfiguration
@@ -445,6 +469,8 @@ The `app/` module contains a Jetpack Compose sample app demonstrating the librar
 ## Compatibility
 
 Minimum Android SDK: API level 21
+
+**Upgrading from 2.2.x to 2.3.0:** source compatible, but not binary compatible for Kotlin callers. Adding `hdrMode` to `Configuration` changed the signatures Kotlin compiles default arguments and `copy()` into, so code compiled against 2.2.x must be recompiled (a normal JitPack dependency always is). A prebuilt library compiled against 2.2.x that creates a `Configuration` fails at runtime with `NoSuchMethodError` until it is rebuilt against 2.3.0. Java callers are unaffected.
 
 ## Attribution
 

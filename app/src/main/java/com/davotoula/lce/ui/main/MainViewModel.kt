@@ -20,6 +20,7 @@ import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.VideoCompressor
 import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.config.SaveLocation
 import com.davotoula.lightcompressor.config.SharedStorageConfiguration
 import com.davotoula.lightcompressor.config.VideoResizer
@@ -83,6 +84,7 @@ class MainViewModel(
                     isStreamableEnabled = settings.isStreamableEnabled,
                     bitrateKbps = settings.bitrateKbps ?: state.bitrateKbps,
                     bitrateInput = settings.bitrateKbps?.toString() ?: state.bitrateInput,
+                    selectedHdrMode = settings.hdrMode,
                 )
             }
             if (settings.bitrateKbps == null) {
@@ -99,6 +101,7 @@ class MainViewModel(
                 codec = state.selectedCodec,
                 isStreamableEnabled = state.isStreamableEnabled,
                 bitrateKbps = state.bitrateKbps,
+                hdrMode = state.selectedHdrMode,
             )
         }
     }
@@ -111,6 +114,7 @@ class MainViewModel(
             is MainAction.SetCustomResolutionInput -> handleSetCustomResolutionInput(action.value)
             is MainAction.SetCodec -> handleSetCodec(action.codec)
             is MainAction.SetStreamable -> handleSetStreamable(action.enabled)
+            is MainAction.SetHdrMode -> handleSetHdrMode(action.mode)
             is MainAction.SetBitrate -> handleSetBitrate(action.kbps)
             is MainAction.SetBitrateInput -> handleSetBitrateInput(action.value)
             MainAction.CalculateAutoBitrate -> calculateAutoBitrate()
@@ -211,6 +215,13 @@ class MainViewModel(
     private fun handleSetStreamable(enabled: Boolean) {
         _uiState.update { state ->
             state.copy(isStreamableEnabled = enabled)
+        }
+        saveSettings()
+    }
+
+    private fun handleSetHdrMode(mode: HdrMode) {
+        _uiState.update { state ->
+            state.copy(selectedHdrMode = mode)
         }
         saveSettings()
     }
@@ -343,6 +354,7 @@ class MainViewModel(
                 resizer = VideoResizer.limitShortSide(resolutionPixels),
                 videoNames = videoNames,
                 videoCodec = videoCodec,
+                hdrMode = state.selectedHdrMode,
             )
 
         VideoCompressor.start(

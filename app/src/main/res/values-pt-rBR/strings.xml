@@ -19,6 +19,10 @@
     <string name="streamable_label">3. Streamável:</string>
     <string name="streamable_yes">Sim</string>
     <string name="streamable_no">Não</string>
+    <string name="hdr_label">5. Vídeo HDR:</string>
+    <string name="hdr_keep">Manter HDR</string>
+    <string name="hdr_tone_map">Converter para SDR</string>
+    <string name="hdr_explanation">Manter HDR preserva o HDR de 10 bits ao usar H.265 em dispositivos compatíveis; caso contrário, o vídeo é convertido para SDR. Converter para SDR sempre gera um vídeo padrão que funciona em qualquer lugar.</string>
     <string name="bitrate_too_low">Taxa de bits muito baixa. O mínimo é %1$d kbps. Usando %1$d kbps.</string>
     <string name="bitrate_too_high">Taxa de bits muito alta. O máximo é %1$d kbps. Usando %1$d kbps.</string>
     <string name="codec_h265_not_supported">H.265 não é suportado neste dispositivo. Usando H.264.</string>

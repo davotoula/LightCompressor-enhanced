@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.hdr.ColorInfo
+import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.utils.StreamableVideo
 import io.mockk.every
 import io.mockk.mockk
@@ -48,7 +50,7 @@ class TranscoderTest {
                 ) = true
             }
         val format = mockk<MediaFormat>(relaxed = true)
-        transcoder.tuneEncoderFormat(format)
+        transcoder.tuneEncoderFormat(format, sdrPlan())
         verify {
             format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh)
         }
@@ -75,7 +77,7 @@ class TranscoderTest {
                 }
             }
         val format = mockk<MediaFormat>(relaxed = true)
-        transcoder.tuneEncoderFormat(format)
+        transcoder.tuneEncoderFormat(format, sdrPlan())
         verify {
             format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain)
         }
@@ -83,6 +85,45 @@ class TranscoderTest {
             verify {
                 format.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel4)
             }
+        }
+        assertTrue("Expected vendor hints", appliedKeys.isNotEmpty())
+    }
+
+    @Test
+    fun tuneEncoderFormat_keepHdr_keepsMain10AndOmitsLevel() {
+        val appliedKeys = mutableListOf<Pair<String, Int>>()
+        val transcoder = recordingH265Transcoder(appliedKeys)
+        val format = mockk<MediaFormat>(relaxed = true)
+        val plan =
+            ColorPlan.KeepHdr(
+                transfer = MediaFormat.COLOR_TRANSFER_HLG,
+                profile = MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+                encoderName = "c2.test.hevc.encoder",
+                staticInfo = null,
+                sourceRange = MediaFormat.COLOR_RANGE_LIMITED,
+            )
+        transcoder.tuneEncoderFormat(format, plan)
+        verify(exactly = 0) {
+            format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain)
+        }
+        verify(exactly = 0) { format.setInteger(MediaFormat.KEY_LEVEL, any()) }
+        assertTrue("Expected vendor hints", appliedKeys.isNotEmpty())
+    }
+
+    @Test
+    fun tuneEncoderFormat_toneMap_isUnchanged() {
+        val appliedKeys = mutableListOf<Pair<String, Int>>()
+        val transcoder = recordingH265Transcoder(appliedKeys)
+        val format = mockk<MediaFormat>(relaxed = true)
+        val plan =
+            ColorPlan.ToneMapToSdr(
+                sourceTransfer = MediaFormat.COLOR_TRANSFER_HLG,
+                sourceRange = MediaFormat.COLOR_RANGE_LIMITED,
+                lw = 203f,
+            )
+        transcoder.tuneEncoderFormat(format, plan)
+        verify {
+            format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain)
         }
         assertTrue("Expected vendor hints", appliedKeys.isNotEmpty())
     }
@@ -211,6 +252,26 @@ class TranscoderTest {
         assertTrue(transcoder.isDecoderAvailable("video/avc"))
         assertTrue(transcoder.isDecoderAvailable("video/hevc"))
     }
+
+    private fun sdrPlan() = ColorPlan.Sdr(ColorInfo(null, null, null, null))
+
+    private fun recordingH265Transcoder(appliedKeys: MutableList<Pair<String, Int>>) =
+        object : Transcoder(VideoCodec.H265, context, uri, baseRequest()) {
+            override fun codecSupportsProfile(
+                mime: String,
+                profile: Int,
+                level: Int,
+            ) = true
+
+            override fun trySetVendorKey(
+                format: MediaFormat,
+                key: String,
+                value: Int,
+            ) {
+                appliedKeys += key to value
+                format.setInteger(key, value)
+            }
+        }
 
     private fun baseRequest(
         destination: File =

@@ -13,6 +13,16 @@ import android.util.Log
 import android.view.Surface
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.hdr.ColorInfo
+import com.davotoula.lightcompressor.hdr.ColorPlan
+import com.davotoula.lightcompressor.hdr.GlSurfaceFactory
+import com.davotoula.lightcompressor.hdr.HdrCapabilities
+import com.davotoula.lightcompressor.hdr.HdrPolicy
+import com.davotoula.lightcompressor.hdr.KeepHdrRejected
+import com.davotoula.lightcompressor.hdr.MediaCodecHdrCapabilities
+import com.davotoula.lightcompressor.hdr.rejectionFor
+import com.davotoula.lightcompressor.hdr.runWithFallback
 import com.davotoula.lightcompressor.utils.CompressorUtils.findTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
 import com.davotoula.lightcompressor.utils.CompressorUtils.printException
@@ -36,6 +46,7 @@ internal open class Transcoder(
     private val context: Context,
     private val srcUri: Uri,
     private val request: Request,
+    private val hdrCapabilities: Lazy<HdrCapabilities> = lazy { MediaCodecHdrCapabilities() },
 ) {
     data class Request(
         val index: Int,
@@ -48,10 +59,73 @@ internal open class Transcoder(
         val rotation: Int,
         val durationUs: Long,
         val listener: CompressionProgressListener,
+        val hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
     )
 
-    @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod", "TooGenericExceptionCaught")
+    /**
+     * Decides the job's [ColorPlan] once, then runs [attempt]. A keep-HDR attempt rejected before
+     * the muxer starts is retried exactly once as a tone-map-to-SDR attempt.
+     */
     fun transcode(): Result {
+        val info = readColorInfo()
+        val decision = HdrPolicy.decide(info, codec, request.hdrMode, isHls = false, caps = hdrCapabilities.value)
+        Log.i(HDR_TAG, decision.reason)
+        return runWithFallback(
+            decision.plan,
+            fallback = { HdrPolicy.fallbackFor(info) },
+            onRejected = { Log.w(HDR_TAG, "keep-HDR rejected: ${it.message}", it) },
+        ) { attempt(it) }
+    }
+
+    /**
+     * Reads the source video track's colour description. Never throws: Compressor treats an
+     * exception escaping [transcode] as a reason for its 16-aligned retry, so any failure here
+     * yields an untagged [ColorInfo] (an Sdr plan) and [attempt] reports the real error as today.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun readColorInfo(): ColorInfo {
+        var extractor: MediaExtractor? = null
+        return try {
+            extractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
+            val trackIndex = findTrack(extractor, true)
+            if (trackIndex < 0) untaggedColorInfo() else ColorInfo.from(extractor.getTrackFormat(trackIndex))
+        } catch (e: Exception) {
+            Log.w(HDR_TAG, "Colour info pre-read failed, treating input as SDR: ${e.message}")
+            untaggedColorInfo()
+        } finally {
+            try {
+                extractor?.release()
+            } catch (releaseError: Exception) {
+                Log.w(HDR_TAG, "Failed to release colour info extractor: ${releaseError.message}")
+            }
+        }
+    }
+
+    private fun untaggedColorInfo() = ColorInfo(null, null, null, null)
+
+    /** Tracks whether the muxer has started, so a failure can tell if keep-HDR may still fall back. */
+    private class PipelineState {
+        var muxerStarted = false
+    }
+
+    /** Returns [failure] for Sdr/ToneMapToSdr; throws [KeepHdrRejected] for a keep-HDR attempt. */
+    private fun failOrReject(
+        plan: ColorPlan,
+        message: String,
+    ): Result {
+        if (plan is ColorPlan.KeepHdr) throw KeepHdrRejected(message)
+        return failure(message)
+    }
+
+    // InstanceOfCheckForException: the generic catch needs one isCancellation flag for rejectionFor.
+    @Suppress(
+        "ReturnCount",
+        "CyclomaticComplexMethod",
+        "LongMethod",
+        "TooGenericExceptionCaught",
+        "InstanceOfCheckForException",
+    )
+    private fun attempt(plan: ColorPlan): Result {
         val streamableRequested = request.streamablePath != null
         val parentDir = request.destination.parentFile ?: context.cacheDir
         val muxerOutputFile =
@@ -70,6 +144,7 @@ internal open class Transcoder(
         var audioTrackInfo: AudioTrackInfo? = null
         var encoderStarted = false
         var decoderStarted = false
+        val state = PipelineState()
 
         return try {
             videoExtractor =
@@ -78,17 +153,18 @@ internal open class Transcoder(
                 }
             val videoTrackIndex = findTrack(videoExtractor, true)
             if (videoTrackIndex < 0) {
-                return failure("No video track found in source")
+                return failOrReject(plan, "No video track found in source")
             }
             videoExtractor.selectTrack(videoTrackIndex)
             videoExtractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             val inputFormat = videoExtractor.getTrackFormat(videoTrackIndex)
             val sourceMime =
                 inputFormat.getString(MediaFormat.KEY_MIME)
-                    ?: return failure("Source video mime type missing")
+                    ?: return failOrReject(plan, "Source video mime type missing")
 
             if (!isDecoderAvailable(sourceMime)) {
-                return failure(
+                return failOrReject(
+                    plan,
                     "Unsupported video codec: $sourceMime. This device cannot decode this video format.",
                 )
             }
@@ -99,28 +175,34 @@ internal open class Transcoder(
                     request.width,
                     request.height,
                 )
-            setOutputFileParameters(inputFormat, encoderFormat, request.bitrate)
-            tuneEncoderFormat(encoderFormat)
+            setOutputFileParameters(inputFormat, encoderFormat, request.bitrate, plan)
+            tuneEncoderFormat(encoderFormat, plan)
 
             val encoderOrNull =
-                createEncoderGuarded(encoderFormat)
-                    ?: return failure(
+                createEncoderGuarded(encoderFormat, plan)
+                    ?: return failOrReject(
+                        plan,
                         if (codec == VideoCodec.H265) MSG_ENCODER_FAILED_H265 else MSG_ENCODER_FAILED_H264,
                     )
             encoder = encoderOrNull
-            try {
-                inputSurface = InputSurface(encoder.createInputSurface())
-                inputSurface.makeCurrent()
-            } catch (e: Exception) {
-                return failure("$MSG_EGL_SETUP_FAILED_PREFIX${e.message}")
-            }
+            // On failure the factory has already released everything it created, including the
+            // encoder's input Surface, so inputSurface/outputSurface stay null for `finally`.
+            val surfaces =
+                try {
+                    GlSurfaceFactory.create(encoder.createInputSurface(), plan)
+                } catch (e: KeepHdrRejected) {
+                    throw e
+                } catch (e: Exception) {
+                    return failOrReject(plan, "$MSG_EGL_SETUP_FAILED_PREFIX${e.message}")
+                }
+            inputSurface = surfaces.input
+            outputSurface = surfaces.output
             encoder.start()
             encoderStarted = true
 
-            outputSurface = OutputSurface()
             val decoderOrNull =
                 createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
-                    ?: return failure("$MSG_DECODER_FAILED_PREFIX$sourceMime$MSG_DECODER_FAILED_SUFFIX")
+                    ?: return failOrReject(plan, "$MSG_DECODER_FAILED_PREFIX$sourceMime$MSG_DECODER_FAILED_SUFFIX")
             decoder = decoderOrNull
             decoder.start()
             decoderStarted = true
@@ -139,6 +221,8 @@ internal open class Transcoder(
                 muxer = muxer,
                 audioTrack = audioTrackInfo,
                 sourceMime = sourceMime,
+                plan = plan,
+                state = state,
             )
 
             try {
@@ -160,6 +244,10 @@ internal open class Transcoder(
         } catch (
             @Suppress("TooGenericExceptionCaught") throwable: Throwable,
         ) {
+            // Before the muxer starts, a keep-HDR failure (including a KeepHdrRejected thrown above)
+            // becomes a rejection for runWithFallback; `finally` still releases everything first.
+            val isCancellation = throwable is java.util.concurrent.CancellationException
+            rejectionFor(plan, state.muxerStarted, isCancellation, throwable)?.let { throw it }
             printException(Exception(throwable))
             failure(throwable.message ?: "${codec.name} transcoding failed")
         } finally {
@@ -272,13 +360,17 @@ internal open class Transcoder(
         muxer: MediaMuxer,
         audioTrack: AudioTrackInfo?,
         sourceMime: String,
+        plan: ColorPlan,
+        state: PipelineState,
     ) {
         val timeoutUs = TIMEOUT_US
         val bufferInfo = MediaCodec.BufferInfo()
         val encoderBufferInfo = MediaCodec.BufferInfo()
 
         var videoMuxerTrackIndex = -1
-        var muxerStarted = false
+        // A keep-HDR attempt may still be rejected and restarted until the muxer starts,
+        // so its progress is held back until then to keep the bar from jumping back.
+        val holdProgressUntilMuxerStart = plan is ColorPlan.KeepHdr
 
         var inputDone = false
         var decoderDone = false
@@ -338,12 +430,19 @@ internal open class Transcoder(
                             encoderOutputAvailable = false
                         }
 
+                        isOutputBuffersChanged(encoderStatus) -> {
+                            // Deprecated; older OMX codecs still emit it. Ignore and dequeue again.
+                        }
+
                         encoderStatus == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                             val newFormat = encoder.outputFormat
+                            if (!plan.matchesEncoderOutput(newFormat)) {
+                                throw KeepHdrRejected("encoder output $newFormat does not match plan")
+                            }
                             videoMuxerTrackIndex = muxer.addTrack(newFormat)
-                            if (!muxerStarted) {
+                            if (!state.muxerStarted) {
                                 muxer.start()
-                                muxerStarted = true
+                                state.muxerStarted = true
                                 audioTrack?.extractor?.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
                             }
                         }
@@ -362,7 +461,7 @@ internal open class Transcoder(
                                 encoderBufferInfo.size = 0
                             }
 
-                            if (encoderBufferInfo.size > 0 && muxerStarted) {
+                            if (encoderBufferInfo.size > 0 && state.muxerStarted) {
                                 encodedData.position(encoderBufferInfo.offset)
                                 encodedData.limit(encoderBufferInfo.offset + encoderBufferInfo.size)
                                 muxer.writeSampleData(videoMuxerTrackIndex, encodedData, encoderBufferInfo)
@@ -396,6 +495,10 @@ internal open class Transcoder(
                             // No-op for surface decoding.
                         }
 
+                        isOutputBuffersChanged(decoderStatus) -> {
+                            // Deprecated; older OMX codecs still emit it. Ignore and dequeue again.
+                        }
+
                         decoderStatus < 0 -> {
                             throw RuntimeException(
                                 "Unexpected decoder status $decoderStatus while decoding $sourceMime",
@@ -416,7 +519,9 @@ internal open class Transcoder(
                                 inputSurface.setPresentationTime(presentationTimeUs * NS_PER_US)
                                 inputSurface.swapBuffers()
 
-                                reportProgress(presentationTimeUs)
+                                if (!holdProgressUntilMuxerStart || state.muxerStarted) {
+                                    reportProgress(presentationTimeUs)
+                                }
                             }
 
                             if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
@@ -429,7 +534,7 @@ internal open class Transcoder(
             }
         }
 
-        if (audioTrack != null && muxerStarted) {
+        if (audioTrack != null && state.muxerStarted) {
             copyAudioTrack(audioTrack, muxer)
         }
     }
@@ -590,9 +695,12 @@ internal open class Transcoder(
      * Override in tests to simulate encoder creation failure.
      */
     @Suppress("TooGenericExceptionCaught")
-    internal open fun createEncoderGuarded(outputFormat: MediaFormat): MediaCodec? =
+    internal open fun createEncoderGuarded(
+        outputFormat: MediaFormat,
+        plan: ColorPlan,
+    ): MediaCodec? =
         try {
-            createEncoder(outputFormat)
+            createEncoder(outputFormat, plan)
         } catch (e: Exception) {
             Log.w(TAG, "Encoder creation failed: ${e.message}", e)
             null
@@ -600,12 +708,31 @@ internal open class Transcoder(
 
     /**
      * Creates and configures the encoder for the given format.
+     * KeepHdr: the HDR-capable encoder the plan names, by codec name.
      * H264: uses QTI-specific fallback logic.
      * H265: uses simple createEncoderByType.
      */
     @Suppress("TooGenericExceptionCaught")
-    private fun createEncoder(outputFormat: MediaFormat): MediaCodec =
-        when (codec) {
+    private fun createEncoder(
+        outputFormat: MediaFormat,
+        plan: ColorPlan,
+    ): MediaCodec {
+        if (plan is ColorPlan.KeepHdr) {
+            val encoder = MediaCodec.createByCodecName(plan.encoderName)
+            try {
+                encoder.configure(outputFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            } catch (e: Exception) {
+                // Free the codec instance before the tone-map retry needs one.
+                try {
+                    encoder.release()
+                } catch (releaseError: Exception) {
+                    Log.w(HDR_TAG, "Failed to release keep-HDR encoder: ${releaseError.message}")
+                }
+                throw e
+            }
+            return encoder
+        }
+        return when (codec) {
             VideoCodec.H264 -> {
                 val hasQTI = hasQTI()
 
@@ -639,17 +766,24 @@ internal open class Transcoder(
                 encoder
             }
         }
+    }
 
     /**
      * Tunes the encoder format with codec-specific profile/level and vendor hints.
      * H264: sets AVC High Profile.
      * H265: sets HEVC Main Profile + vendor B-frame hints.
+     * KeepHdr: keeps the Main10 profile [ColorPlan.KeepHdr.applyTo] set and leaves the level to
+     * the encoder; vendor hints still apply.
      */
-    internal open fun tuneEncoderFormat(encoderFormat: MediaFormat) {
+    internal open fun tuneEncoderFormat(
+        encoderFormat: MediaFormat,
+        plan: ColorPlan,
+    ) {
+        val setProfileLevel = plan !is ColorPlan.KeepHdr
         when (codec) {
             VideoCodec.H264 -> {
                 // Set AVC High Profile if supported
-                if (codecSupportsProfile(VideoCodec.H264.mimeType, AVC_PROFILE_HIGH, AVC_LEVEL_4)) {
+                if (setProfileLevel && codecSupportsProfile(VideoCodec.H264.mimeType, AVC_PROFILE_HIGH, AVC_LEVEL_4)) {
                     encoderFormat.setInteger(MediaFormat.KEY_PROFILE, AVC_PROFILE_HIGH)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         encoderFormat.setInteger(MediaFormat.KEY_LEVEL, AVC_LEVEL_4)
@@ -658,7 +792,9 @@ internal open class Transcoder(
             }
 
             VideoCodec.H265 -> {
-                if (codecSupportsProfile(VideoCodec.H265.mimeType, HEVC_PROFILE_MAIN, HEVC_LEVEL_4)) {
+                if (setProfileLevel &&
+                    codecSupportsProfile(VideoCodec.H265.mimeType, HEVC_PROFILE_MAIN, HEVC_LEVEL_4)
+                ) {
                     encoderFormat.setInteger(MediaFormat.KEY_PROFILE, HEVC_PROFILE_MAIN)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         encoderFormat.setInteger(MediaFormat.KEY_LEVEL, HEVC_LEVEL_4)
@@ -737,6 +873,7 @@ internal open class Transcoder(
     private val TAG = "Transcoder-${codec.name}"
 
     internal companion object {
+        private const val HDR_TAG = "HdrPolicy"
         private const val TIMEOUT_US = 100L
         private const val NS_PER_US = 1000L
         private const val AUDIO_BUFFER_SIZE = 64 * 1024

@@ -3,9 +3,24 @@ package com.davotoula.lightcompressor.video
 import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener
 import android.view.Surface
+import com.davotoula.lightcompressor.hdr.RenderShader
+import com.davotoula.lightcompressor.hdr.Sampling
 
+/**
+ * The decoder's output [Surface], backed by a [SurfaceTexture] that [TextureRenderer] draws from.
+ * Create it while the final EGL context is current: it binds GL objects to that context.
+ * The parameters are passed through to [TextureRenderer].
+ */
 @Suppress("TooGenericExceptionThrown")
-class OutputSurface : OnFrameAvailableListener {
+class OutputSurface internal constructor(
+    private val shader: RenderShader,
+    private val sampling: Sampling,
+    private val lw: Float,
+    private val limitedRange: Boolean,
+) : OnFrameAvailableListener {
+    /** Today's SDR passthrough output surface. */
+    constructor() : this(RenderShader.Passthrough, Sampling.EXTERNAL_RGB, 1f, true)
+
     private var mSurfaceTexture: SurfaceTexture? = null
     private var mSurface: Surface? = null
     private val mFrameSyncObject = Object()
@@ -30,7 +45,7 @@ class OutputSurface : OnFrameAvailableListener {
      * with the SurfaceTexture.
      */
     private fun setup() {
-        mTextureRender = TextureRenderer()
+        mTextureRender = TextureRenderer(shader, sampling, lw, limitedRange)
         mTextureRender?.let {
             it.surfaceCreated()
 

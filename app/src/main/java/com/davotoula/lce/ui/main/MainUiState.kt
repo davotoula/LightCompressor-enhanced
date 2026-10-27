@@ -4,6 +4,7 @@ import android.net.Uri
 import com.davotoula.lce.VideoDetailsModel
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
+import com.davotoula.lightcompressor.config.HdrMode
 
 data class MainUiState(
     val videos: List<VideoDetailsModel> = emptyList(),
@@ -14,6 +15,7 @@ data class MainUiState(
     val isStreamableEnabled: Boolean = true,
     val bitrateKbps: Int = 1500,
     val bitrateInput: String = "1500",
+    val selectedHdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
     val isCompressing: Boolean = false,
     val pendingUris: List<Uri> = emptyList(),
     val errorMessage: String? = null,
@@ -44,6 +46,10 @@ sealed class MainAction {
 
     data class SetStreamable(
         val enabled: Boolean,
+    ) : MainAction()
+
+    data class SetHdrMode(
+        val mode: HdrMode,
     ) : MainAction()
 
     data class SetBitrate(
