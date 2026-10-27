@@ -1,10 +1,13 @@
 package com.davotoula.lightcompressor
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,7 +20,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class CompressionBatchesTest {
-    private val batches = CompressionBatches()
+    private val errors: MutableList<Throwable> = Collections.synchronizedList(mutableListOf())
+    private val batches = CompressionBatches(logError = { errors += it })
     private val events: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
     @After
@@ -96,7 +100,7 @@ class CompressionBatchesTest {
         try {
             val dispatcherFree = CountDownLatch(1)
             executor.execute { dispatcherFree.await() }
-            val blockedBatches = CompressionBatches(executor.asCoroutineDispatcher())
+            val blockedBatches = CompressionBatches(executor.asCoroutineDispatcher()) { errors += it }
             val bodyRan = AtomicBoolean(false)
             val done = CountDownLatch(2)
             launch("a", 2, done, into = blockedBatches) {
@@ -124,7 +128,7 @@ class CompressionBatchesTest {
         launch("old", 1, done) {
             resolving.countDown()
             // Blocking work that ignores cancellation, like resolving the input path.
-            pathResolved.await()
+            pathResolved.await(5, TimeUnit.SECONDS)
             sawActive.set(isActive)
             ensureActive()
             "success"
@@ -149,7 +153,7 @@ class CompressionBatchesTest {
         launch("a", 1, done) {
             started.countDown()
             // A cancel that breaks the encoder surfaces as an ordinary exception.
-            cancelled.await()
+            cancelled.await(5, TimeUnit.SECONDS)
             error("encoder released")
         }
         started.awaitOrFail()
@@ -174,6 +178,65 @@ class CompressionBatchesTest {
         Thread.sleep(100)
         assertEquals(setOf("a:failure(boom):0", "a:success:1"), events.toSet())
         assertEquals(2, events.size)
+        assertEquals(listOf("boom"), errors.map { it.message })
+    }
+
+    @Test
+    fun `a failure without a message reports the exception`() {
+        val done = CountDownLatch(1)
+        launch("a", 1, done) { throw IllegalStateException() }
+
+        done.awaitOrFail()
+        assertEquals(listOf("a:failure(java.lang.IllegalStateException):0"), events.toList())
+    }
+
+    @Test
+    fun `an exception thrown by a callback is logged`() {
+        val logged = CountDownLatch(1)
+        val loggingBatches =
+            CompressionBatches(Dispatchers.IO) {
+                errors += it
+                logged.countDown()
+            }
+        loggingBatches.launch(
+            count = 1,
+            onResult = { _, _: String -> throw IllegalStateException("listener bug") },
+            onFailure = { _, _ -> events += "failure" },
+            onCancelled = { events += "cancelled" },
+        ) { "success" }
+
+        logged.awaitOrFail()
+        assertEquals("listener bug", errors.single().cause?.message)
+        assertEquals(emptyList<String>(), events.toList())
+    }
+
+    @Test
+    fun `cancelAll is seen by a job polled from another thread, as Compressor builds it`() {
+        val polling = CountDownLatch(1)
+        val sawCancel = AtomicBoolean(false)
+        val done = CountDownLatch(1)
+        launch("a", 1, done) {
+            withContext(Dispatchers.Default) {
+                val isCancelled = coroutineContext.job::isCancelled
+                // The transcode blocks its coroutine; the watchdog polls from its own thread.
+                val watchdog =
+                    Thread {
+                        polling.countDown()
+                        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                        while (!isCancelled() && System.nanoTime() < deadline) Thread.sleep(1)
+                        sawCancel.set(isCancelled())
+                    }.apply { start() }
+                watchdog.join()
+            }
+            "success"
+        }
+        polling.awaitOrFail()
+
+        batches.cancelAll()
+
+        done.awaitOrFail()
+        assertTrue(sawCancel.get())
+        assertEquals(listOf("a:cancelled:0"), events.toList())
     }
 
     @Test
