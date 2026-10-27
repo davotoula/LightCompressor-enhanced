@@ -164,6 +164,8 @@ val config = Configuration.withBitrateInBps(
 
 Tone mapped output is 8-bit SDR for H.264, for HLS (which always converts HDR to SDR, whatever the mode), for input tagged with a colour standard other than BT.2020, and on older or unsupported devices. Kept HDR output keeps the input's transfer: HLG stays HLG, and PQ is written as plain HDR10 because HDR10+ dynamic metadata is dropped.
 
+Dolby Vision video with a backward-compatible base layer (profile 8.1 or 8.4, which includes iPhone HDR recordings) is compressed from that base layer, so it comes out as HDR10 or HLG, or as SDR when tone mapped. The Dolby Vision metadata is dropped. Profile 5, which has no base layer, needs a Dolby Vision decoder on the device.
+
 ## Storage Options
 
 ### SharedStorageConfiguration
