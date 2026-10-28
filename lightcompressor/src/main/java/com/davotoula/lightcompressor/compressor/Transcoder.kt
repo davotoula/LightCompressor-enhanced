@@ -130,10 +130,10 @@ internal open class Transcoder(
         "ThrowsCount",
     )
     private fun attempt(plan: ColorPlan): Result {
-        val streamableRequested = request.streamable
         val parentDir = request.destination.parentFile ?: context.cacheDir
+        // A streamable output is muxed into a temp file first; finalizeOutput writes the destination.
         val muxerOutputFile =
-            if (streamableRequested) {
+            if (request.streamable) {
                 File.createTempFile("transcode_", ".mp4", parentDir)
             } else {
                 request.destination
@@ -246,7 +246,7 @@ internal open class Transcoder(
             }
             muxer = null
 
-            finalizeOutput(muxerOutputFile, streamableRequested)
+            finalizeOutput(muxerOutputFile)
         } catch (
             @Suppress("TooGenericExceptionCaught") throwable: Throwable,
         ) {
@@ -318,12 +318,7 @@ internal open class Transcoder(
                 muxer?.release()
             } catch (_: Exception) {
             }
-            @Suppress("ComplexCondition")
-            if (streamableRequested &&
-                muxerOutputFile != request.destination &&
-                muxerOutputFile.exists() &&
-                !muxerOutputFile.delete()
-            ) {
+            if (muxerOutputFile != request.destination && muxerOutputFile.exists() && !muxerOutputFile.delete()) {
                 Log.w(TAG, "Failed to delete temporary muxer file: ${muxerOutputFile.absolutePath}")
             }
         }
@@ -614,48 +609,27 @@ internal open class Transcoder(
         }
     }
 
-    internal open fun finalizeOutput(
-        muxerFile: File,
-        streamableRequested: Boolean,
-    ): Result {
+    /** Moves [muxerFile] to the destination, fast-starting it on the way when streamable was requested. */
+    internal open fun finalizeOutput(muxerFile: File): Result {
         val destination = request.destination
-        if (!streamableRequested) {
-            if (muxerFile != destination) {
-                if (destination.exists() && !destination.delete()) {
-                    Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
-                }
-                if (!muxerFile.renameTo(destination)) {
-                    muxerFile.copyTo(destination, overwrite = true)
-                }
+        if (muxerFile != destination) {
+            if (destination.exists() && !destination.delete()) {
+                Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
             }
-            return Result(
-                request.index,
-                success = true,
-                failureMessage = null,
-                size = destination.length(),
-                path = destination.path,
-            )
-        }
-
-        if (destination.exists() && !destination.delete()) {
-            Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
-        }
-
-        val fastStartApplied =
-            try {
-                StreamableVideo.start(muxerFile, destination)
-            } catch (ioe: IOException) {
-                Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
-                false
+            // False when the muxer output is already fast-start or can't be converted; start then leaves no
+            // destination behind. attempt deletes the muxer file once it has been converted.
+            val fastStarted =
+                request.streamable &&
+                    try {
+                        StreamableVideo.start(muxerFile, destination)
+                    } catch (ioe: IOException) {
+                        Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
+                        false
+                    }
+            if (!fastStarted && !muxerFile.renameTo(destination)) {
+                muxerFile.copyTo(destination, overwrite = true)
             }
-
-        if (!fastStartApplied) {
-            muxerFile.copyTo(destination, overwrite = true)
         }
-        if (muxerFile.exists() && !muxerFile.delete()) {
-            Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
-        }
-
         return Result(
             request.index,
             success = true,

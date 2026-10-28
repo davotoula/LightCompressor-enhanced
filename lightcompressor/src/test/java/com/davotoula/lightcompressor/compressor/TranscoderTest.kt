@@ -156,18 +156,14 @@ class TranscoderTest {
 
     @Test
     fun finalizeOutput_withoutStreamable_renamesMuxerToDestination() {
-        val muxerOutput =
-            File.createTempFile("transcoder_mux", ".mp4").apply {
-                deleteOnExit()
-                writeText("mux")
-            }
+        val muxerOutput = muxerFile()
         val destination =
             File.createTempFile("transcoder_dest", ".mp4").apply {
                 deleteOnExit()
                 writeText("dest-initial")
             }
         val transcoder = Transcoder(VideoCodec.H264, context, uri, baseRequest(destination = destination))
-        val result = transcoder.finalizeOutput(muxerOutput, streamableRequested = false)
+        val result = transcoder.finalizeOutput(muxerOutput)
         assertTrue(destination.exists())
         assertEquals("mux", destination.readText())
         assertEquals(destination.path, result.path)
@@ -182,7 +178,7 @@ class TranscoderTest {
                 writeText("muxer-output")
             }
         val transcoder = Transcoder(VideoCodec.H264, context, uri, baseRequest(destination = destination))
-        val result = transcoder.finalizeOutput(destination, streamableRequested = false)
+        val result = transcoder.finalizeOutput(destination)
         assertTrue(destination.exists())
         assertEquals("muxer-output", destination.readText())
         assertEquals(destination.path, result.path)
@@ -197,16 +193,15 @@ class TranscoderTest {
             destination.writeText("fast-start")
             true
         }
-        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput, streamableRequested = true)
+        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput)
         assertEquals("fast-start", destination.readText())
-        assertFalse("Muxer file should be removed", muxerOutput.exists())
         assertEquals(destination.path, result.path)
         assertEquals(destination.length(), result.size)
         verify(exactly = 1) { StreamableVideo.start(any(), any()) }
     }
 
     @Test
-    fun finalizeOutput_withStreamable_alreadyFastStart_copiesMuxerToDestination() {
+    fun finalizeOutput_withStreamable_alreadyFastStart_movesMuxerToDestination() {
         val muxerOutput = muxerFile()
         val destination = missingDestination()
         // Like the real one, start deletes its half-written output when the input is already fast-start.
@@ -215,19 +210,19 @@ class TranscoderTest {
             destination.delete()
             false
         }
-        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput, streamableRequested = true)
-        assertCopiedMuxerOutput(muxerOutput, destination, result)
+        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput)
+        assertMovedMuxerOutput(muxerOutput, destination, result)
     }
 
     @Test
-    fun finalizeOutput_withStreamable_conversionThrows_copiesMuxerToDestination() {
+    fun finalizeOutput_withStreamable_conversionThrows_movesMuxerToDestination() {
         val muxerOutput = muxerFile()
         val destination = missingDestination()
         mockkStatic(Log::class)
         every { Log.w(any(), any<String>()) } returns 0
         every { StreamableVideo.start(muxerOutput, destination) } throws IOException("unreadable atom")
-        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput, streamableRequested = true)
-        assertCopiedMuxerOutput(muxerOutput, destination, result)
+        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput)
+        assertMovedMuxerOutput(muxerOutput, destination, result)
     }
 
     @Test
@@ -312,7 +307,7 @@ class TranscoderTest {
     private fun streamableTranscoder(destination: File) =
         Transcoder(VideoCodec.H264, context, uri, baseRequest(destination = destination, streamable = true))
 
-    private fun assertCopiedMuxerOutput(
+    private fun assertMovedMuxerOutput(
         muxerOutput: File,
         destination: File,
         result: Result,
@@ -325,11 +320,7 @@ class TranscoderTest {
     }
 
     private fun baseRequest(
-        destination: File =
-            File.createTempFile("transcoder_dest", ".mp4").apply {
-                deleteOnExit()
-                delete()
-            },
+        destination: File = missingDestination(),
         streamable: Boolean = false,
         isCancelled: () -> Boolean = { false },
     ) = Transcoder.Request(

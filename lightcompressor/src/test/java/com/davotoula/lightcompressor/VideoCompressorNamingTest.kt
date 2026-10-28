@@ -3,7 +3,6 @@ package com.davotoula.lightcompressor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-// Streamable outputs used to get a `_temp` suffix here; the name no longer depends on it.
 class VideoCompressorNamingTest {
     @Test
     fun `a bare name gets the mp4 extension`() {

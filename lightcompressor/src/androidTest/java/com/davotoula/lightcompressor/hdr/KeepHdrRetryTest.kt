@@ -134,7 +134,8 @@ class KeepHdrRetryTest {
         val output = File(outDir, files.single())
         assertEquals(output.path, result.path)
         assertTrue("output is empty", output.length() > 0)
-        // Some muxers (Pixel 9a) already reserve room for moov up front, so this only bites elsewhere.
+        // Some muxers (Pixel 9a) already write moov first, so there this passes without a conversion;
+        // TranscoderTest covers the conversion path.
         assertTrue("output is not fast-start (moov after mdat)", isFastStart(output))
 
         val format = videoFormat(output)
