@@ -4,7 +4,7 @@ import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.VideoCompressor
 import com.davotoula.lightcompressor.config.HdrMode
 
-/** Transfer function of a video's colour, as [HdrProbe] reports it. */
+/** Transfer function of a video's colour, as [HdrProbe] reports it. Later versions may add values. */
 enum class HdrInput { SDR, HLG, PQ }
 
 /**

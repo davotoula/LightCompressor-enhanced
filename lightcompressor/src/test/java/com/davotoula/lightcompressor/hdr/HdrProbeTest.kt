@@ -2,6 +2,12 @@ package com.davotoula.lightcompressor.hdr
 
 import android.media.MediaCodecInfo.CodecProfileLevel
 import android.media.MediaFormat
+import android.util.Log
+import com.davotoula.lightcompressor.VideoCompressor
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -51,9 +57,33 @@ class HdrProbeTest {
     }
 
     @Test
+    fun pq_onlyHlgEncoder_cannotKeep() {
+        val probe = hdrProbeOf(info(MediaFormat.COLOR_TRANSFER_ST2084), caps(pq = null))
+        assertEquals(HdrProbe(HdrInput.PQ, false), probe)
+    }
+
+    @Test
+    fun hlg_untaggedStandard_canKeep() {
+        val probe = hdrProbeOf(info(MediaFormat.COLOR_TRANSFER_HLG, standard = null), caps())
+        assertEquals(HdrProbe(HdrInput.HLG, true), probe)
+    }
+
+    @Test
     fun hlg_nonBt2020Standard_cannotKeep() {
         val probe = hdrProbeOf(info(MediaFormat.COLOR_TRANSFER_HLG, MediaFormat.COLOR_STANDARD_BT709), caps())
         assertEquals(HdrProbe(HdrInput.HLG, false), probe)
+    }
+
+    /** On the stub android.jar MediaExtractor throws, as an unreadable file does on a device. */
+    @Test
+    fun probeHdr_unreadableInput_isSdr() {
+        mockkStatic(Log::class)
+        try {
+            every { Log.w(any(), any<String>()) } returns 0
+            assertEquals(HdrProbe(HdrInput.SDR, false), VideoCompressor.probeHdr(mockk(relaxed = true), mockk()))
+        } finally {
+            unmockkStatic(Log::class)
+        }
     }
 
     @Test

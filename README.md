@@ -181,7 +181,8 @@ import com.davotoula.lightcompressor.VideoCompressor
 import com.davotoula.lightcompressor.hdr.HdrInput
 
 val probe = VideoCompressor.probeHdr(context, uri)
-val showKeepHdr = probe.input != HdrInput.SDR && probe.canKeepHdr
+val isHdr = probe.input != HdrInput.SDR // e.g. to say the video will be converted to SDR
+val showKeepHdr = probe.canKeepHdr // always false for SDR input
 ```
 
 - `input` is `HdrInput.HLG`, `HdrInput.PQ` or `HdrInput.SDR`. SDR, untagged and unreadable video all report `SDR`, which is also how compression treats them. Dolby Vision 8.x reports its base layer's transfer.
