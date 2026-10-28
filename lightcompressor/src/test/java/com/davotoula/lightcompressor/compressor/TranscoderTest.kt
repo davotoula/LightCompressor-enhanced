@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
 
 class TranscoderTest {
     private val context: Context = mockk(relaxed = true)
@@ -226,6 +227,31 @@ class TranscoderTest {
     }
 
     @Test
+    fun finalizeOutput_withStreamable_realConversionPutsMoovFirst() {
+        mockkStatic(Log::class)
+        every { Log.i(any(), any<String>()) } returns 0
+        // stco must point into mdat's payload: ftyp (12) + mdat header (8).
+        val stco =
+            ByteBuffer
+                .allocate(20)
+                .putInt(20)
+                .put("stco".toByteArray())
+                .putInt(0)
+                .putInt(1)
+                .putInt(20)
+                .array()
+        val muxerOutput =
+            File.createTempFile("transcoder_mux", ".mp4").apply {
+                deleteOnExit()
+                writeBytes(atom("ftyp", ByteArray(4)) + atom("mdat", ByteArray(8)) + atom("moov", stco))
+            }
+        val destination = missingDestination()
+        val result = streamableTranscoder(destination).finalizeOutput(muxerOutput)
+        assertEquals(listOf("ftyp", "moov", "mdat"), topLevelAtomTypes(destination))
+        assertEquals(destination.path, result.path)
+    }
+
+    @Test
     fun encoderFailureMessage_h265_suggestsH264() {
         val msg = Transcoder.MSG_ENCODER_FAILED_H265
         assertTrue(msg.contains("H265"))
@@ -291,6 +317,26 @@ class TranscoderTest {
                 format.setInteger(key, value)
             }
         }
+
+    private fun atom(
+        type: String,
+        payload: ByteArray,
+    ): ByteArray =
+        ByteBuffer
+            .allocate(8 + payload.size)
+            .putInt(8 + payload.size)
+            .put(type.toByteArray())
+            .put(payload)
+            .array()
+
+    private fun topLevelAtomTypes(file: File): List<String> {
+        val raw = file.readBytes()
+        val bytes = ByteBuffer.wrap(raw)
+        return generateSequence(0) { it + bytes.getInt(it) }
+            .takeWhile { it < raw.size }
+            .map { String(raw, it + 4, 4, Charsets.US_ASCII) }
+            .toList()
+    }
 
     private fun muxerFile() =
         File.createTempFile("transcoder_mux", ".mp4").apply {
