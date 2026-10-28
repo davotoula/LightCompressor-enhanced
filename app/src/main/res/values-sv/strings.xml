@@ -23,6 +23,8 @@
     <string name="hdr_keep">Behåll HDR</string>
     <string name="hdr_tone_map">Konvertera till SDR</string>
     <string name="hdr_h264_hint">H.264 kan inte behålla HDR, så HDR-video konverteras till SDR. Välj H.265 för att behålla HDR.</string>
+    <string name="hdr_no_hdr_video_hint">Ingen av de valda videorna är HDR, så det finns ingen HDR att behålla.</string>
+    <string name="hdr_device_hint">Den här enheten kan inte behålla HDR för de valda videorna, så de konverteras till SDR.</string>
     <string name="hdr_explanation">Behåll HDR bevarar 10-bitars HDR vid användning av H.265 på enheter som stöder det; annars konverteras videon till SDR. Konvertera till SDR ger alltid standardvideo som spelas upp överallt.</string>
     <string name="bitrate_too_low">Bithastigheten är för låg. Minsta är %1$d kbps. Använder %1$d kbps.</string>
     <string name="bitrate_too_high">Bithastigheten är för hög. Högsta är %1$d kbps. Använder %1$d kbps.</string>

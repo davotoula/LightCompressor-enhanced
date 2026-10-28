@@ -4,8 +4,11 @@ import com.davotoula.lce.data.VideoSettings
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.hdr.HdrInput
+import com.davotoula.lightcompressor.hdr.HdrProbe
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +28,45 @@ class MainUiStateTest {
             assertEquals(mode, state.effectiveHdrMode)
         }
     }
+
+    @Test
+    fun h265_beforeProbe_offersKeepHdr() {
+        assertNull(MainUiState(selectedCodec = Codec.H265, hdrProbes = null).keepHdrBlocker)
+    }
+
+    @Test
+    fun h265_allSdrVideos_blocksKeepHdr() {
+        val state = h265With(HdrProbe(HdrInput.SDR, false), HdrProbe(HdrInput.SDR, false))
+        assertEquals(KeepHdrBlocker.NO_HDR_VIDEO, state.keepHdrBlocker)
+        assertEquals(HdrMode.TONE_MAP_TO_SDR, state.effectiveHdrMode)
+    }
+
+    @Test
+    fun h265_hdrVideoDeviceCantKeep_blocksKeepHdr() {
+        val state = h265With(HdrProbe(HdrInput.HLG, false), HdrProbe(HdrInput.SDR, false))
+        assertEquals(KeepHdrBlocker.DEVICE, state.keepHdrBlocker)
+        assertFalse(state.isKeepHdrAvailable)
+    }
+
+    @Test
+    fun h265_oneKeepableVideo_offersKeepHdr() {
+        val state = h265With(HdrProbe(HdrInput.SDR, false), HdrProbe(HdrInput.PQ, true))
+        assertTrue(state.isKeepHdrAvailable)
+        assertEquals(HdrMode.KEEP_IF_SUPPORTED, state.effectiveHdrMode)
+    }
+
+    @Test
+    fun h264_withKeepableVideo_stillBlocksAsH264() {
+        val state = MainUiState(selectedCodec = Codec.H264, hdrProbes = listOf(HdrProbe(HdrInput.HLG, true)))
+        assertEquals(KeepHdrBlocker.H264, state.keepHdrBlocker)
+    }
+
+    private fun h265With(vararg probes: HdrProbe) =
+        MainUiState(
+            selectedCodec = Codec.H265,
+            selectedHdrMode = HdrMode.KEEP_IF_SUPPORTED,
+            hdrProbes = probes.toList(),
+        )
 
     @Test
     fun savedH265_withoutHevcEncoder_loadsAsH264() {

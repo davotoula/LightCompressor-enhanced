@@ -6,6 +6,8 @@ import com.davotoula.lce.data.VideoSettings
 import com.davotoula.lce.ui.Codec
 import com.davotoula.lightcompressor.Resolution
 import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.hdr.HdrInput
+import com.davotoula.lightcompressor.hdr.HdrProbe
 
 data class MainUiState(
     val videos: List<VideoDetailsModel> = emptyList(),
@@ -19,14 +21,30 @@ data class MainUiState(
     val selectedHdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
     val isCompressing: Boolean = false,
     val pendingUris: List<Uri> = emptyList(),
+    // One per pending video once VideoCompressor.probeHdr has run on all of them; null until then.
+    val hdrProbes: List<HdrProbe>? = null,
     val errorMessage: String? = null,
     val toastMessage: String? = null,
     val isSettingsExpanded: Boolean = true,
     // False until the saved settings load, so defaults (H.264) don't flash the H.264 HDR hint.
     val isSettingsLoaded: Boolean = false,
 ) {
-    /** Keeping HDR needs H.265: the library always tone maps H.264 output (see [HdrMode]). */
-    val isKeepHdrAvailable: Boolean get() = selectedCodec == Codec.H265
+    /**
+     * Why Keep HDR can't apply, or null when it can. Keeping HDR needs H.265 (the library always tone
+     * maps H.264 output, see [HdrMode]), and once the picked videos are probed, at least one of them
+     * must be HDR that this device can keep.
+     */
+    val keepHdrBlocker: KeepHdrBlocker?
+        get() =
+            when {
+                selectedCodec != Codec.H265 -> KeepHdrBlocker.H264
+                hdrProbes == null -> null
+                hdrProbes.all { it.input == HdrInput.SDR } -> KeepHdrBlocker.NO_HDR_VIDEO
+                hdrProbes.none { it.canKeepHdr } -> KeepHdrBlocker.DEVICE
+                else -> null
+            }
+
+    val isKeepHdrAvailable: Boolean get() = keepHdrBlocker == null
 
     /**
      * The HDR mode a compression actually gets, shown as selected in the settings. [selectedHdrMode]
@@ -34,6 +52,12 @@ data class MainUiState(
      */
     val effectiveHdrMode: HdrMode
         get() = if (isKeepHdrAvailable) selectedHdrMode else HdrMode.TONE_MAP_TO_SDR
+}
+
+enum class KeepHdrBlocker {
+    H264,
+    NO_HDR_VIDEO,
+    DEVICE,
 }
 
 /** [codec], or H.264 when it is H.265 and the device can't encode HEVC. */

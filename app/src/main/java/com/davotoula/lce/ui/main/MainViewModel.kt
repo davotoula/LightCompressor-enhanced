@@ -25,6 +25,7 @@ import com.davotoula.lightcompressor.config.SharedStorageConfiguration
 import com.davotoula.lightcompressor.config.VideoResizer
 import com.davotoula.lightcompressor.utils.CompressorUtils
 import com.davotoula.lightcompressor.video.GifToMp4Converter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Suppress("TooManyFunctions")
 class MainViewModel(
@@ -68,6 +70,7 @@ class MainViewModel(
     private val originalVideoSizes = mutableMapOf<Int, Long>()
     private val videoSettingsPreferences = VideoSettingsPreferences(application)
     private val gifJobs = mutableListOf<Job>()
+    private var hdrProbeJob: Job? = null
 
     init {
         loadSavedSettings()
@@ -133,6 +136,7 @@ class MainViewModel(
         _uiState.update { state ->
             state.copy(
                 pendingUris = uris,
+                hdrProbes = null,
                 videos =
                     uris.map { uri ->
                         VideoDetailsModel(
@@ -149,6 +153,18 @@ class MainViewModel(
 
         // Auto-calculate bitrate when videos are selected
         calculateAutoBitrate()
+        probeHdr(uris)
+    }
+
+    /** Probes [uris] off the main thread, so Keep HDR is offered only when it can apply to them. */
+    private fun probeHdr(uris: List<Uri>) {
+        hdrProbeJob?.cancel()
+        hdrProbeJob =
+            viewModelScope.launch {
+                val probes = withContext(Dispatchers.IO) { uris.map { VideoCompressor.probeHdr(context, it) } }
+                // A newer pick replaces these videos while they are probed.
+                _uiState.update { if (it.pendingUris == uris) it.copy(hdrProbes = probes) else it }
+            }
     }
 
     private fun handleSetResolution(resolution: Resolution) {
