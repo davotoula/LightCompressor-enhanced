@@ -175,7 +175,7 @@ private fun getVideoResizer(
 
 interface StorageConfiguration {
     /**
-     * Called with [shouldSave] false to pick the files compression writes to, then with
+     * Called with [shouldSave] false to pick the file compression writes to, then with
      * [shouldSave] true once compression succeeds, when [videoFile] is the compressed file.
      *
      * With [shouldSave] false, [videoFile] only names the source video: it is the source's path

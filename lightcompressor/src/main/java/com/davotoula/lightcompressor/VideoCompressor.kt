@@ -128,24 +128,9 @@ object VideoCompressor : CoroutineScope by MainScope() {
                     context,
                     path,
                     storageConfiguration,
-                    isStreamable,
                     configuration.videoNames[i],
                     shouldSave = false,
                 )
-
-            val streamableFile =
-                if (isStreamable) {
-                    saveVideoFile(
-                        context,
-                        path,
-                        storageConfiguration,
-                        null,
-                        configuration.videoNames[i],
-                        shouldSave = false,
-                    )
-                } else {
-                    null
-                }
 
             // A video cancelled while its path was resolving ends with onCancelled alone.
             ensureActive()
@@ -156,7 +141,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
                     context,
                     uris[i],
                     desFile.path,
-                    streamableFile?.path,
+                    isStreamable,
                     configuration,
                     progressListener(listener),
                 )
@@ -168,7 +153,6 @@ object VideoCompressor : CoroutineScope by MainScope() {
                             context,
                             it,
                             storageConfiguration,
-                            isStreamable,
                             configuration.videoNames[i],
                             shouldSave = true,
                         )
@@ -197,17 +181,13 @@ object VideoCompressor : CoroutineScope by MainScope() {
         context: Context,
         filePath: String,
         storageConfiguration: StorageConfiguration,
-        isStreamable: Boolean?,
         videoName: String,
         shouldSave: Boolean,
     ): File =
         storageConfiguration.createFileToSave(
             context,
             File(filePath),
-            validatedFileName(
-                videoName,
-                isStreamable,
-            ),
+            validatedFileName(videoName),
             shouldSave,
         )
 
@@ -229,18 +209,5 @@ object VideoCompressor : CoroutineScope by MainScope() {
             ?.takeUnless { it.isBlank() }
             ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
 
-    private fun validatedFileName(
-        name: String,
-        isStreamable: Boolean?,
-    ): String {
-        val videoName =
-            if (isStreamable == null || !isStreamable) {
-                name
-            } else {
-                "${name}_temp"
-            }
-
-        if (!videoName.contains("mp4")) return "$videoName.mp4"
-        return videoName
-    }
+    internal fun validatedFileName(name: String): String = if (name.contains("mp4")) name else "$name.mp4"
 }

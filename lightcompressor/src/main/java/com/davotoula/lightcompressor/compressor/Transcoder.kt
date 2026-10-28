@@ -55,7 +55,7 @@ internal open class Transcoder(
         val height: Int,
         val bitrate: Long,
         val destination: File,
-        val streamablePath: String?,
+        val streamable: Boolean,
         val disableAudio: Boolean,
         val rotation: Int,
         val durationUs: Long,
@@ -130,7 +130,7 @@ internal open class Transcoder(
         "ThrowsCount",
     )
     private fun attempt(plan: ColorPlan): Result {
-        val streamableRequested = request.streamablePath != null
+        val streamableRequested = request.streamable
         val parentDir = request.destination.parentFile ?: context.cacheDir
         val muxerOutputFile =
             if (streamableRequested) {
@@ -614,7 +614,6 @@ internal open class Transcoder(
         }
     }
 
-    @Suppress("ReturnCount")
     internal open fun finalizeOutput(
         muxerFile: File,
         streamableRequested: Boolean,
@@ -652,32 +651,9 @@ internal open class Transcoder(
 
         if (!fastStartApplied) {
             muxerFile.copyTo(destination, overwrite = true)
-        } else if (muxerFile.exists() && !muxerFile.delete()) {
-            Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
         }
-
-        val streamablePath = request.streamablePath
-        if (streamablePath != null) {
-            val streamableFile = File(streamablePath)
-            val converted =
-                try {
-                    StreamableVideo.start(destination, streamableFile)
-                } catch (ioe: IOException) {
-                    Log.w(TAG, "Secondary fast-start copy failed: ${ioe.message}")
-                    false
-                }
-            if (converted && destination.exists()) {
-                if (!destination.delete()) {
-                    Log.w(TAG, "Failed to delete destination file: ${destination.absolutePath}")
-                }
-                return Result(
-                    request.index,
-                    success = true,
-                    failureMessage = null,
-                    size = streamableFile.length(),
-                    path = streamableFile.path,
-                )
-            }
+        if (muxerFile.exists() && !muxerFile.delete()) {
+            Log.w(TAG, "Failed to delete muxer file: ${muxerFile.absolutePath}")
         }
 
         return Result(

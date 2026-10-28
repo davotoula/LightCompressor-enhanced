@@ -43,7 +43,7 @@ object Compressor {
         context: Context,
         srcUri: Uri,
         destination: String,
-        streamableFile: String?,
+        streamable: Boolean,
         configuration: Configuration,
         listener: CompressionProgressListener,
     ): Result =
@@ -157,7 +157,7 @@ object Compressor {
                     height = newHeight,
                     bitrate = newBitrate,
                     destination = File(destination),
-                    streamablePath = streamableFile,
+                    streamable = streamable,
                     disableAudio = configuration.disableAudio,
                     rotation = rotation,
                     durationUs = duration,

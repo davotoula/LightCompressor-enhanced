@@ -52,7 +52,7 @@ class ToneMapFallbackTest {
                 height = 1920,
                 bitrate = 10_000_000L,
                 destination = out,
-                streamablePath = null,
+                streamable = false,
                 disableAudio = true,
                 rotation = 0,
                 durationUs = 4_610_400L,
