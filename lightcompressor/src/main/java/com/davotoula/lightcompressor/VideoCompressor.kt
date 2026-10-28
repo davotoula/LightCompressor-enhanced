@@ -3,6 +3,7 @@ package com.davotoula.lightcompressor
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
 import com.davotoula.lightcompressor.compressor.Compressor.compressVideo
 import com.davotoula.lightcompressor.config.Configuration
 import com.davotoula.lightcompressor.config.StorageConfiguration
@@ -223,7 +224,10 @@ object VideoCompressor : CoroutineScope by MainScope() {
                     cursor.moveToFirst()
                     cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
                 }
-        }.getOrNull() ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
+        }.onFailure { Log.w("VideoCompressor", "No MediaStore path for $uri", it) }
+            .getOrNull()
+            ?.takeUnless { it.isBlank() }
+            ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
 
     private fun validatedFileName(
         name: String,

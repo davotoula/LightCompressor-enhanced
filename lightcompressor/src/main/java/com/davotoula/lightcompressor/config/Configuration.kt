@@ -179,7 +179,7 @@ interface StorageConfiguration {
      * [shouldSave] true once compression succeeds, when [videoFile] is the compressed file.
      *
      * With [shouldSave] false, [videoFile] only names the source video: it is the source's path
-     * when MediaStore knows it, and otherwise a placeholder that doesn't exist. Don't read it.
+     * when MediaStore knows it, and otherwise a placeholder, not a real file. Don't read it.
      */
     fun createFileToSave(
         context: Context,
