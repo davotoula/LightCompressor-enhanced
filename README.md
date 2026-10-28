@@ -84,6 +84,8 @@ VideoCompressor.start(
 VideoCompressor.cancel()
 ```
 
+**Cancelling:** `cancel()` stops every video of every `start()` call still in progress, including videos that haven't started yet. Each of those videos gets `onCancelled`, so every video ends in exactly one of `onSuccess`, `onFailure` or `onCancelled`. A `start()` made after `cancel()` runs normally.
+
 **Encoder stalls:** a device's hardware encoder can occasionally stop producing output partway through a job (seen with Samsung Exynos HEVC encoders while other apps hold hardware video codecs). If the encoder produces nothing for 10 seconds while it has frames to encode, the library releases it: the job ends through `onFailure` with a message saying the video encoder stopped responding, rather than hanging, and `cancel()` still works during the stall. There is no automatic retry; a later attempt usually succeeds. In HLS preparation the stalled rendition fails and the remaining renditions continue.
 
 ## Features

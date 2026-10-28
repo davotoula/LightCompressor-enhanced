@@ -5,14 +5,17 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.hdr.ColorInfo
 import com.davotoula.lightcompressor.hdr.ColorPlan
+import com.davotoula.lightcompressor.hdr.HdrCapabilities
 import com.davotoula.lightcompressor.utils.StreamableVideo
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
 import io.mockk.verifySequence
@@ -37,6 +40,28 @@ class TranscoderTest {
     @After
     fun tearDown() {
         unmockkAll()
+    }
+
+    @Test
+    fun transcode_cancelledBeforeAttempt_reportsCancelledWithoutStarting() {
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>()) } returns 0
+        every { Log.i(any(), any<String>()) } returns 0
+        val noHdr =
+            object : HdrCapabilities {
+                override fun hlgEncoder(mime: String) = null
+
+                override fun pqEncoder(mime: String) = null
+            }
+        val transcoder =
+            Transcoder(VideoCodec.H264, context, uri, baseRequest(isCancelled = { true }), lazy { noHdr })
+
+        // An attempt that ran would fail on the stub MediaExtractor without reporting a cancel.
+        val result = transcoder.transcode()
+
+        assertFalse(result.success)
+        assertEquals("Compression cancelled", result.failureMessage)
+        verify(exactly = 1) { listener.onProgressCancelled(0) }
     }
 
     @Test
@@ -280,6 +305,7 @@ class TranscoderTest {
                 delete()
             },
         streamablePath: String? = null,
+        isCancelled: () -> Boolean = { false },
     ) = Transcoder.Request(
         index = 0,
         width = 1280,
@@ -291,5 +317,6 @@ class TranscoderTest {
         rotation = 0,
         durationUs = 1_000_000L,
         listener = listener,
+        isCancelled = isCancelled,
     )
 }

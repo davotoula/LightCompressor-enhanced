@@ -5,18 +5,12 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
 import com.davotoula.lightcompressor.compressor.Compressor.compressVideo
-import com.davotoula.lightcompressor.compressor.Compressor.isRunning
 import com.davotoula.lightcompressor.config.Configuration
 import com.davotoula.lightcompressor.config.StorageConfiguration
 import com.davotoula.lightcompressor.video.Result
-import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.FileOutputStream
 
@@ -38,7 +32,7 @@ enum class VideoCodec(
 private const val COPY_BUFFER_SIZE = 4096
 
 object VideoCompressor : CoroutineScope by MainScope() {
-    private var job: Job? = null
+    private val batches = CompressionBatches()
 
     /**
      * This function compresses a given list of [uris] of video files and writes the compressed
@@ -99,12 +93,13 @@ object VideoCompressor : CoroutineScope by MainScope() {
     }
 
     /**
-     * Call this function to cancel video compression process which will call [CompressionListener.onCancelled]
+     * Cancels every video of every [start] call still running, including videos that haven't
+     * started yet. Each of them gets [CompressionListener.onCancelled] unless it has already
+     * finished. A [start] call made afterwards is unaffected.
      */
     @JvmStatic
     fun cancel() {
-        job?.cancel()
-        isRunning = false
+        batches.cancelAll()
     }
 
     private fun doVideoCompression(
@@ -115,128 +110,107 @@ object VideoCompressor : CoroutineScope by MainScope() {
         configuration: Configuration,
         listener: CompressionListener,
     ) {
-        var streamableFile: File? = null
-        for (i in uris.indices) {
-            val coroutineExceptionHandler =
-                CoroutineExceptionHandler { _, throwable ->
-                    listener.onFailure(i, throwable.message ?: "")
+        batches.launch(
+            count = uris.size,
+            onResult = { i, result: Result ->
+                if (result.success) {
+                    listener.onSuccess(i, result.size, result.path)
+                } else {
+                    listener.onFailure(i, result.failureMessage ?: "An error has occurred!")
                 }
-            val coroutineScope = CoroutineScope(Job() + coroutineExceptionHandler)
+            },
+            onFailure = listener::onFailure,
+            onCancelled = listener::onCancelled,
+        ) { i ->
+            val path = getMediaPath(context, uris[i])
 
-            job =
-                coroutineScope.launch(Dispatchers.IO) {
-                    val job = async { getMediaPath(context, uris[i]) }
-                    val path = job.await()
+            val desFile =
+                saveVideoFile(
+                    context,
+                    path,
+                    storageConfiguration,
+                    isStreamable,
+                    configuration.videoNames[i],
+                    shouldSave = false,
+                )
 
-                    val desFile =
+            val streamableFile =
+                if (isStreamable) {
+                    saveVideoFile(
+                        context,
+                        path,
+                        storageConfiguration,
+                        null,
+                        configuration.videoNames[i],
+                        shouldSave = false,
+                    )
+                } else {
+                    null
+                }
+
+            // A video cancelled while its path was resolving ends with onCancelled alone.
+            ensureActive()
+            listener.onStart(i)
+            val result =
+                compressVideo(
+                    i,
+                    context,
+                    uris[i],
+                    desFile.path,
+                    streamableFile?.path,
+                    configuration,
+                    progressListener(listener),
+                )
+
+            if (result.success) {
+                val savedFile =
+                    result.path?.let {
                         saveVideoFile(
                             context,
-                            path,
+                            it,
                             storageConfiguration,
                             isStreamable,
                             configuration.videoNames[i],
-                            shouldSave = false,
+                            shouldSave = true,
                         )
-
-                    if (isStreamable) {
-                        streamableFile =
-                            saveVideoFile(
-                                context,
-                                path,
-                                storageConfiguration,
-                                null,
-                                configuration.videoNames[i],
-                                shouldSave = false,
-                            )
                     }
-
-                    desFile?.let {
-                        isRunning = true
-                        listener.onStart(i)
-                        val result =
-                            startCompression(
-                                i,
-                                context,
-                                uris[i],
-                                desFile.path,
-                                streamableFile?.path,
-                                configuration,
-                                listener,
-                            )
-
-                        // Runs in Main(UI) Thread
-                        if (result.success) {
-                            val savedFile =
-                                saveVideoFile(
-                                    context,
-                                    result.path,
-                                    storageConfiguration,
-                                    isStreamable,
-                                    configuration.videoNames[i],
-                                    shouldSave = true,
-                                )
-
-                            listener.onSuccess(i, result.size, savedFile?.path)
-                        } else {
-                            listener.onFailure(i, result.failureMessage ?: "An error has occurred!")
-                        }
-                    }
-                }
+                result.copy(path = savedFile?.path)
+            } else {
+                result
+            }
         }
     }
 
-    private suspend fun startCompression(
-        index: Int,
-        context: Context,
-        srcUri: Uri,
-        destPath: String,
-        streamableFile: String? = null,
-        configuration: Configuration,
-        listener: CompressionListener,
-    ): Result =
-        withContext(Dispatchers.Default) {
-            return@withContext compressVideo(
-                index,
-                context,
-                srcUri,
-                destPath,
-                streamableFile,
-                configuration,
-                object : CompressionProgressListener {
-                    override fun onProgressChanged(
-                        index: Int,
-                        percent: Float,
-                    ) {
-                        listener.onProgress(index, percent)
-                    }
+    private fun progressListener(listener: CompressionListener) =
+        object : CompressionProgressListener {
+            override fun onProgressChanged(
+                index: Int,
+                percent: Float,
+            ) {
+                listener.onProgress(index, percent)
+            }
 
-                    override fun onProgressCancelled(index: Int) {
-                        listener.onCancelled(index)
-                    }
-                },
-            )
+            // CompressionBatches reports onCancelled once the video's coroutine ends.
+            override fun onProgressCancelled(index: Int) = Unit
         }
 
     private fun saveVideoFile(
         context: Context,
-        filePath: String?,
+        filePath: String,
         storageConfiguration: StorageConfiguration,
         isStreamable: Boolean?,
         videoName: String,
         shouldSave: Boolean,
-    ): File? =
-        filePath?.let {
-            val videoFile = File(filePath)
-            storageConfiguration.createFileToSave(
-                context,
-                videoFile,
-                validatedFileName(
-                    videoName,
-                    isStreamable,
-                ),
-                shouldSave,
-            )
-        }
+    ): File =
+        storageConfiguration.createFileToSave(
+            context,
+            File(filePath),
+            validatedFileName(
+                videoName,
+                isStreamable,
+            ),
+            shouldSave,
+        )
 
     @Suppress("NestedBlockDepth", "TooGenericExceptionCaught", "SwallowedException")
     private fun getMediaPath(

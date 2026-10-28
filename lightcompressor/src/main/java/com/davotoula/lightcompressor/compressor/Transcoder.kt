@@ -60,6 +60,8 @@ internal open class Transcoder(
         val rotation: Int,
         val durationUs: Long,
         val listener: CompressionProgressListener,
+        // Polled per frame and from the encoder watchdog's thread.
+        val isCancelled: () -> Boolean,
         val hdrMode: HdrMode = HdrMode.KEEP_IF_SUPPORTED,
     )
 
@@ -125,6 +127,7 @@ internal open class Transcoder(
         "LongMethod",
         "TooGenericExceptionCaught",
         "InstanceOfCheckForException",
+        "ThrowsCount",
     )
     private fun attempt(plan: ColorPlan): Result {
         val streamableRequested = request.streamablePath != null
@@ -149,6 +152,8 @@ internal open class Transcoder(
         val state = PipelineState()
 
         return try {
+            // Also stops a keep-HDR fallback attempt from starting after a cancel.
+            if (request.isCancelled()) throw CancellationException()
             videoExtractor =
                 MediaExtractor().apply {
                     setDataSource(context, srcUri, null)
@@ -201,7 +206,7 @@ internal open class Transcoder(
             outputSurface = surfaces.output
             encoder.start()
             encoderStarted = true
-            watchdog = EncoderWatchdog.startFor(encoder, TAG) { !Compressor.isRunning }
+            watchdog = EncoderWatchdog.startFor(encoder, TAG, request.isCancelled)
 
             val decoderOrNull =
                 createDecoderGuarded(sourceMime, inputFormat, outputSurface.getSurface())
@@ -528,7 +533,7 @@ internal open class Transcoder(
                             val doRender = bufferInfo.size > 0
                             decoder.releaseOutputBuffer(decoderStatus, doRender)
                             if (doRender) {
-                                if (!Compressor.isRunning) {
+                                if (request.isCancelled()) {
                                     throw CancellationException()
                                 }
                                 outputSurface.awaitNewImage()

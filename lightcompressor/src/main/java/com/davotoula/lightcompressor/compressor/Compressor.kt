@@ -8,7 +8,6 @@ import android.util.Log
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.config.Configuration
-import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.utils.CompressorUtils.getBitrate
 import com.davotoula.lightcompressor.utils.CompressorUtils.isHevcEncodingSupported
 import com.davotoula.lightcompressor.utils.CompressorUtils.prepareVideoHeight
@@ -18,6 +17,7 @@ import com.davotoula.lightcompressor.utils.fallbackTo16Aligned
 import com.davotoula.lightcompressor.utils.roundDimension
 import com.davotoula.lightcompressor.video.Result
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -37,10 +37,6 @@ object Compressor {
     private const val INVALID_BITRATE =
         "The provided bitrate is smaller than what is needed for compression " +
             "try to set isMinBitRateEnabled to false"
-
-    // Read by the encoder watchdog's thread.
-    @Volatile
-    var isRunning = true
 
     suspend fun compressVideo(
         index: Int,
@@ -155,134 +151,62 @@ object Compressor {
                 }
 
             return@withContext start(
-                index,
-                newWidth,
-                newHeight,
-                destination,
-                newBitrate,
-                streamableFile,
-                configuration.disableAudio,
+                Transcoder.Request(
+                    index = index,
+                    width = newWidth,
+                    height = newHeight,
+                    bitrate = newBitrate,
+                    destination = File(destination),
+                    streamablePath = streamableFile,
+                    disableAudio = configuration.disableAudio,
+                    rotation = rotation,
+                    durationUs = duration,
+                    listener = listener,
+                    // The transcode blocks this coroutine, so it polls the job (also from the watchdog's thread).
+                    isCancelled = coroutineContext.job::isCancelled,
+                    hdrMode = configuration.hdrMode,
+                ),
+                configuration.videoCodec,
                 context,
                 srcUri,
                 extractor,
-                listener,
-                duration,
-                rotation,
-                configuration.videoCodec,
-                configuration.hdrMode,
             )
         }
 
-    @Suppress("DEPRECATION", "LongParameterList")
     private fun start(
-        id: Int,
-        newWidth: Int,
-        newHeight: Int,
-        destination: String,
-        newBitrate: Long,
-        streamableFile: String?,
-        disableAudio: Boolean,
+        request: Transcoder.Request,
+        videoCodec: VideoCodec,
         context: Context,
         srcUri: Uri,
         extractor: MediaExtractor,
-        compressionProgressListener: CompressionProgressListener,
-        duration: Long,
-        rotation: Int,
-        videoCodec: VideoCodec,
-        hdrMode: HdrMode,
     ): Result {
         // Use native MediaMuxer-based transcoders for better performance
         extractor.release()
-        if (newWidth == 0 || newHeight == 0) {
+        if (request.width == 0 || request.height == 0) {
             return Result(
-                id,
+                request.index,
                 success = false,
                 failureMessage = "Invalid output dimensions for transcode",
             )
         }
 
         return try {
-            transcode(
-                id,
-                newWidth,
-                newHeight,
-                destination,
-                newBitrate,
-                streamableFile,
-                disableAudio,
-                context,
-                srcUri,
-                compressionProgressListener,
-                duration,
-                rotation,
-                videoCodec,
-                hdrMode,
-            )
+            Transcoder(videoCodec, context, srcUri, request).transcode()
         } catch (
             @Suppress("TooGenericExceptionCaught") e: Exception,
         ) {
             val fallback =
-                fallbackTo16Aligned(newWidth, newHeight)
+                fallbackTo16Aligned(request.width, request.height)
                     ?: throw e // already 16-aligned or too small, nothing to retry
             Log.w(
                 "Compressor",
-                "Encoder failed with ${newWidth}x$newHeight, " +
+                "Encoder failed with ${request.width}x${request.height}, " +
                     "retrying with 16-aligned ${fallback.first}x${fallback.second}",
                 e,
             )
-            transcode(
-                id,
-                fallback.first,
-                fallback.second,
-                destination,
-                newBitrate,
-                streamableFile,
-                disableAudio,
-                context,
-                srcUri,
-                compressionProgressListener,
-                duration,
-                rotation,
-                videoCodec,
-                hdrMode,
-            )
+            // A cancelled job stops at the retried attempt's own cancel check.
+            val retry = request.copy(width = fallback.first, height = fallback.second)
+            Transcoder(videoCodec, context, srcUri, retry).transcode()
         }
     }
-
-    @Suppress("LongParameterList")
-    private fun transcode(
-        id: Int,
-        width: Int,
-        height: Int,
-        destination: String,
-        bitrate: Long,
-        streamableFile: String?,
-        disableAudio: Boolean,
-        context: Context,
-        srcUri: Uri,
-        listener: CompressionProgressListener,
-        duration: Long,
-        rotation: Int,
-        videoCodec: VideoCodec,
-        hdrMode: HdrMode,
-    ): Result =
-        Transcoder(
-            codec = videoCodec,
-            context = context,
-            srcUri = srcUri,
-            request =
-                Transcoder.Request(
-                    index = id,
-                    width = width,
-                    height = height,
-                    bitrate = bitrate,
-                    destination = File(destination),
-                    streamablePath = streamableFile,
-                    disableAudio = disableAudio,
-                    rotation = rotation,
-                    durationUs = duration,
-                    listener = listener,
-                    hdrMode = hdrMode,
-                ),
-        ).transcode()
 }
