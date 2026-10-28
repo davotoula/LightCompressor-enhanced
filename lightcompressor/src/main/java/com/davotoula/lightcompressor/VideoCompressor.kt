@@ -1,7 +1,6 @@
 package com.davotoula.lightcompressor
 
 import android.content.Context
-import android.database.Cursor
 import android.net.Uri
 import android.provider.MediaStore
 import com.davotoula.lightcompressor.compressor.Compressor.compressVideo
@@ -12,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.ensureActive
 import java.io.File
-import java.io.FileOutputStream
 
 enum class VideoQuality {
     VERY_HIGH,
@@ -29,7 +27,7 @@ enum class VideoCodec(
     H265("video/hevc"),
 }
 
-private const val COPY_BUFFER_SIZE = 4096
+private const val PLACEHOLDER_VIDEO_NAME = "video"
 
 object VideoCompressor : CoroutineScope by MainScope() {
     private val batches = CompressionBatches()
@@ -212,51 +210,24 @@ object VideoCompressor : CoroutineScope by MainScope() {
             shouldSave,
         )
 
-    @Suppress("NestedBlockDepth", "TooGenericExceptionCaught", "SwallowedException")
+    // The path only names the output: it reaches StorageConfiguration.createFileToSave with
+    // shouldSave = false, while compression reads the Uri itself. A Uri with no MediaStore file
+    // path (file Uris, documents) gets a placeholder that doesn't exist.
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     private fun getMediaPath(
         context: Context,
         uri: Uri,
-    ): String {
-        val resolver = context.contentResolver
-        val projection = arrayOf(MediaStore.Video.Media.DATA)
-        var cursor: Cursor? = null
+    ): String =
         try {
-            cursor = resolver.query(uri, projection, null, null, null)
-            return if (cursor != null) {
-                val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
-                cursor.moveToFirst()
-                cursor.getString(columnIndex)
-            } else {
-                @Suppress("TooGenericExceptionThrown", "ThrowingExceptionsWithoutMessageOrCause")
-                throw Exception()
-            }
-        } catch (e: Exception) {
-            resolver.let {
-                val filePath = (
-                    context.applicationInfo.dataDir + File.separator +
-                        System.currentTimeMillis()
-                )
-                val file = File(filePath)
-
-                resolver.openInputStream(uri)?.use { inputStream ->
-                    FileOutputStream(file).use { outputStream ->
-                        val buf = ByteArray(COPY_BUFFER_SIZE)
-                        var len: Int
-                        while (inputStream.read(buf).also { len = it } > 0) {
-                            outputStream.write(
-                                buf,
-                                0,
-                                len,
-                            )
-                        }
-                    }
+            context.contentResolver
+                .query(uri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)
+                ?.use { cursor ->
+                    cursor.moveToFirst()
+                    cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
                 }
-                return file.absolutePath
-            }
-        } finally {
-            cursor?.close()
-        }
-    }
+        } catch (e: Exception) {
+            null
+        } ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
 
     private fun validatedFileName(
         name: String,

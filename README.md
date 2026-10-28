@@ -229,6 +229,8 @@ class MyStorageConfiguration : StorageConfiguration {
 }
 ```
 
+`createFileToSave` is called with `shouldSave = false` to pick the files compression writes to, then with `shouldSave = true` once compression succeeds, when `videoFile` is the compressed file. With `shouldSave = false`, `videoFile` only names the source video: it is the source's path when MediaStore knows it, and otherwise a placeholder that doesn't exist, so don't read it.
+
 ## Permissions
 
 **API < 29**
