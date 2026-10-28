@@ -174,7 +174,7 @@ Dolby Vision video with a backward-compatible base layer (profile 8.1 or 8.4, wh
 
 ## Storage Options
 
-Each video is saved under its name from `videoNames` (with `.mp4` added if the name doesn't contain it). In app-specific and cache storage an existing file with that name is replaced; in shared storage on Android 10 and later, MediaStore gives the new file a numbered name instead. Give each video in a batch its own name, and don't reuse the name of a source video in the same folder (for example a picked video your app copied into its cache directory): the output would replace the source before it is read.
+Each video is saved under its name from `videoNames` (with `.mp4` added if the name doesn't contain it), with or without `isStreamable`. In app-specific and cache storage an existing file with that name is replaced; in shared storage on Android 10 and later, MediaStore gives the new file a numbered name instead. Give each video in a batch its own name, and don't reuse the name of a source video in the same folder (for example a picked video your app copied into its cache directory): the output would replace the source before it is read.
 
 ### SharedStorageConfiguration
 
@@ -231,7 +231,7 @@ class MyStorageConfiguration : StorageConfiguration {
 }
 ```
 
-`createFileToSave` is called with `shouldSave = false` to pick the files compression writes to, then with `shouldSave = true` once compression succeeds, when `videoFile` is the compressed file. With `shouldSave = false`, `videoFile` only names the source video: it is the source's path when MediaStore knows it, and otherwise a placeholder, not a real file, so don't read it.
+`createFileToSave` is called with `shouldSave = false` to pick the file compression writes to, then with `shouldSave = true` once compression succeeds, when `videoFile` is the compressed file. With `shouldSave = false`, `videoFile` only names the source video: it is the source's path when MediaStore knows it, and otherwise a placeholder, not a real file, so don't read it.
 
 ## Permissions
 

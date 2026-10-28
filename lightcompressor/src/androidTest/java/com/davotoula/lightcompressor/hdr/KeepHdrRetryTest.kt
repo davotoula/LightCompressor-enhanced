@@ -13,6 +13,7 @@ import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.compressor.Transcoder
 import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.isFastStart
 import com.davotoula.lightcompressor.video.Result
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -100,7 +101,7 @@ class KeepHdrRetryTest {
             height = 1920,
             bitrate = 10_000_000L,
             destination = File(outDir, "out.mp4"),
-            streamablePath = File(outDir, "out_streamable.mp4").path,
+            streamable = true,
             disableAudio = true,
             rotation = 0,
             durationUs = 4_610_400L,
@@ -133,6 +134,9 @@ class KeepHdrRetryTest {
         val output = File(outDir, files.single())
         assertEquals(output.path, result.path)
         assertTrue("output is empty", output.length() > 0)
+        // Some muxers (Pixel 9a) already write moov first, so there this passes without a conversion;
+        // TranscoderTest covers the conversion path.
+        assertTrue("output is not fast-start (moov after mdat)", isFastStart(output))
 
         val format = videoFormat(output)
         val transfer = format.intOrNull(MediaFormat.KEY_COLOR_TRANSFER)
