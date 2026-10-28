@@ -210,24 +210,20 @@ object VideoCompressor : CoroutineScope by MainScope() {
             shouldSave,
         )
 
-    // The path only names the output: it reaches StorageConfiguration.createFileToSave with
-    // shouldSave = false, while compression reads the Uri itself. A Uri with no MediaStore file
-    // path (file Uris, documents) gets a placeholder that doesn't exist.
-    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    // Only names the source for StorageConfiguration.createFileToSave (see its KDoc); compression
+    // reads the Uri itself, so a Uri with no MediaStore path gets a placeholder.
     private fun getMediaPath(
         context: Context,
         uri: Uri,
     ): String =
-        try {
+        runCatching {
             context.contentResolver
                 .query(uri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)
                 ?.use { cursor ->
                     cursor.moveToFirst()
                     cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
                 }
-        } catch (e: Exception) {
-            null
-        } ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
+        }.getOrNull() ?: File(context.cacheDir, PLACEHOLDER_VIDEO_NAME).path
 
     private fun validatedFileName(
         name: String,
