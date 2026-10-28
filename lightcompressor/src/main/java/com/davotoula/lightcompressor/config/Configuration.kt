@@ -299,10 +299,17 @@ class SharedStorageConfiguration(
 }
 
 class CacheStorageConfiguration : StorageConfiguration {
+    // Compression writes into cacheDir (to the files picked with shouldSave false), so once it
+    // succeeds the compressed file is already where it belongs and is returned as is.
     override fun createFileToSave(
         context: Context,
         videoFile: File,
         fileName: String,
         shouldSave: Boolean,
-    ): File = File.createTempFile(videoFile.nameWithoutExtension, videoFile.extension)
+    ): File =
+        if (shouldSave) {
+            videoFile
+        } else {
+            File(context.cacheDir, fileName).also { it.parentFile?.mkdirs() }
+        }
 }

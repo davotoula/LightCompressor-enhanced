@@ -202,7 +202,7 @@ AppSpecificStorageConfiguration(
 
 ### CacheStorageConfiguration
 
-Saves to the app's cache directory (may be cleared by the system).
+Saves to the app's cache directory as `<name>.mp4` (may be cleared by the system). Videos in a batch need distinct names, as with the other configurations.
 
 ```kotlin
 import com.davotoula.lightcompressor.config.CacheStorageConfiguration

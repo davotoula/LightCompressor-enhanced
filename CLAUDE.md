@@ -97,6 +97,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `ResolutionPipelineTest` — end-to-end resolution pipeline
 - `TranscoderTest` — transcoder unit tests (H.264 and H.265)
 - `NumbersUtilsTest`, `StreamableVideoTest` — utility tests
+- `CacheStorageConfigurationTest` — cache output is `cacheDir/<name>` and the compressed file is returned as is
 - `BoxWriterTest` — ISO BMFF box encoding
 - `Mp4SegmentWriterTest` — fMP4 init and media segment structure
 - `HlsConfigTest` — encoding ladder configuration
