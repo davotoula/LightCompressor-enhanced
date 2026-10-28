@@ -44,6 +44,7 @@ Package: `com.davotoula.lightcompressor`
 **Public API:**
 - `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines, `cancel()` aborts.
   Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. `cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog.
+- `VideoCompressor.probeHdr(context, uri): HdrProbe` — synchronous, `@WorkerThread`, never throws. Reports the input transfer (`HdrInput.SDR`/`HLG`/`PQ`) and `canKeepHdr` (H.265 + `KEEP_IF_SUPPORTED` would keep HDR on this device). Reads colour via `ColorInfoReader` (shared with `Transcoder`) and answers from the same `HdrPolicy.decide` call compression makes, so the two can't drift.
 - `CompressionListener` — callback interface: `onStart`, `onSuccess`, `onFailure`, `onProgress`, `onCancelled`.
 - `Configuration` — compression settings (quality, bitrate, codec, resizer, disableAudio).
 - `VideoResizer` — functional interface for resolution control (`auto`, `scale`, `limitSize`, `matchSize`, `limitShortSide`).
@@ -112,6 +113,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `HdrPolicyTest` — keep-HDR vs tone-map decision table
 - `MediaCodecHdrCapabilitiesTest` — HDR encoder discovery
 - `VideoTrackSelectionTest` — Dolby Vision base-layer track selection
+- `HdrProbeTest` — `probeHdr`'s mapping from `ColorInfo` + `HdrCapabilities` to `HdrProbe`
 - `KeepHdrRejectionTest` — keep-HDR rejection and retry window
 - `ShaderSourcesTest` — generated GLSL sources
 - `HlsTranscoderPlanTest` — HLS always tone maps HDR
@@ -119,7 +121,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `CompressionBatchesTest` — per-batch cancel and exactly-one terminal callback per video
 - `CodecStatusTest` — transcoders ignore `MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED` from older OMX codecs
 
-One instrumented test, `ToneMapFallbackTest` (ES2/ES3 tone-map fallback), needs `orig2.mp4` pushed to the test app's external files dir. Run it with `installDebugAndroidTest` plus `adb shell am instrument`, not `connectedDebugAndroidTest`, which uninstalls the app and deletes its outputs.
+The HDR instrumented tests in `lightcompressor/src/androidTest/.../hdr/` need clips pushed to the test app's external files dir: `ToneMapFallbackTest` (ES2/ES3 tone-map fallback) and `KeepHdrRetryTest` (keep-HDR → tone-map retry) use `orig2.mp4`; `HdrProbeDeviceTest` (`probeHdr` on real files) uses `orig2.mp4` and `jf_sdr_hevc10_1080p_3M.mp4`, plus `jf_dv_p81_1080p.mp4` if present. Run them with `installDebugAndroidTest` plus `adb shell am instrument`, not `connectedDebugAndroidTest`, which uninstalls the app and deletes its outputs.
 
 ## Dependencies
 

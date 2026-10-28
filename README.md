@@ -172,6 +172,21 @@ HDR input is also tone mapped to 8-bit SDR for HLS (which always converts HDR to
 
 Dolby Vision video with a backward-compatible base layer (profile 8.1 or 8.4, which includes iPhone HDR recordings) is compressed from that base layer, so it comes out as HDR10 or HLG, or as SDR when tone mapped. The Dolby Vision metadata is dropped. Profile 5, which has no base layer, needs a Dolby Vision decoder on the device.
 
+#### Checking a video before compression
+
+To show an HDR option only when it applies, probe the picked video first. `probeHdr` opens the file, so call it off the main thread. It never throws.
+
+```kotlin
+import com.davotoula.lightcompressor.VideoCompressor
+import com.davotoula.lightcompressor.hdr.HdrInput
+
+val probe = VideoCompressor.probeHdr(context, uri)
+val showKeepHdr = probe.input != HdrInput.SDR && probe.canKeepHdr
+```
+
+- `input` is `HdrInput.HLG`, `HdrInput.PQ` or `HdrInput.SDR`. SDR, untagged and unreadable video all report `SDR`, which is also how compression treats them. Dolby Vision 8.x reports its base layer's transfer.
+- `canKeepHdr` is true when compressing this video as `VideoCodec.H265` with `HdrMode.KEEP_IF_SUPPORTED` would keep its HDR on this device. It is always false for SDR input, and H.264 output is always tone mapped.
+
 ## Storage Options
 
 Each video is saved under its name from `videoNames` (with `.mp4` added if the name doesn't contain it), with or without `isStreamable`. In app-specific and cache storage an existing file with that name is replaced; in shared storage on Android 10 and later, MediaStore gives the new file a numbered name instead. Give each video in a batch its own name, and don't reuse the name of a source video in the same folder (for example a picked video your app copied into its cache directory): the output would replace the source before it is read.
