@@ -48,7 +48,7 @@ VideoCompressor.start(
     uris = listOf(videoUri),
     isStreamable = true,
     storageConfiguration = SharedStorageConfiguration(
-        saveAt = SaveLocation.movies,
+        saveAt = SaveLocation.MOVIES,
         subFolderName = "my-videos"
     ),
     configureWith = Configuration(
@@ -174,6 +174,8 @@ Dolby Vision video with a backward-compatible base layer (profile 8.1 or 8.4, wh
 
 ## Storage Options
 
+Each video is saved under its name from `videoNames` (with `.mp4` added if the name doesn't contain it). In app-specific and cache storage an existing file with that name is replaced; in shared storage on Android 10 and later, MediaStore gives the new file a numbered name instead. Give each video in a batch its own name, and don't reuse the name of a source video in the same folder (for example a picked video your app copied into its cache directory): the output would replace the source before it is read.
+
 ### SharedStorageConfiguration
 
 Saves to shared storage (Movies, Pictures, or Downloads).
@@ -183,14 +185,14 @@ import com.davotoula.lightcompressor.config.SharedStorageConfiguration
 import com.davotoula.lightcompressor.config.SaveLocation
 
 SharedStorageConfiguration(
-    saveAt = SaveLocation.movies,  // or .pictures / .downloads
+    saveAt = SaveLocation.MOVIES,  // or .PICTURES / .DOWNLOADS
     subFolderName = "my-videos"    // optional
 )
 ```
 
 ### AppSpecificStorageConfiguration
 
-Saves to the app's private external storage directory.
+Saves to the app's private internal files directory (`Context.filesDir`).
 
 ```kotlin
 import com.davotoula.lightcompressor.config.AppSpecificStorageConfiguration
