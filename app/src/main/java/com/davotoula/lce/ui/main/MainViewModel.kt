@@ -27,6 +27,7 @@ import com.davotoula.lightcompressor.utils.CompressorUtils
 import com.davotoula.lightcompressor.video.GifToMp4Converter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -161,9 +162,15 @@ class MainViewModel(
         hdrProbeJob?.cancel()
         hdrProbeJob =
             viewModelScope.launch {
-                val probes = withContext(Dispatchers.IO) { uris.map { VideoCompressor.probeHdr(context, it) } }
-                // A newer pick replaces these videos while they are probed.
-                _uiState.update { if (it.pendingUris == uris) it.copy(hdrProbes = probes) else it }
+                // A newer pick cancels this job, so a superseded pick neither keeps probing nor lands.
+                val probes =
+                    withContext(Dispatchers.IO) {
+                        uris.map {
+                            ensureActive()
+                            VideoCompressor.probeHdr(context, it)
+                        }
+                    }
+                _uiState.update { it.copy(hdrProbes = probes) }
             }
     }
 

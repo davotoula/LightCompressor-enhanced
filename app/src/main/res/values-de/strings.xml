@@ -24,7 +24,7 @@
     <string name="hdr_tone_map">In SDR umwandeln</string>
     <string name="hdr_h264_hint">H.264 kann HDR nicht beibehalten, daher wird HDR-Video in SDR umgewandelt. Wählen Sie H.265, um HDR beizubehalten.</string>
     <string name="hdr_no_hdr_video_hint">Keines der ausgewählten Videos ist HDR, daher gibt es kein HDR beizubehalten.</string>
-    <string name="hdr_device_hint">Dieses Gerät kann HDR bei den ausgewählten Videos nicht beibehalten, daher werden sie in SDR umgewandelt.</string>
+    <string name="hdr_cant_keep_hint">HDR kann bei den ausgewählten Videos nicht beibehalten werden, daher werden sie in SDR umgewandelt.</string>
     <string name="hdr_explanation">„HDR beibehalten“ bewahrt 10-Bit-HDR bei Verwendung von H.265 auf unterstützten Geräten; andernfalls wird das Video in SDR umgewandelt. „In SDR umwandeln“ erzeugt immer Standardvideo, das überall abgespielt wird.</string>
     <string name="bitrate_too_low">Bitrate zu niedrig. Minimum ist %1$d kbps. Verwende %1$d kbps.</string>
     <string name="bitrate_too_high">Bitrate zu hoch. Maximum ist %1$d kbps. Verwende %1$d kbps.</string>

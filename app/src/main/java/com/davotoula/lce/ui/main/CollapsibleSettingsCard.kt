@@ -269,7 +269,7 @@ fun CollapsibleSettingsCard(
                             when (keepHdrBlocker) {
                                 KeepHdrBlocker.H264 -> R.string.hdr_h264_hint
                                 KeepHdrBlocker.NO_HDR_VIDEO -> R.string.hdr_no_hdr_video_hint
-                                KeepHdrBlocker.DEVICE -> R.string.hdr_device_hint
+                                KeepHdrBlocker.CANT_KEEP -> R.string.hdr_cant_keep_hint
                             }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(

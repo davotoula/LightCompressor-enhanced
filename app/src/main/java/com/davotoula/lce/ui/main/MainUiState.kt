@@ -32,7 +32,7 @@ data class MainUiState(
     /**
      * Why Keep HDR can't apply, or null when it can. Keeping HDR needs H.265 (the library always tone
      * maps H.264 output, see [HdrMode]), and once the picked videos are probed, at least one of them
-     * must be HDR that this device can keep.
+     * must be HDR that can be kept on this device.
      */
     val keepHdrBlocker: KeepHdrBlocker?
         get() =
@@ -40,7 +40,7 @@ data class MainUiState(
                 selectedCodec != Codec.H265 -> KeepHdrBlocker.H264
                 hdrProbes == null -> null
                 hdrProbes.all { it.input == HdrInput.SDR } -> KeepHdrBlocker.NO_HDR_VIDEO
-                hdrProbes.none { it.canKeepHdr } -> KeepHdrBlocker.DEVICE
+                hdrProbes.none { it.canKeepHdr } -> KeepHdrBlocker.CANT_KEEP
                 else -> null
             }
 
@@ -57,7 +57,7 @@ data class MainUiState(
 enum class KeepHdrBlocker {
     H264,
     NO_HDR_VIDEO,
-    DEVICE,
+    CANT_KEEP,
 }
 
 /** [codec], or H.264 when it is H.265 and the device can't encode HEVC. */

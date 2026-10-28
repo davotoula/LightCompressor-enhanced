@@ -42,9 +42,9 @@ class MainUiStateTest {
     }
 
     @Test
-    fun h265_hdrVideoDeviceCantKeep_blocksKeepHdr() {
+    fun h265_hdrVideoNotKeepable_blocksKeepHdr() {
         val state = h265With(HdrProbe(HdrInput.HLG, false), HdrProbe(HdrInput.SDR, false))
-        assertEquals(KeepHdrBlocker.DEVICE, state.keepHdrBlocker)
+        assertEquals(KeepHdrBlocker.CANT_KEEP, state.keepHdrBlocker)
         assertFalse(state.isKeepHdrAvailable)
     }
 
