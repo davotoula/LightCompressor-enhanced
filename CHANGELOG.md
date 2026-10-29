@@ -1,3 +1,18 @@
+## [app-v2.1.0] - 2026-10-29
+
+### Added
+- HDR video setting: **Keep HDR** or **Convert to SDR**. Keep HDR preserves 10-bit HLG/PQ video when encoding H.265 on devices whose encoder supports it (Android 13+); otherwise the video is converted to SDR. HDR10+ dynamic metadata is dropped; Dolby Vision 8 recordings (iPhone HDR) are compressed from their HEVC base layer
+- The Keep HDR option is offered only when it applies: it is disabled while H.264 is selected, and once the picked videos have been probed, also when none of them is HDR this device can keep. The hint under the setting says why
+- Bundles LightCompressor library **2.3.0** (HDR input, per-call cancellation, encoder stall watchdog, output naming fixes)
+
+### Changed
+- A saved H.265 setting loads as H.264 on a device without an HEVC encoder, and the codec hint waits for saved settings to load
+- Dependencies updated: Firebase BoM 35.1.0, DataStore 1.3.0, Gradle 9.8.2
+
+### Fixed
+- A compression whose video encoder stops responding now fails after 10 seconds with a message instead of hanging forever (library)
+- Cancelling a compression no longer leaves a partial or finished output file behind (library)
+
 ## [app-v2.0.1] - 2026-10-14
 
 ### Changed
