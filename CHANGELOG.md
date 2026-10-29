@@ -1,3 +1,8 @@
+## [app-v2.1.1] - 2026-10-29
+
+### Changed
+- Google Play only. No longer requests the READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED and READ_EXTERNAL_STORAGE permissions: videos are picked with the system photo picker, which needs none of them (Google Play photo and video permissions policy)
+
 ## [app-v2.1.0] - 2026-10-29
 
 ### Added
