@@ -126,6 +126,6 @@ The HDR instrumented tests in `lightcompressor/src/androidTest/.../hdr/` need cl
 
 ## Dependencies
 
-Managed via version catalog (`gradle/libs.versions.toml`). Key versions: minSdk=21, targetSdk=36, compileSdk=37.0, AGP 9.1.0, Gradle 9.8.1, Kotlin 2.4.21, Media3 1.11.1, Compose BOM 2026.09.00.
+Managed via version catalog (`gradle/libs.versions.toml`). Key versions: minSdk=21, targetSdk=36, compileSdk=37.0, AGP 9.1.0, Gradle 9.8.2, Kotlin 2.4.21, Media3 1.11.1, Compose BOM 2026.09.00.
 
 The `kotlin` catalog version sets the library's consumer floor: the published AAR carries Kotlin metadata of that minor version, and a Kotlin compiler only reads metadata one minor ahead of itself. At Kotlin 2.4.x, consumers must compile with Kotlin 2.3 or newer.
