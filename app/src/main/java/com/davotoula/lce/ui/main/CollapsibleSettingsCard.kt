@@ -263,10 +263,17 @@ fun CollapsibleSettingsCard(
                             Text(stringResource(R.string.hdr_tone_map))
                         }
                     }
-                    if (uiState.isSettingsLoaded && !uiState.isKeepHdrAvailable) {
+                    val keepHdrBlocker = uiState.keepHdrBlocker
+                    if (uiState.isSettingsLoaded && keepHdrBlocker != null) {
+                        val hint =
+                            when (keepHdrBlocker) {
+                                KeepHdrBlocker.H264 -> R.string.hdr_h264_hint
+                                KeepHdrBlocker.NO_HDR_VIDEO -> R.string.hdr_no_hdr_video_hint
+                                KeepHdrBlocker.CANT_KEEP -> R.string.hdr_cant_keep_hint
+                            }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = stringResource(R.string.hdr_h264_hint),
+                            text = stringResource(hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

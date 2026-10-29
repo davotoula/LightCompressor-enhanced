@@ -14,7 +14,7 @@ import android.view.Surface
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.config.HdrMode
-import com.davotoula.lightcompressor.hdr.ColorInfo
+import com.davotoula.lightcompressor.hdr.ColorInfoReader
 import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.hdr.GlSurfaceFactory
 import com.davotoula.lightcompressor.hdr.HdrCapabilities
@@ -70,7 +70,7 @@ internal open class Transcoder(
      * the muxer starts is retried exactly once as a tone-map-to-SDR attempt.
      */
     fun transcode(): Result {
-        val info = readColorInfo()
+        val info = ColorInfoReader.read(context, srcUri)
         val decision = HdrPolicy.decide(info, codec, request.hdrMode, isHls = false, caps = hdrCapabilities.value)
         Log.i(HDR_TAG, decision.reason)
         return runWithFallback(
@@ -79,32 +79,6 @@ internal open class Transcoder(
             onRejected = { Log.w(HDR_TAG, "keep-HDR rejected: ${it.message}", it) },
         ) { attempt(it) }
     }
-
-    /**
-     * Reads the source video track's colour description. Never throws: Compressor treats an
-     * exception escaping [transcode] as a reason for its 16-aligned retry, so any failure here
-     * yields an untagged [ColorInfo] (an Sdr plan) and [attempt] reports the real error as today.
-     */
-    @Suppress("TooGenericExceptionCaught")
-    private fun readColorInfo(): ColorInfo {
-        var extractor: MediaExtractor? = null
-        return try {
-            extractor = MediaExtractor().apply { setDataSource(context, srcUri, null) }
-            val trackIndex = findVideoTrack(extractor)
-            if (trackIndex < 0) untaggedColorInfo() else ColorInfo.forVideoTrack(extractor, trackIndex)
-        } catch (e: Exception) {
-            Log.w(HDR_TAG, "Colour info pre-read failed, treating input as SDR: ${e.message}")
-            untaggedColorInfo()
-        } finally {
-            try {
-                extractor?.release()
-            } catch (releaseError: Exception) {
-                Log.w(HDR_TAG, "Failed to release colour info extractor: ${releaseError.message}")
-            }
-        }
-    }
-
-    private fun untaggedColorInfo() = ColorInfo(null, null, null, null)
 
     /** Tracks whether the muxer has started, so a failure can tell if keep-HDR may still fall back. */
     private class PipelineState {

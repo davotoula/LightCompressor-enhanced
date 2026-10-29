@@ -4,9 +4,16 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import androidx.annotation.WorkerThread
 import com.davotoula.lightcompressor.compressor.Compressor.compressVideo
 import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.config.HdrMode
 import com.davotoula.lightcompressor.config.StorageConfiguration
+import com.davotoula.lightcompressor.hdr.ColorInfoReader
+import com.davotoula.lightcompressor.hdr.HdrInput
+import com.davotoula.lightcompressor.hdr.HdrProbe
+import com.davotoula.lightcompressor.hdr.MediaCodecHdrCapabilities
+import com.davotoula.lightcompressor.hdr.hdrProbeOf
 import com.davotoula.lightcompressor.video.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
@@ -100,6 +107,20 @@ object VideoCompressor : CoroutineScope by MainScope() {
     fun cancel() {
         batches.cancelAll()
     }
+
+    /**
+     * Reads the colour tags of the video at [uri] and says whether compression could keep its HDR:
+     * [HdrProbe.canKeepHdr] answers for [VideoCodec.H265] with [HdrMode.KEEP_IF_SUPPORTED] (H.264
+     * output is always tone mapped). Opens the file with a MediaExtractor, so call it off the main
+     * thread. Never throws: unreadable input reports [HdrInput.SDR], which is also what compression
+     * would assume for it.
+     */
+    @JvmStatic
+    @WorkerThread
+    fun probeHdr(
+        context: Context,
+        uri: Uri,
+    ): HdrProbe = hdrProbeOf(ColorInfoReader.read(context, uri), MediaCodecHdrCapabilities())
 
     private fun doVideoCompression(
         context: Context,
