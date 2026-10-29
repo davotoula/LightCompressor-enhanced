@@ -4,12 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -110,21 +108,6 @@ fun MainScreen(
         ) { uris ->
             if (uris.isNotEmpty()) {
                 viewModel.onAction(MainAction.SelectVideos(uris))
-            }
-        }
-
-    val permissionRequiredMessage = stringResource(R.string.permission_required_pick_videos)
-    val permissionLauncher =
-        rememberLauncherForActivityResult(
-            contract = RequestMultiplePermissions(),
-        ) { permissions ->
-            val granted = permissions.any { it.value }
-            if (granted) {
-                videoPickerLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
-                )
-            } else {
-                Toast.makeText(context, permissionRequiredMessage, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -302,13 +285,10 @@ fun MainScreen(
                 ) {
                     Button(
                         onClick = {
-                            if (hasVideoPermission(context)) {
-                                videoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
-                                )
-                            } else {
-                                permissionLauncher.launch(requiredVideoPermissions())
-                            }
+                            // The system photo picker needs no runtime permission.
+                            videoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly),
+                            )
                         },
                         enabled = !uiState.isCompressing,
                         modifier = Modifier.weight(1f),
@@ -372,30 +352,6 @@ fun MainScreen(
         }
     }
 }
-
-private fun hasVideoPermission(context: Context): Boolean {
-    val permissions = requiredVideoPermissions()
-    return permissions.any { permission ->
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-    }
-}
-
-private fun requiredVideoPermissions(): Array<String> =
-    when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
-            arrayOf(
-                android.Manifest.permission.READ_MEDIA_VIDEO,
-                android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
-            )
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
-            arrayOf(
-                android.Manifest.permission.READ_MEDIA_VIDEO,
-            )
-        else ->
-            arrayOf(
-                android.Manifest.permission.READ_EXTERNAL_STORAGE,
-            )
-    }
 
 private fun shareVideo(
     context: Context,

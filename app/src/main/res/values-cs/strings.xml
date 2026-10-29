@@ -58,7 +58,6 @@
     <string name="status_cancelled">Zrušeno</string>
     <string name="status_error_format">Chyba: %1$s</string>
 
-    <string name="permission_required_pick_videos">Pro výběr videí je vyžadováno oprávnění</string>
     <string name="permission_required_camera">Pro nahrávání videa je vyžadováno oprávnění ke kameře</string>
 
     <string name="switch_to_light_mode">Přepnout na světlý režim</string>

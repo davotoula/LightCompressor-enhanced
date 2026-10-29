@@ -58,7 +58,6 @@
     <string name="status_cancelled">Cancelado</string>
     <string name="status_error_format">Erro: %1$s</string>
 
-    <string name="permission_required_pick_videos">Permissão necessária para selecionar vídeos</string>
     <string name="permission_required_camera">Permissão da câmera necessária para gravar vídeo</string>
 
     <string name="switch_to_light_mode">Mudar para modo claro</string>

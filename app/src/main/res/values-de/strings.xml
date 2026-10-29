@@ -58,7 +58,6 @@
     <string name="status_cancelled">Abgebrochen</string>
     <string name="status_error_format">Fehler: %1$s</string>
 
-    <string name="permission_required_pick_videos">Berechtigung zum Auswählen von Videos erforderlich</string>
     <string name="permission_required_camera">Kameraberechtigung zum Aufnehmen von Videos erforderlich</string>
 
     <string name="switch_to_light_mode">Zum hellen Modus wechseln</string>
