@@ -59,7 +59,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
      * and will throw an exception if the subfolder does not exist.
      * @param [listener] a compression listener that listens to compression [CompressionListener.onStart],
      * [CompressionListener.onProgress], [CompressionListener.onFailure], [CompressionListener.onSuccess]
-     * and if the compression was [CompressionListener.onCancelled]
+     * and if the compression was [CompressionListener.onCancelled] (a video reported cancelled leaves no output file)
      * @param [configureWith] to allow add video compression configuration that could be:
      * [Configuration.quality] to allow choosing a video quality that can be [VideoQuality.LOW],
      * [VideoQuality.MEDIUM], [VideoQuality.HIGH], and [VideoQuality.VERY_HIGH].
@@ -74,6 +74,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
      * This defaults to `false`
      * [Configuration.videoHeight] which is a custom height for the video. Must be specified with [Configuration.videoWidth]
      * [Configuration.videoWidth] which is a custom width for the video. Must be specified with [Configuration.videoHeight]
+     * @return a handle that cancels this call's videos and no others
      */
     @JvmStatic
     @JvmOverloads
@@ -84,11 +85,11 @@ object VideoCompressor : CoroutineScope by MainScope() {
         storageConfiguration: StorageConfiguration,
         configureWith: Configuration,
         listener: CompressionListener,
-    ) {
+    ): CompressionHandle {
         // Only one is allowed
         assert(configureWith.videoNames.size == uris.size)
 
-        doVideoCompression(
+        return doVideoCompression(
             context,
             uris,
             isStreamable,
@@ -101,7 +102,8 @@ object VideoCompressor : CoroutineScope by MainScope() {
     /**
      * Cancels every video of every [start] call still running, including videos that haven't
      * started yet. Each of them gets [CompressionListener.onCancelled] unless it has already
-     * finished. A [start] call made afterwards is unaffected.
+     * finished. A [start] call made afterwards is unaffected. To cancel one [start] call only, use
+     * the [CompressionHandle] it returns.
      */
     @JvmStatic
     fun cancel() {
@@ -129,7 +131,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
         storageConfiguration: StorageConfiguration,
         configuration: Configuration,
         listener: CompressionListener,
-    ) {
+    ): CompressionHandle =
         batches.launch(
             count = uris.size,
             onResult = { i, result: Result ->
@@ -157,15 +159,17 @@ object VideoCompressor : CoroutineScope by MainScope() {
             ensureActive()
             listener.onStart(i)
             val result =
-                compressVideo(
-                    i,
-                    context,
-                    uris[i],
-                    desFile.path,
-                    isStreamable,
-                    configuration,
-                    progressListener(listener),
-                )
+                desFile.deletedIfCancelled {
+                    compressVideo(
+                        i,
+                        context,
+                        uris[i],
+                        desFile.path,
+                        isStreamable,
+                        configuration,
+                        progressListener(listener),
+                    )
+                }
 
             if (result.success) {
                 val savedFile =
@@ -183,7 +187,6 @@ object VideoCompressor : CoroutineScope by MainScope() {
                 result
             }
         }
-    }
 
     private fun progressListener(listener: CompressionListener) =
         object : CompressionProgressListener {

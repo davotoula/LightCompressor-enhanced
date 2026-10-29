@@ -42,8 +42,8 @@ Git hooks auto-install on build. Pre-commit runs ktlint, pre-push runs detekt.
 Package: `com.davotoula.lightcompressor`
 
 **Public API:**
-- `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines, `cancel()` aborts.
-  Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. `cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog.
+- `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines and returns a `CompressionHandle`, `cancel()` aborts.
+  Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. The handle's `cancel()` cancels that batch only; `VideoCompressor.cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. A cancelled video's destination is deleted even when the transcode had already finished it: `withContext` throws on exit after `finalizeOutput`, so `doVideoCompression` deletes `desFile` on `CancellationException` (`File.deletedIfCancelled`). Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog.
 - `VideoCompressor.probeHdr(context, uri): HdrProbe` — synchronous, `@WorkerThread`, never throws. Reports the input transfer (`HdrInput.SDR`/`HLG`/`PQ`) and `canKeepHdr` (H.265 + `KEEP_IF_SUPPORTED` would keep HDR on this device). Reads colour via `ColorInfoReader` (shared with `Transcoder`) and answers from the same `HdrPolicy.decide` call compression makes, so the two can't drift.
 - `CompressionListener` — callback interface: `onStart`, `onSuccess`, `onFailure`, `onProgress`, `onCancelled`.
 - `Configuration` — compression settings (quality, bitrate, codec, resizer, disableAudio).
@@ -119,6 +119,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `HlsTranscoderPlanTest` — HLS always tone maps HDR
 - `EncoderWatchdogTest` — encoder stall/cancel watchdog trip rules (injected clock)
 - `CompressionBatchesTest` — per-batch cancel and exactly-one terminal callback per video
+- `CancelledOutputTest` — a cancelled video's destination is deleted, a finished one kept
 - `CodecStatusTest` — transcoders ignore `MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED` from older OMX codecs
 
 The HDR instrumented tests in `lightcompressor/src/androidTest/.../hdr/` need clips pushed to the test app's external files dir: `ToneMapFallbackTest` (ES2/ES3 tone-map fallback) and `KeepHdrRetryTest` (keep-HDR → tone-map retry) use `orig2.mp4`; `HdrProbeDeviceTest` (`probeHdr` on real files) uses `orig2.mp4` and `jf_sdr_hevc10_1080p_3M.mp4`, plus `jf_dv_p81_1080p.mp4` if present. Run them with `installDebugAndroidTest` plus `adb shell am instrument`, not `connectedDebugAndroidTest`, which uninstalls the app and deletes its outputs.
