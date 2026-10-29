@@ -24,8 +24,11 @@ import java.io.File
 /**
  * Created by AbedElaziz Shehadeh on 27 Jan, 2020
  * elaziz.shehadeh@gmail.com
+ *
+ * Internal: [VideoCompressor.start] is the entry point. A direct caller would bypass the batch
+ * bookkeeping (one terminal callback per video) and the cancelled-output cleanup around this call.
  */
-object Compressor {
+internal object Compressor {
     // 2Mbps
     private const val MIN_BITRATE = 2_000_000
 
