@@ -2,33 +2,30 @@ package com.davotoula.lightcompressor
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
-import java.io.File
+import org.junit.rules.TemporaryFolder
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class CancelledOutputTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
     private val logged: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
     // The production pairing: CompressionBatches runs each video on IO, Compressor transcodes on
     // Default, so the cancellation check on withContext's way back is the one exercised.
     private val scope = CoroutineScope(Dispatchers.IO)
-    private val file = File.createTempFile("cancelled-output", ".mp4").apply { delete() }
-
-    @After
-    fun tearDown() {
-        file.delete()
-    }
+    private val file by lazy { tempFolder.root.resolve("output.mp4") }
 
     private fun CountDownLatch.awaitOrFail() = assertTrue("timed out", await(5, TimeUnit.SECONDS))
 
@@ -62,16 +59,13 @@ class CancelledOutputTest {
     @Test
     fun `keeps the output and returns the value when not cancelled`() {
         val result =
-            runBlocking {
-                scope
-                    .async {
-                        file.deletedIfCancelled(log = { logged += it }) {
-                            withContext(Dispatchers.Default) {
-                                file.writeBytes(ByteArray(16))
-                                "success"
-                            }
-                        }
-                    }.await()
+            runBlocking(Dispatchers.IO) {
+                file.deletedIfCancelled(log = { logged += it }) {
+                    withContext(Dispatchers.Default) {
+                        file.writeBytes(ByteArray(16))
+                        "success"
+                    }
+                }
             }
 
         assertEquals("success", result)

@@ -17,6 +17,6 @@ internal suspend fun <T> File.deletedIfCancelled(
     try {
         block()
     } catch (e: CancellationException) {
-        if (exists() && !delete()) log("Could not delete the cancelled output $path")
+        if (!delete() && exists()) log("Could not delete the cancelled output $path")
         throw e
     }
