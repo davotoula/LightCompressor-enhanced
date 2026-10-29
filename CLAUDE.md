@@ -42,7 +42,7 @@ Git hooks auto-install on build. Pre-commit runs ktlint, pre-push runs detekt.
 Package: `com.davotoula.lightcompressor`
 
 **Public API:**
-- `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines, `cancel()` aborts.
+- `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines and returns a `CompressionHandle` whose `cancel()` cancels that batch only; `cancel()` cancels every batch.
   Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. `cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog.
 - `VideoCompressor.probeHdr(context, uri): HdrProbe` — synchronous, `@WorkerThread`, never throws. Reports the input transfer (`HdrInput.SDR`/`HLG`/`PQ`) and `canKeepHdr` (H.265 + `KEEP_IF_SUPPORTED` would keep HDR on this device). Reads colour via `ColorInfoReader` (shared with `Transcoder`) and answers from the same `HdrPolicy.decide` call compression makes, so the two can't drift.
 - `CompressionListener` — callback interface: `onStart`, `onSuccess`, `onFailure`, `onProgress`, `onCancelled`.

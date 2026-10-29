@@ -74,6 +74,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
      * This defaults to `false`
      * [Configuration.videoHeight] which is a custom height for the video. Must be specified with [Configuration.videoWidth]
      * [Configuration.videoWidth] which is a custom width for the video. Must be specified with [Configuration.videoHeight]
+     * @return a handle that cancels this call's videos and no others
      */
     @JvmStatic
     @JvmOverloads
@@ -84,11 +85,11 @@ object VideoCompressor : CoroutineScope by MainScope() {
         storageConfiguration: StorageConfiguration,
         configureWith: Configuration,
         listener: CompressionListener,
-    ) {
+    ): CompressionHandle {
         // Only one is allowed
         assert(configureWith.videoNames.size == uris.size)
 
-        doVideoCompression(
+        return doVideoCompression(
             context,
             uris,
             isStreamable,
@@ -101,7 +102,8 @@ object VideoCompressor : CoroutineScope by MainScope() {
     /**
      * Cancels every video of every [start] call still running, including videos that haven't
      * started yet. Each of them gets [CompressionListener.onCancelled] unless it has already
-     * finished. A [start] call made afterwards is unaffected.
+     * finished. A [start] call made afterwards is unaffected. To cancel one [start] call only, use
+     * the [CompressionHandle] it returns.
      */
     @JvmStatic
     fun cancel() {
@@ -129,7 +131,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
         storageConfiguration: StorageConfiguration,
         configuration: Configuration,
         listener: CompressionListener,
-    ) {
+    ): CompressionHandle =
         batches.launch(
             count = uris.size,
             onResult = { i, result: Result ->
@@ -183,7 +185,6 @@ object VideoCompressor : CoroutineScope by MainScope() {
                 result
             }
         }
-    }
 
     private fun progressListener(listener: CompressionListener) =
         object : CompressionProgressListener {
