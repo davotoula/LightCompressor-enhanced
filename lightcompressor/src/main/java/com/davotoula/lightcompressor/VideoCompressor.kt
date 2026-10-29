@@ -59,7 +59,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
      * and will throw an exception if the subfolder does not exist.
      * @param [listener] a compression listener that listens to compression [CompressionListener.onStart],
      * [CompressionListener.onProgress], [CompressionListener.onFailure], [CompressionListener.onSuccess]
-     * and if the compression was [CompressionListener.onCancelled] (no output file remains for a cancelled video)
+     * and if the compression was [CompressionListener.onCancelled] (a video reported cancelled leaves no output file)
      * @param [configureWith] to allow add video compression configuration that could be:
      * [Configuration.quality] to allow choosing a video quality that can be [VideoQuality.LOW],
      * [VideoQuality.MEDIUM], [VideoQuality.HIGH], and [VideoQuality.VERY_HIGH].

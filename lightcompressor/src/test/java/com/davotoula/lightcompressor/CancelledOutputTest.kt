@@ -3,9 +3,11 @@ package com.davotoula.lightcompressor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -26,6 +28,11 @@ class CancelledOutputTest {
     // Default, so the cancellation check on withContext's way back is the one exercised.
     private val scope = CoroutineScope(Dispatchers.IO)
     private val file by lazy { tempFolder.root.resolve("output.mp4") }
+
+    @After
+    fun tearDown() {
+        scope.cancel()
+    }
 
     private fun CountDownLatch.awaitOrFail() = assertTrue("timed out", await(5, TimeUnit.SECONDS))
 
@@ -93,5 +100,28 @@ class CancelledOutputTest {
         assertTrue(job.isCancelled)
         assertFalse(file.exists())
         assertEquals(emptyList<String>(), logged)
+    }
+
+    @Test
+    fun `logs when the cancelled output cannot be deleted`() {
+        val started = CountDownLatch(1)
+        val job =
+            scope.launch {
+                file.deletedIfCancelled(log = { logged += it }) {
+                    withContext(Dispatchers.Default) {
+                        // A non-empty directory: File.delete() refuses it, so the file stays.
+                        file.resolve("child").apply { parentFile?.mkdirs() }.writeBytes(ByteArray(1))
+                        started.countDown()
+                        awaitCancellation()
+                    }
+                }
+            }
+
+        started.awaitOrFail()
+        job.cancel()
+        runBlocking { job.join() }
+
+        assertTrue(file.exists())
+        assertEquals(listOf("Could not delete the cancelled output ${file.path}"), logged)
     }
 }
