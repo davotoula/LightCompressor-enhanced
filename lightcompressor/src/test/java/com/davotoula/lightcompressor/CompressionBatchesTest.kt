@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -59,6 +60,16 @@ class CompressionBatchesTest {
 
     private fun CountDownLatch.awaitOrFail() = assertTrue("timed out waiting for callbacks", await(5, TimeUnit.SECONDS))
 
+    /** Runs [block] with batches whose videos share one thread, so a video can be kept from starting. */
+    private fun withSingleThreadBatches(block: (ExecutorService, CompressionBatches) -> Unit) {
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            block(executor, CompressionBatches(executor.asCoroutineDispatcher()) { errors += it })
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     @Test
     fun `cancelAll cancels every running batch`() {
         val started = CountDownLatch(4)
@@ -99,12 +110,10 @@ class CompressionBatchesTest {
     }
 
     @Test
-    fun `a video that never started reports onCancelled`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
+    fun `a video that never started reports onCancelled`() =
+        withSingleThreadBatches { executor, blockedBatches ->
             val dispatcherFree = CountDownLatch(1)
             executor.execute { dispatcherFree.await() }
-            val blockedBatches = CompressionBatches(executor.asCoroutineDispatcher()) { errors += it }
             val bodyRan = AtomicBoolean(false)
             val done = CountDownLatch(2)
             launch("a", 2, done, into = blockedBatches) {
@@ -118,10 +127,7 @@ class CompressionBatchesTest {
             done.awaitOrFail()
             assertEquals(setOf("a:cancelled:0", "a:cancelled:1"), events.toSet())
             assertFalse(bodyRan.get())
-        } finally {
-            executor.shutdownNow()
         }
-    }
 
     @Test
     fun `a video reaching its start after cancelAll stays cancelled`() {
@@ -289,23 +295,21 @@ class CompressionBatchesTest {
     @Test
     fun `handle cancel after the batch finished is a no-op`() {
         val done = CountDownLatch(1)
-        val handle = launch("x", 1, done) { "success" }
+        val handle = launch("a", 1, done) { "success" }
         done.awaitOrFail()
 
         handle.cancel()
 
         Thread.sleep(100)
-        assertEquals(listOf("x:success:0"), events.toList())
+        assertEquals(listOf("a:success:0"), events.toList())
     }
 
     @Test
-    fun `handle cancel reports onCancelled for a video that never started`() {
-        val executor = Executors.newSingleThreadExecutor()
-        try {
+    fun `handle cancel reports onCancelled for a video that never started`() =
+        withSingleThreadBatches { _, singleThreadBatches ->
             val started = CountDownLatch(1)
             val cancelled = CountDownLatch(1)
             val laterBodyRan = AtomicBoolean(false)
-            val singleThreadBatches = CompressionBatches(executor.asCoroutineDispatcher()) { errors += it }
             val done = CountDownLatch(2)
             val handle =
                 launch("a", 2, done, into = singleThreadBatches) { i ->
@@ -326,8 +330,5 @@ class CompressionBatchesTest {
             done.awaitOrFail()
             assertEquals(setOf("a:cancelled:0", "a:cancelled:1"), events.toSet())
             assertFalse(laterBodyRan.get())
-        } finally {
-            executor.shutdownNow()
         }
-    }
 }
