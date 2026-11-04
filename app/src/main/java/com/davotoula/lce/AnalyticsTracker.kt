@@ -85,9 +85,8 @@ object AnalyticsTracker {
         Firebase.crashlytics.setCustomKey(PARAM_BITRATE, bitrateKbps)
         Firebase.crashlytics.setCustomKey(PARAM_STREAMABLE, streamable)
         Firebase.crashlytics.setCustomKey(PARAM_SOURCE, source)
-        val reported = reportableFailureMessage(message)
-        Firebase.crashlytics.log("compression_failure: $reported")
-        Firebase.crashlytics.recordException(CompressionException(reported))
+        Firebase.crashlytics.log("compression_failure: $message")
+        Firebase.crashlytics.recordException(CompressionException(message))
 
         Firebase.analytics.logEvent("compression_failure") {
             param(PARAM_CODEC, codec)
@@ -145,11 +144,6 @@ object AnalyticsTracker {
         }
     }
 }
-
-/** Stands in for a blank failure message, so the Crashlytics log line and issue title never go empty. */
-internal const val NO_FAILURE_MESSAGE = "(no message)"
-
-internal fun reportableFailureMessage(message: String): String = message.ifBlank { NO_FAILURE_MESSAGE }
 
 // @Keep: R8 would otherwise rename these, and Crashlytics titles the issue by the exception's class name.
 @Keep

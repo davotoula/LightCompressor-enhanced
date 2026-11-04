@@ -175,7 +175,7 @@ internal open class Transcoder(
                 } catch (e: KeepHdrRejected) {
                     throw e
                 } catch (e: Exception) {
-                    return failOrReject(plan, "$MSG_EGL_SETUP_FAILED_PREFIX${e.message}")
+                    return failOrReject(plan, "$MSG_EGL_SETUP_FAILED_PREFIX${e.describe()}")
                 }
             inputSurface = surfaces.input
             outputSurface = surfaces.output

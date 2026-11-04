@@ -10,12 +10,8 @@ class FailureMessagesTest {
     }
 
     @Test
-    fun `describe names the exception alone when the message is null`() {
+    fun `describe names the exception alone when the message is null or blank`() {
         assertEquals("java.lang.IllegalStateException", IllegalStateException().describe())
-    }
-
-    @Test
-    fun `describe names the exception alone when the message is blank`() {
         assertEquals("java.lang.IllegalStateException", IllegalStateException("").describe())
         assertEquals("java.lang.IllegalStateException", IllegalStateException("  ").describe())
     }

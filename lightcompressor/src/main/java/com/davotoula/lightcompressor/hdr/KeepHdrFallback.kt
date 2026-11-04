@@ -2,6 +2,8 @@
 
 package com.davotoula.lightcompressor.hdr
 
+import com.davotoula.lightcompressor.describe
+
 /** Thrown when a keep-10-bit-HDR attempt cannot proceed and the job should retry as tone-mapped SDR. */
 internal class KeepHdrRejected(
     reason: String,
@@ -22,7 +24,7 @@ internal fun rejectionFor(
         error is KeepHdrRejected -> error
         else ->
             KeepHdrRejected(
-                "keep-HDR attempt failed before muxer start: ${error.javaClass.simpleName}: ${error.message}",
+                "keep-HDR attempt failed before muxer start: ${error.describe()}",
                 error,
             )
     }

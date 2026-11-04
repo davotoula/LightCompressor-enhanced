@@ -8,6 +8,7 @@ import android.media.MediaMetadataRetriever
 import android.os.Build
 import android.util.Log
 import com.davotoula.lightcompressor.VideoQuality
+import com.davotoula.lightcompressor.failureMessageOrDefault
 import com.davotoula.lightcompressor.hdr.ColorPlan
 import kotlin.math.roundToInt
 
@@ -168,11 +169,7 @@ object CompressorUtils {
     ): String? = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
 
     fun printException(exception: Exception) {
-        var message = "An error has occurred!"
-        exception.localizedMessage?.let {
-            message = it
-        }
-        Log.e("Compressor", message, exception)
+        Log.e("Compressor", failureMessageOrDefault(exception.localizedMessage), exception)
     }
 
     /**

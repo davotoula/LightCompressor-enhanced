@@ -226,7 +226,7 @@ object HlsPreparer : CoroutineScope by MainScope() {
             withContext(Dispatchers.Main) { listener.onCancelled() }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {
-                listener.onFailure(HlsError(e.message ?: "Unknown error", emptyList(), emptyList()))
+                listener.onFailure(HlsError(e.describe(), emptyList(), emptyList()))
             }
         } finally {
             // Only clear the slot if we still own it — a subsequent start() may
