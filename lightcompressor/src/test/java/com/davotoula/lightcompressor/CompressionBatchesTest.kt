@@ -186,7 +186,7 @@ class CompressionBatchesTest {
         done.awaitOrFail()
         // Give a duplicate callback the chance to arrive.
         Thread.sleep(100)
-        assertEquals(setOf("a:failure(boom):0", "a:success:1"), events.toSet())
+        assertEquals(setOf("a:failure(IllegalStateException: boom):0", "a:success:1"), events.toSet())
         assertEquals(2, events.size)
         assertEquals(listOf("boom"), errors.map { it.message })
     }
@@ -197,7 +197,16 @@ class CompressionBatchesTest {
         launch("a", 1, done) { throw IllegalStateException() }
 
         done.awaitOrFail()
-        assertEquals(listOf("a:failure(java.lang.IllegalStateException):0"), events.toList())
+        assertEquals(listOf("a:failure(IllegalStateException):0"), events.toList())
+    }
+
+    @Test
+    fun `a failure with a blank message reports the exception`() {
+        val done = CountDownLatch(1)
+        launch("a", 1, done) { throw IllegalStateException("") }
+
+        done.awaitOrFail()
+        assertEquals(listOf("a:failure(IllegalStateException):0"), events.toList())
     }
 
     @Test

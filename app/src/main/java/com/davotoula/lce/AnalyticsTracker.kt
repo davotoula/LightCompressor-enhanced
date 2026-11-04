@@ -1,5 +1,6 @@
 package com.davotoula.lce
 
+import androidx.annotation.Keep
 import com.google.firebase.Firebase
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.analytics
@@ -144,10 +145,14 @@ object AnalyticsTracker {
     }
 }
 
+// @Keep: Crashlytics titles the issue by the exception's class name and does not map that name
+// through the uploaded R8 mapping (a 2.1.1 report had deobfuscated frames under the title "k50").
+@Keep
 private class NoAudioException(
     message: String,
 ) : RuntimeException(message)
 
+@Keep
 private class CompressionException(
     message: String,
 ) : RuntimeException(message)

@@ -3,6 +3,7 @@ package com.davotoula.lightcompressor.hdr
 import android.media.MediaFormat
 import android.util.Log
 import android.view.Surface
+import com.davotoula.lightcompressor.describe
 import com.davotoula.lightcompressor.video.InputSurface
 import com.davotoula.lightcompressor.video.OutputSurface
 
@@ -63,7 +64,7 @@ internal object GlSurfaceFactory {
             releaseAll(input, encoderSurface)
             throw when (t) {
                 is KeepHdrRejected -> t
-                is Exception -> KeepHdrRejected("keep-HDR GL setup failed: ${t.javaClass.simpleName}: ${t.message}", t)
+                is Exception -> KeepHdrRejected("keep-HDR GL setup failed: ${t.describe()}", t)
                 else -> t
             }
         }

@@ -98,6 +98,29 @@ android {
     }
 }
 
+// Robolectric downloads its Android runtime jar from Maven Central at test time, outside Gradle's
+// cache and retry logic, and CI runners get HTTP 403 for it. Resolve the jar through Gradle
+// instead and point Robolectric at it in offline mode.
+configurations {
+    robolectricRuntime {
+        canBeConsumed = false
+        transitive = false
+    }
+}
+
+def robolectricRuntimeDir = layout.buildDirectory.dir("robolectric-runtime")
+
+tasks.register("prepareRobolectricRuntime", Sync) {
+    from configurations.robolectricRuntime
+    into robolectricRuntimeDir
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn "prepareRobolectricRuntime"
+    systemProperty "robolectric.offline", "true"
+    systemProperty "robolectric.dependency.dir", robolectricRuntimeDir.get().asFile.absolutePath
+}
+
 ktlint {
     android = true
     outputToConsole = true
@@ -127,6 +150,7 @@ dependencies {
     implementation libs.bundles.kotlinx.coroutines
 
     // AndroidX Core
+    implementation libs.androidx.annotation
     implementation libs.androidx.core.ktx
     implementation libs.bundles.androidx.lifecycle
 
@@ -158,6 +182,7 @@ dependencies {
     testImplementation libs.junit
     testImplementation libs.mockk.android
     testImplementation libs.robolectric
+    robolectricRuntime libs.robolectric.android.all
     testImplementation libs.androidx.test.core
     testImplementation libs.kotlinx.coroutines.test
     androidTestImplementation libs.bundles.androidx.testing

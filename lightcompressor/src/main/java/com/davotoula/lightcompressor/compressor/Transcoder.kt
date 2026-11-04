@@ -14,6 +14,7 @@ import android.view.Surface
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.config.HdrMode
+import com.davotoula.lightcompressor.describe
 import com.davotoula.lightcompressor.hdr.ColorInfoReader
 import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.hdr.GlSurfaceFactory
@@ -174,7 +175,7 @@ internal open class Transcoder(
                 } catch (e: KeepHdrRejected) {
                     throw e
                 } catch (e: Exception) {
-                    return failOrReject(plan, "$MSG_EGL_SETUP_FAILED_PREFIX${e.message}")
+                    return failOrReject(plan, "$MSG_EGL_SETUP_FAILED_PREFIX${e.describe()}")
                 }
             inputSurface = surfaces.input
             outputSurface = surfaces.output
@@ -239,7 +240,7 @@ internal open class Transcoder(
                     if (verdict == EncoderWatchdog.Verdict.STALLED) {
                         MSG_ENCODER_STALLED
                     } else {
-                        throwable.message ?: "${codec.name} transcoding failed"
+                        "${codec.name} transcoding failed: ${throwable.describe()}"
                     },
                 )
             }

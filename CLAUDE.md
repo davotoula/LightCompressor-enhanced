@@ -43,7 +43,7 @@ Package: `com.davotoula.lightcompressor`
 
 **Public API:**
 - `VideoCompressor` — singleton entry point. `start()` launches compression via coroutines and returns a `CompressionHandle`, `cancel()` aborts.
-  Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. The handle's `cancel()` cancels that batch only; `VideoCompressor.cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. A cancelled video's destination is deleted even when the transcode had already finished it: `withContext` throws on exit after `finalizeOutput`, so `doVideoCompression` deletes `desFile` on `CancellationException` (`File.deletedIfCancelled`). Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog.
+  Each `start()` is a batch in `CompressionBatches`: a parent job with one coroutine per video. The handle's `cancel()` cancels that batch only; `VideoCompressor.cancel()` cancels every running batch, and later batches are unaffected. Each video's terminal callback is reported once, when its coroutine ends: the `Result` it returned, else `onCancelled` if its batch was cancelled (including videos that never started), else `onFailure`. A cancelled video's destination is deleted even when the transcode had already finished it: `withContext` throws on exit after `finalizeOutput`, so `doVideoCompression` deletes `desFile` on `CancellationException` (`File.deletedIfCancelled`). Transcoding blocks its coroutine, so `Compressor` passes the job's own `isCancelled` in `Transcoder.Request`; `Transcoder` polls it per frame, at the start of each attempt (keep-HDR, tone-map fallback, 16-aligned retry), and from the watchdog. `onFailure` (compression and HLS) never gets a blank message: exceptions are reported through `Throwable.describe()` (`FailureMessages.kt`), which always names the class, and a blank `Result.failureMessage` becomes `DEFAULT_FAILURE_MESSAGE`.
 - `VideoCompressor.probeHdr(context, uri): HdrProbe` — synchronous, `@WorkerThread`, never throws. Reports the input transfer (`HdrInput.SDR`/`HLG`/`PQ`) and `canKeepHdr` (H.265 + `KEEP_IF_SUPPORTED` would keep HDR on this device). Reads colour via `ColorInfoReader` (shared with `Transcoder`) and answers from the same `HdrPolicy.decide` call compression makes, so the two can't drift.
 - `CompressionListener` — callback interface: `onStart`, `onSuccess`, `onFailure`, `onProgress`, `onCancelled`.
 - `Configuration` — compression settings (quality, bitrate, codec, resizer, disableAudio).
@@ -93,6 +93,8 @@ Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 
 
 ## Testing
 
+App tests that use Robolectric run offline: `app/build.gradle` resolves the Android runtime jar (`robolectric-android-all` in the version catalog) through Gradle and sets `robolectric.offline` and `robolectric.dependency.dir`, because the runtime fetch from Maven Central was getting HTTP 403 on CI. Bumping Robolectric or the pinned `@Config(sdk = [...])` means updating that jar version to match.
+
 Library tests use JUnit 4 + MockK. Test files mirror source structure under `lightcompressor/src/test/`. Key test classes:
 - `VideoResizerTest` — resolution calculation logic
 - `ResolutionPipelineTest` — end-to-end resolution pipeline
@@ -119,6 +121,7 @@ Library tests use JUnit 4 + MockK. Test files mirror source structure under `lig
 - `HlsTranscoderPlanTest` — HLS always tone maps HDR
 - `EncoderWatchdogTest` — encoder stall/cancel watchdog trip rules (injected clock)
 - `CompressionBatchesTest` — per-batch cancel and exactly-one terminal callback per video
+- `FailureMessagesTest` — `Throwable.describe()` and `failureMessageOrDefault()`
 - `CancelledOutputTest` — a cancelled video's destination is deleted, a finished one kept
 - `CodecStatusTest` — transcoders ignore `MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED` from older OMX codecs
 
