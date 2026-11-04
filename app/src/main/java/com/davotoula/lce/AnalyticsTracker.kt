@@ -145,7 +145,8 @@ object AnalyticsTracker {
     }
 }
 
-// @Keep: R8 would otherwise rename these, and Crashlytics titles the issue by the exception's class name.
+// @Keep: Crashlytics titles the issue by the exception's class name and does not map that name
+// through the uploaded R8 mapping (a 2.1.1 report had deobfuscated frames under the title "k50").
 @Keep
 private class NoAudioException(
     message: String,
