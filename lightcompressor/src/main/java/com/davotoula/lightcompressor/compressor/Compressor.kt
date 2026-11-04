@@ -8,6 +8,7 @@ import android.util.Log
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.config.Configuration
+import com.davotoula.lightcompressor.describe
 import com.davotoula.lightcompressor.utils.CompressorUtils.getBitrate
 import com.davotoula.lightcompressor.utils.CompressorUtils.isHevcEncodingSupported
 import com.davotoula.lightcompressor.utils.CompressorUtils.prepareVideoHeight
@@ -64,7 +65,7 @@ internal object Compressor {
                 return@withContext Result(
                     index,
                     success = false,
-                    failureMessage = "${exception.message}",
+                    failureMessage = exception.describe(),
                 )
             }
 

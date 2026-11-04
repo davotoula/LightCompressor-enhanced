@@ -1,5 +1,6 @@
 package com.davotoula.lce
 
+import androidx.annotation.Keep
 import com.google.firebase.Firebase
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.analytics
@@ -84,8 +85,9 @@ object AnalyticsTracker {
         Firebase.crashlytics.setCustomKey(PARAM_BITRATE, bitrateKbps)
         Firebase.crashlytics.setCustomKey(PARAM_STREAMABLE, streamable)
         Firebase.crashlytics.setCustomKey(PARAM_SOURCE, source)
-        Firebase.crashlytics.log("compression_failure: $message")
-        Firebase.crashlytics.recordException(CompressionException(message))
+        val reported = reportableFailureMessage(message)
+        Firebase.crashlytics.log("compression_failure: $reported")
+        Firebase.crashlytics.recordException(CompressionException(reported))
 
         Firebase.analytics.logEvent("compression_failure") {
             param(PARAM_CODEC, codec)
@@ -144,10 +146,18 @@ object AnalyticsTracker {
     }
 }
 
+/** Stands in for a blank failure message, so the Crashlytics log line and issue title never go empty. */
+internal const val NO_FAILURE_MESSAGE = "(no message)"
+
+internal fun reportableFailureMessage(message: String): String = message.ifBlank { NO_FAILURE_MESSAGE }
+
+// @Keep: R8 would otherwise rename these, and Crashlytics titles the issue by the exception's class name.
+@Keep
 private class NoAudioException(
     message: String,
 ) : RuntimeException(message)
 
+@Keep
 private class CompressionException(
     message: String,
 ) : RuntimeException(message)

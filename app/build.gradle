@@ -127,6 +127,7 @@ dependencies {
     implementation libs.bundles.kotlinx.coroutines
 
     // AndroidX Core
+    implementation libs.androidx.annotation
     implementation libs.androidx.core.ktx
     implementation libs.bundles.androidx.lifecycle
 

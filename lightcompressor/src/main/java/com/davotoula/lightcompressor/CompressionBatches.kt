@@ -50,7 +50,7 @@ internal class CompressionBatches(
                 when {
                     returned != null -> onResult(i, returned)
                     batch.isCancelled || cause is CancellationException -> onCancelled(i)
-                    else -> onFailure(i, cause?.run { message ?: toString() }.orEmpty())
+                    else -> onFailure(i, cause?.describe() ?: DEFAULT_FAILURE_MESSAGE)
                 }
             }
             job.start()

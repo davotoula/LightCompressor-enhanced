@@ -138,7 +138,7 @@ object VideoCompressor : CoroutineScope by MainScope() {
                 if (result.success) {
                     listener.onSuccess(i, result.size, result.path)
                 } else {
-                    listener.onFailure(i, result.failureMessage ?: "An error has occurred!")
+                    listener.onFailure(i, failureMessageOrDefault(result.failureMessage))
                 }
             },
             onFailure = listener::onFailure,
