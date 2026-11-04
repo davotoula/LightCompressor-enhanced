@@ -93,6 +93,8 @@ Jetpack Compose UI with `MainViewModel` managing compression state. Uses Media3 
 
 ## Testing
 
+App tests that use Robolectric run offline: `app/build.gradle` resolves the Android runtime jar (`robolectric-android-all` in the version catalog) through Gradle and sets `robolectric.offline` and `robolectric.dependency.dir`, because the runtime fetch from Maven Central was getting HTTP 403 on CI. Bumping Robolectric or the pinned `@Config(sdk = [...])` means updating that jar version to match.
+
 Library tests use JUnit 4 + MockK. Test files mirror source structure under `lightcompressor/src/test/`. Key test classes:
 - `VideoResizerTest` — resolution calculation logic
 - `ResolutionPipelineTest` — end-to-end resolution pipeline
