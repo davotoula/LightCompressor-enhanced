@@ -1,5 +1,6 @@
 package com.davotoula.lightcompressor.sanitizer
 
+import android.content.ContentResolver
 import android.content.Context
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -58,7 +59,9 @@ object Mp4Sanitizer {
      *
      * @throws IOException when the source cannot be read, has no audio or video track, has an
      *   audio or video track that cannot be written to an MPEG-4 container (see
-     *   [isMuxableIntoMp4]), or the remux fails. [output] does not exist after a throw.
+     *   [isMuxableIntoMp4]), or the remux fails; [java.io.InterruptedIOException] when the
+     *   calling thread is interrupted. [output] does not exist after a throw. [output] must not
+     *   be the [input] file.
      */
     @JvmStatic
     @WorkerThread
@@ -77,19 +80,24 @@ object Mp4Sanitizer {
         output: File,
         extractor: MediaExtractor,
     ): SanitizeResult {
+        // Checked first: cleaning up after a failure deletes output, which here would be the source.
+        if (isSameFile(input, output)) throw IOException("output is the input file ${output.path}")
         val muxerFile = File(output.path + MUX_TEMP_SUFFIX)
+        var succeeded = false
         try {
             remux(context, input, muxerFile, extractor)
             val fastStart = finishFastStart(muxerFile, output)
             if (!fastStart) {
                 Log.w(TAG, "${output.path} is not fast-start; keeping the plain remux")
             }
+            succeeded = true
             return SanitizeResult(output, fastStart)
         } catch (e: Exception) {
-            output.delete()
             throw e as? IOException ?: IOException("Sanitizing failed: ${e.describe()}", e)
         } finally {
+            // In finally rather than the catch, so an Error (e.g. out of direct-buffer memory) also leaves no output.
             muxerFile.delete()
+            if (!succeeded) output.delete()
         }
     }
 
@@ -155,6 +163,16 @@ object Mp4Sanitizer {
         }
         if (tracks.isEmpty()) throw IOException("Source has no audio or video track")
         return tracks
+    }
+
+    private fun isSameFile(
+        input: Uri,
+        output: File,
+    ): Boolean {
+        val inputPath = input.path
+        return input.scheme == ContentResolver.SCHEME_FILE &&
+            inputPath != null &&
+            File(inputPath).canonicalFile == output.canonicalFile
     }
 
     /** Rotation is a container property, not part of any track format, so it is read separately. */

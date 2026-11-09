@@ -26,7 +26,11 @@ import java.nio.ByteBuffer
 
 class Mp4SanitizerTest {
     private val context: Context = mockk()
-    private val uri: Uri = mockk()
+    private val uri: Uri =
+        mockk {
+            every { scheme } returns "content"
+            every { path } returns "/media/1"
+        }
 
     @Before
     fun setUp() {
@@ -148,7 +152,7 @@ class Mp4SanitizerTest {
     }
 
     @Test
-    fun sanitize_metadataTrackIsDroppedNotRejected() {
+    fun sanitize_skipsMetadataTrack_thenRejectsUnmuxableTrack() {
         val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
 
         val extractor = extractorWith("application/meta", "audio/opus")
@@ -161,6 +165,24 @@ class Mp4SanitizerTest {
 
         assertEquals("Track 1 (audio/opus) cannot be written to an MPEG-4 container", error.message)
         verify(exactly = 0) { extractor.selectTrack(any()) }
+    }
+
+    @Test
+    fun sanitize_outputIsTheInputFile_throwsAndKeepsIt() {
+        val source = File.createTempFile("source", ".mp4").apply { deleteOnExit() }
+        val fileUri =
+            mockk<Uri> {
+                every { scheme } returns "file"
+                every { path } returns source.path
+            }
+        val extractor = mockk<MediaExtractor>()
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, fileUri, source, extractor)
+        }
+
+        assertTrue("the source must survive", source.exists())
+        verify(exactly = 0) { extractor.setDataSource(any<Context>(), any(), any()) }
     }
 
     private fun extractorWith(vararg mimes: String): MediaExtractor {
