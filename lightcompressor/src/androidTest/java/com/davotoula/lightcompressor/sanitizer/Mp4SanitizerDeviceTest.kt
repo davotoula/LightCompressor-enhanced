@@ -14,10 +14,12 @@ import com.davotoula.lightcompressor.pushedClip
 import com.davotoula.lightcompressor.utils.CompressorUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.security.MessageDigest
@@ -83,6 +85,33 @@ class Mp4SanitizerDeviceTest {
         assertTrue("output is not fast-start", Mp4Sanitizer.isFastStart(output))
         assertEquals("handler types", listOf("soun"), handlerTypes(output))
         assertEquals("source clip changed", sourceHash, sha256(source))
+    }
+
+    /**
+     * `trimmed_edit_list.mp4` (an androidTest asset) is a 4 s H.264 + AAC clip stream-copied from 1.5 s with ffmpeg
+     * (`-ss 1.5 -i src.mp4 -c copy`, plus title and location tags), so its edit list starts mid-GOP and the
+     * extractor reports the lead-in samples with negative times. Treating those as the end of the stream once
+     * produced an output with no tracks that still reported success; copying them makes MediaMuxer show the
+     * trimmed-out frames and puts audio 1.5 s out of sync. Sanitize refuses such a source.
+     */
+    @Test
+    fun video_trimmedStreamCopy_throwsAndLeavesNoOutput() {
+        val outDir = freshDir("sanitize_edit_list")
+        val source = File(outDir, "trimmed_edit_list.mp4")
+        InstrumentationRegistry.getInstrumentation().context.assets.open(source.name).use { input ->
+            source.outputStream().use { input.copyTo(it) }
+        }
+        val output = File(outDir, "trimmed_clean.mp4")
+
+        val error =
+            assertThrows(IOException::class.java) {
+                Mp4Sanitizer.sanitize(context, Uri.fromFile(source), output)
+            }
+
+        Log.i(TAG, "trimmed source: ${error.message}")
+        assertTrue(error.message, error.message!!.contains("edit list"))
+        assertFalse("output exists", output.exists())
+        assertFalse("muxer temp file left behind", File(output.path + ".mux.tmp").exists())
     }
 
     private fun source(): File = pushedClip(context, "orig2.mp4")

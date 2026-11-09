@@ -59,9 +59,10 @@ object Mp4Sanitizer {
      *
      * @throws IOException when the source cannot be read, has no audio or video track, has an
      *   audio or video track that cannot be written to an MPEG-4 container (see
-     *   [isMuxableIntoMp4]), or the remux fails; [java.io.InterruptedIOException] when the
-     *   calling thread is interrupted. [output] does not exist after a throw. [output] must not
-     *   be the [input] file.
+     *   [isMuxableIntoMp4]), is a stream-copy trim whose edit list starts mid-GOP (the remux
+     *   would show the trimmed-out frames), or the remux fails; [java.io.InterruptedIOException]
+     *   when the calling thread is interrupted. [output] does not exist after a throw. [output]
+     *   must not be the [input] file.
      */
     @JvmStatic
     @WorkerThread
@@ -132,7 +133,18 @@ object Mp4Sanitizer {
                 }
                 if (rotation != 0) muxer.setOrientationHint(rotation)
                 muxer.start()
-                copySamples(extractor, muxer, muxerTracks, sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE))
+                val written =
+                    copySamples(
+                        extractor,
+                        muxer,
+                        muxerTracks,
+                        sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE),
+                        rejectNegativeTimes = true,
+                    )
+                // MediaMuxer silently leaves out a track with no samples: a failed sanitize, not a smaller file.
+                tracks.keys.firstOrNull { written[it] == 0 }?.let { track ->
+                    throw IOException("Track $track (${tracks.getValue(track).mime()}) has no samples to copy")
+                }
                 muxer.stop()
             } finally {
                 // Also stops a muxer that a failed copy left started; the half-written file is deleted anyway.
@@ -152,7 +164,7 @@ object Mp4Sanitizer {
         val tracks = mutableMapOf<Int, MediaFormat>()
         for (track in 0 until extractor.trackCount) {
             val format = extractor.getTrackFormat(track)
-            val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
+            val mime = format.mime()
             when {
                 !mime.startsWith("audio/") && !mime.startsWith("video/") ->
                     Log.i(TAG, "Dropping track $track ($mime): not audio or video")
@@ -164,6 +176,8 @@ object Mp4Sanitizer {
         if (tracks.isEmpty()) throw IOException("Source has no audio or video track")
         return tracks
     }
+
+    private fun MediaFormat.mime(): String = getString(MediaFormat.KEY_MIME).orEmpty()
 
     private fun isSameFile(
         input: Uri,
