@@ -13,7 +13,7 @@ import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.compressor.Transcoder
 import com.davotoula.lightcompressor.config.HdrMode
-import com.davotoula.lightcompressor.isFastStart
+import com.davotoula.lightcompressor.sanitizer.Mp4Sanitizer.isFastStart
 import com.davotoula.lightcompressor.video.Result
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

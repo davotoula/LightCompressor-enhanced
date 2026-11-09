@@ -24,17 +24,18 @@ import com.davotoula.lightcompressor.hdr.KeepHdrRejected
 import com.davotoula.lightcompressor.hdr.MediaCodecHdrCapabilities
 import com.davotoula.lightcompressor.hdr.rejectionFor
 import com.davotoula.lightcompressor.hdr.runWithFallback
+import com.davotoula.lightcompressor.sanitizer.finishFastStart
+import com.davotoula.lightcompressor.sanitizer.moveReplacing
+import com.davotoula.lightcompressor.utils.CompressorUtils.convertExtractorFlagsToCodecFlags
 import com.davotoula.lightcompressor.utils.CompressorUtils.findTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.findVideoTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
 import com.davotoula.lightcompressor.utils.CompressorUtils.printException
 import com.davotoula.lightcompressor.utils.CompressorUtils.setOutputFileParameters
-import com.davotoula.lightcompressor.utils.StreamableVideo
 import com.davotoula.lightcompressor.video.InputSurface
 import com.davotoula.lightcompressor.video.OutputSurface
 import com.davotoula.lightcompressor.video.Result
 import java.io.File
-import java.io.IOException
 import java.nio.ByteBuffer
 import kotlin.math.min
 
@@ -588,21 +589,10 @@ internal open class Transcoder(
     internal open fun finalizeOutput(muxerFile: File): Result {
         val destination = request.destination
         if (muxerFile != destination) {
-            if (destination.exists() && !destination.delete()) {
-                Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
-            }
-            // False when the muxer output is already fast-start or can't be converted; start then leaves no
-            // destination behind. attempt deletes the muxer file once it has been converted.
-            val fastStarted =
-                request.streamable &&
-                    try {
-                        StreamableVideo.start(muxerFile, destination)
-                    } catch (ioe: IOException) {
-                        Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
-                        false
-                    }
-            if (!fastStarted && !muxerFile.renameTo(destination)) {
-                muxerFile.copyTo(destination, overwrite = true)
+            if (request.streamable) {
+                finishFastStart(muxerFile, destination)
+            } else {
+                moveReplacing(muxerFile, destination)
             }
         }
         return Result(
@@ -797,19 +787,6 @@ internal open class Transcoder(
         } catch (_: Throwable) {
             Log.d(TAG, "Vendor key $key not supported")
         }
-    }
-
-    private fun convertExtractorFlagsToCodecFlags(extractorFlags: Int): Int {
-        var codecFlags = 0
-        if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0
-        ) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
-        }
-        return codecFlags
     }
 
     private fun failure(message: String): Result =

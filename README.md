@@ -277,6 +277,25 @@ class MyStorageConfiguration : StorageConfiguration {
 <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
 ```
 
+## Sanitizing without compressing
+
+*Available from 2.4.0.* `Mp4Sanitizer.sanitize` strips container metadata from an MP4 or M4A without re-encoding it, and writes the result fast-start, so playback can begin before the download finishes. Call it off the main thread.
+
+```kotlin
+import com.davotoula.lightcompressor.sanitizer.Mp4Sanitizer
+
+val clean = File(context.cacheDir, "upload.mp4")
+try {
+    val result = Mp4Sanitizer.sanitize(context, uri, clean)
+    if (!result.fastStart) Log.w(TAG, "${result.file} plays only after a full download")
+} catch (e: IOException) { /* not sanitized; clean does not exist */ }
+```
+
+- **What it strips:** every audio and video sample is copied into a new MPEG-4 container, so `udta` (location, device make and model), `meta`/`ilst`, `uuid` (XMP) boxes and per-track user data are left behind. Tracks that are neither audio nor video, such as the timed-metadata (`mett`) track camera apps record, are dropped along with their samples. The rotation is carried over.
+- **What it does not strip:** `MediaMuxer` writes its own creation time and a `meta` box holding `com.android.version` (the Android version). Metadata inside the video bitstream, such as H.264 SEI user data, stays.
+- **Fast start:** `moov` is moved ahead of `mdat`. `SanitizeResult.fastStart` is false only when that pass failed; the output is then a valid but non-fast-start file. `Mp4Sanitizer.isFastStart(file)` checks any file.
+- **Failures throw `IOException`:** when the source can't be read, has no audio or video track, has an audio or video track an MPEG-4 container can't hold (`Mp4Sanitizer.isMuxableIntoMp4(mime)`, e.g. Opus or MP3), or the remux fails. The output file never exists after a throw.
+
 ## HLS Preparation
 
 `HlsPreparer` transcodes a local video into multiple HLS VOD renditions (fMP4 segments + m3u8 playlists) for adaptive-bitrate playback.

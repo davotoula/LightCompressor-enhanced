@@ -8,9 +8,11 @@ import android.os.Build
 import android.util.Log
 import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
+import com.davotoula.lightcompressor.atom
 import com.davotoula.lightcompressor.hdr.ColorInfo
 import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.hdr.HdrCapabilities
+import com.davotoula.lightcompressor.topLevelAtomTypes
 import com.davotoula.lightcompressor.utils.StreamableVideo
 import com.davotoula.lightcompressor.video.Result
 import io.mockk.every
@@ -317,26 +319,6 @@ class TranscoderTest {
                 format.setInteger(key, value)
             }
         }
-
-    private fun atom(
-        type: String,
-        payload: ByteArray,
-    ): ByteArray =
-        ByteBuffer
-            .allocate(8 + payload.size)
-            .putInt(8 + payload.size)
-            .put(type.toByteArray())
-            .put(payload)
-            .array()
-
-    private fun topLevelAtomTypes(file: File): List<String> {
-        val raw = file.readBytes()
-        val bytes = ByteBuffer.wrap(raw)
-        return generateSequence(0) { it + bytes.getInt(it) }
-            .takeWhile { it < raw.size }
-            .map { String(raw, it + 4, 4, Charsets.US_ASCII) }
-            .toList()
-    }
 
     private fun muxerFile() =
         File.createTempFile("transcoder_mux", ".mp4").apply {
