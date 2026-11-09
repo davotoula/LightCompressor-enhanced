@@ -12,6 +12,7 @@ import com.davotoula.lightcompressor.atom
 import com.davotoula.lightcompressor.hdr.ColorInfo
 import com.davotoula.lightcompressor.hdr.ColorPlan
 import com.davotoula.lightcompressor.hdr.HdrCapabilities
+import com.davotoula.lightcompressor.stco
 import com.davotoula.lightcompressor.topLevelAtomTypes
 import com.davotoula.lightcompressor.utils.StreamableVideo
 import com.davotoula.lightcompressor.video.Result
@@ -29,7 +30,6 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
 
 class TranscoderTest {
     private val context: Context = mockk(relaxed = true)
@@ -233,19 +233,10 @@ class TranscoderTest {
         mockkStatic(Log::class)
         every { Log.i(any(), any<String>()) } returns 0
         // stco must point into mdat's payload: ftyp (12) + mdat header (8).
-        val stco =
-            ByteBuffer
-                .allocate(20)
-                .putInt(20)
-                .put("stco".toByteArray())
-                .putInt(0)
-                .putInt(1)
-                .putInt(20)
-                .array()
         val muxerOutput =
             File.createTempFile("transcoder_mux", ".mp4").apply {
                 deleteOnExit()
-                writeBytes(atom("ftyp", ByteArray(4)) + atom("mdat", ByteArray(8)) + atom("moov", stco))
+                writeBytes(atom("ftyp", ByteArray(4)) + atom("mdat", ByteArray(8)) + atom("moov", stco(20)))
             }
         val destination = missingDestination()
         val result = streamableTranscoder(destination).finalizeOutput(muxerOutput)

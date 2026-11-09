@@ -1,6 +1,5 @@
 package com.davotoula.lightcompressor.utils
 
-import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.media.MediaExtractor
@@ -168,20 +167,6 @@ object CompressorUtils {
         extractor: MediaExtractor,
         index: Int,
     ): String? = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME)
-
-    /** Maps `MediaExtractor` sample flags to the `MediaCodec` buffer flags `MediaMuxer.writeSampleData` takes. */
-    internal fun convertExtractorFlagsToCodecFlags(extractorFlags: Int): Int {
-        var codecFlags = 0
-        if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0
-        ) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
-        }
-        return codecFlags
-    }
 
     fun printException(exception: Exception) {
         Log.e("Compressor", failureMessageOrDefault(exception.localizedMessage), exception)

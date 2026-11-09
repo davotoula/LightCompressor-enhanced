@@ -3,13 +3,15 @@ package com.davotoula.lightcompressor.sanitizer
 import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
-import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.net.Uri
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.davotoula.lightcompressor.freshTestDir
+import com.davotoula.lightcompressor.pushedClip
+import com.davotoula.lightcompressor.utils.CompressorUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -28,7 +30,6 @@ import kotlin.math.abs
 @RunWith(AndroidJUnit4::class)
 class Mp4SanitizerDeviceTest {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val dir: File = context.getExternalFilesDir(null)!!
 
     @Test
     fun video_isFastStartWithoutUserDataAndKeepsTracksDurationAndRotation() {
@@ -84,17 +85,9 @@ class Mp4SanitizerDeviceTest {
         assertEquals("source clip changed", sourceHash, sha256(source))
     }
 
-    private fun source(): File {
-        val src = File(dir, "orig2.mp4")
-        assertTrue("push orig2.mp4 to ${dir.path} first", src.exists())
-        return src
-    }
+    private fun source(): File = pushedClip(context, "orig2.mp4")
 
-    private fun freshDir(name: String): File =
-        File(dir, name).apply {
-            deleteRecursively()
-            assertTrue("could not create $path", mkdirs())
-        }
+    private fun freshDir(name: String): File = freshTestDir(context, name)
 
     /** Copies the first audio track of [source] into [m4a] with the platform muxer. */
     private fun extractAudio(
@@ -105,10 +98,7 @@ class Mp4SanitizerDeviceTest {
         val muxer = MediaMuxer(m4a.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         try {
             extractor.setDataSource(source.path)
-            val track =
-                (0 until extractor.trackCount).first {
-                    extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("audio/")
-                }
+            val track = CompressorUtils.findTrack(extractor, isVideo = false)
             extractor.selectTrack(track)
             val muxerTrack = muxer.addTrack(extractor.getTrackFormat(track))
             muxer.start()
@@ -132,13 +122,7 @@ class Mp4SanitizerDeviceTest {
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(file.path)
-            val mimes =
-                (0 until extractor.trackCount).map {
-                    extractor
-                        .getTrackFormat(
-                            it,
-                        ).getString(MediaFormat.KEY_MIME)!!
-                }
+            val mimes = (0 until extractor.trackCount).map { CompressorUtils.trackMime(extractor, it)!! }
             Log.i(TAG, "${file.name} tracks: $mimes")
             return mimes
         } finally {
@@ -152,7 +136,7 @@ class Mp4SanitizerDeviceTest {
             val keys = mutableListOf<String>()
             for (meta in boxes(raf).filter { it.type == "meta" }) {
                 val keysBox =
-                    boxesIn(raf, childStart(raf, meta), meta.start + meta.size).firstOrNull { it.type == "keys" }
+                    boxesIn(raf, childStart(raf, meta), meta.end).firstOrNull { it.type == "keys" }
                         ?: continue
                 // keys: version/flags, entry_count, then (key_size, namespace, name) entries.
                 raf.seek(keysBox.start + keysBox.headerSize + FULL_BOX_HEADER)
@@ -182,18 +166,34 @@ class Mp4SanitizerDeviceTest {
         }
     }
 
-    private fun sha256(file: File): String =
-        MessageDigest
-            .getInstance("SHA-256")
-            .digest(file.readBytes())
-            .joinToString("") { "%02x".format(it) }
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
 
     private class Box(
         val type: String,
         val start: Long,
         val headerSize: Long,
         val size: Long,
-    )
+    ) {
+        val end get() = start + size
+    }
+
+    /** The single child of [parent] with [type]. */
+    private fun child(
+        raf: RandomAccessFile,
+        parent: Box,
+        type: String,
+    ): Box = boxesIn(raf, childStart(raf, parent), parent.end).single { it.type == type }
 
     private fun boxesIn(
         raf: RandomAccessFile,
@@ -237,7 +237,7 @@ class Mp4SanitizerDeviceTest {
         ) {
             for (box in boxesIn(raf, start, end)) {
                 all += box
-                if (box.type in CONTAINERS) walk(childStart(raf, box), box.start + box.size)
+                if (box.type in CONTAINERS) walk(childStart(raf, box), box.end)
             }
         }
         walk(0, raf.length())
@@ -263,19 +263,10 @@ class Mp4SanitizerDeviceTest {
     private fun handlerTypes(file: File): List<String> =
         RandomAccessFile(file, "r").use { raf ->
             val moov = boxesIn(raf, 0, raf.length()).single { it.type == "moov" }
-            boxesIn(raf, moov.start + moov.headerSize, moov.start + moov.size)
+            boxesIn(raf, childStart(raf, moov), moov.end)
                 .filter { it.type == "trak" }
                 .map { trak ->
-                    val mdia =
-                        boxesIn(raf, trak.start + trak.headerSize, trak.start + trak.size).single {
-                            it.type ==
-                                "mdia"
-                        }
-                    val hdlr =
-                        boxesIn(raf, mdia.start + mdia.headerSize, mdia.start + mdia.size).single {
-                            it.type ==
-                                "hdlr"
-                        }
+                    val hdlr = child(raf, child(raf, trak, "mdia"), "hdlr")
                     // version/flags (4) and pre_defined (4) precede handler_type.
                     raf.seek(hdlr.start + hdlr.headerSize + FULL_BOX_HEADER + 4)
                     String(ByteArray(4).also { raf.readFully(it) }, Charsets.ISO_8859_1)

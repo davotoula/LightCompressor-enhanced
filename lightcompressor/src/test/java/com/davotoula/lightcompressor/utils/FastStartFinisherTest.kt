@@ -1,10 +1,9 @@
-package com.davotoula.lightcompressor.sanitizer
+package com.davotoula.lightcompressor.utils
 
 import android.util.Log
 import com.davotoula.lightcompressor.atom
 import com.davotoula.lightcompressor.stco
 import com.davotoula.lightcompressor.topLevelAtomTypes
-import com.davotoula.lightcompressor.utils.StreamableVideo
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.mockkStatic

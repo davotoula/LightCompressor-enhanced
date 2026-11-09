@@ -18,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.io.IOException
@@ -26,6 +27,12 @@ import java.nio.ByteBuffer
 class Mp4SanitizerTest {
     private val context: Context = mockk()
     private val uri: Uri = mockk()
+
+    @Before
+    fun setUp() {
+        mockkStatic(Log::class)
+        every { Log.i(any(), any<String>()) } returns 0
+    }
 
     @After
     fun tearDown() {
@@ -128,8 +135,6 @@ class Mp4SanitizerTest {
 
     @Test
     fun sanitize_onlyMetadataTrack_dropsItAndThrows() {
-        mockkStatic(Log::class)
-        every { Log.i(any(), any<String>()) } returns 0
         val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
 
         val error =
@@ -144,8 +149,6 @@ class Mp4SanitizerTest {
 
     @Test
     fun sanitize_metadataTrackIsDroppedNotRejected() {
-        mockkStatic(Log::class)
-        every { Log.i(any(), any<String>()) } returns 0
         val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
 
         val extractor = extractorWith("application/meta", "audio/opus")
