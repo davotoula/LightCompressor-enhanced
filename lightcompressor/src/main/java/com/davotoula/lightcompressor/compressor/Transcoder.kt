@@ -29,13 +29,14 @@ import com.davotoula.lightcompressor.utils.CompressorUtils.findVideoTrack
 import com.davotoula.lightcompressor.utils.CompressorUtils.hasQTI
 import com.davotoula.lightcompressor.utils.CompressorUtils.printException
 import com.davotoula.lightcompressor.utils.CompressorUtils.setOutputFileParameters
-import com.davotoula.lightcompressor.utils.StreamableVideo
+import com.davotoula.lightcompressor.utils.copySamples
+import com.davotoula.lightcompressor.utils.finishFastStart
+import com.davotoula.lightcompressor.utils.moveReplacing
+import com.davotoula.lightcompressor.utils.sampleBufferSize
 import com.davotoula.lightcompressor.video.InputSurface
 import com.davotoula.lightcompressor.video.OutputSurface
 import com.davotoula.lightcompressor.video.Result
 import java.io.File
-import java.io.IOException
-import java.nio.ByteBuffer
 import kotlin.math.min
 
 /**
@@ -301,6 +302,7 @@ internal open class Transcoder(
 
     private data class AudioTrackInfo(
         val extractor: MediaExtractor,
+        val extractorTrackIndex: Int,
         val muxerTrackIndex: Int,
         val format: MediaFormat,
     )
@@ -320,6 +322,7 @@ internal open class Transcoder(
                 val muxerTrackIndex = muxer.addTrack(audioFormat)
                 AudioTrackInfo(
                     extractor = extractor,
+                    extractorTrackIndex = audioTrackIndex,
                     muxerTrackIndex = muxerTrackIndex,
                     format = audioFormat,
                 )
@@ -540,69 +543,21 @@ internal open class Transcoder(
         trackInfo: AudioTrackInfo,
         muxer: MediaMuxer,
     ) {
-        val bufferInfo = MediaCodec.BufferInfo()
         val extractor = trackInfo.extractor
         extractor.seekTo(0, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-        val initialCapacity =
-            if (trackInfo.format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
-                trackInfo.format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE)
-            } else {
-                AUDIO_BUFFER_SIZE
-            }
-        var buffer = ByteBuffer.allocateDirect(initialCapacity.coerceAtLeast(AUDIO_BUFFER_SIZE))
-
-        @Suppress("LoopWithTooManyJumpStatements")
-        while (true) {
-            buffer.clear()
-            var sampleSize = extractor.readSampleData(buffer, 0)
-            if (sampleSize < 0) {
-                break
-            }
-            if (sampleSize > buffer.capacity()) {
-                val requiredCapacity = sampleSize.coerceAtLeast(AUDIO_BUFFER_SIZE)
-                buffer = ByteBuffer.allocateDirect(requiredCapacity)
-                buffer.clear()
-                sampleSize = extractor.readSampleData(buffer, 0)
-                if (sampleSize < 0) {
-                    break
-                }
-            }
-            val sampleTime = extractor.sampleTime
-            if (sampleTime < 0) {
-                break
-            }
-            bufferInfo.apply {
-                offset = 0
-                size = sampleSize
-                presentationTimeUs = sampleTime
-                flags = convertExtractorFlagsToCodecFlags(extractor.sampleFlags)
-            }
-            buffer.position(0)
-            buffer.limit(sampleSize)
-            muxer.writeSampleData(trackInfo.muxerTrackIndex, buffer, bufferInfo)
-            extractor.advance()
-        }
+        val muxerTracks = IntArray(extractor.trackCount)
+        muxerTracks[trackInfo.extractorTrackIndex] = trackInfo.muxerTrackIndex
+        copySamples(extractor, muxer, muxerTracks, sampleBufferSize(listOf(trackInfo.format), AUDIO_BUFFER_SIZE))
     }
 
     /** Moves [muxerFile] to the destination, fast-starting it on the way when streamable was requested. */
     internal open fun finalizeOutput(muxerFile: File): Result {
         val destination = request.destination
         if (muxerFile != destination) {
-            if (destination.exists() && !destination.delete()) {
-                Log.w(TAG, "Unable to delete existing destination file ${destination.absolutePath}")
-            }
-            // False when the muxer output is already fast-start or can't be converted; start then leaves no
-            // destination behind. attempt deletes the muxer file once it has been converted.
-            val fastStarted =
-                request.streamable &&
-                    try {
-                        StreamableVideo.start(muxerFile, destination)
-                    } catch (ioe: IOException) {
-                        Log.w(TAG, "Fast-start conversion failed: ${ioe.message}")
-                        false
-                    }
-            if (!fastStarted && !muxerFile.renameTo(destination)) {
-                muxerFile.copyTo(destination, overwrite = true)
+            if (request.streamable) {
+                finishFastStart(muxerFile, destination)
+            } else {
+                moveReplacing(muxerFile, destination)
             }
         }
         return Result(
@@ -797,19 +752,6 @@ internal open class Transcoder(
         } catch (_: Throwable) {
             Log.d(TAG, "Vendor key $key not supported")
         }
-    }
-
-    private fun convertExtractorFlagsToCodecFlags(extractorFlags: Int): Int {
-        var codecFlags = 0
-        if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            extractorFlags and MediaExtractor.SAMPLE_FLAG_PARTIAL_FRAME != 0
-        ) {
-            codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_PARTIAL_FRAME
-        }
-        return codecFlags
     }
 
     private fun failure(message: String): Result =

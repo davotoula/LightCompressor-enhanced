@@ -13,7 +13,9 @@ import com.davotoula.lightcompressor.CompressionProgressListener
 import com.davotoula.lightcompressor.VideoCodec
 import com.davotoula.lightcompressor.compressor.Transcoder
 import com.davotoula.lightcompressor.config.HdrMode
-import com.davotoula.lightcompressor.isFastStart
+import com.davotoula.lightcompressor.freshTestDir
+import com.davotoula.lightcompressor.pushedClip
+import com.davotoula.lightcompressor.sanitizer.Mp4Sanitizer.isFastStart
 import com.davotoula.lightcompressor.video.Result
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -34,7 +36,6 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class KeepHdrRetryTest {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val dir: File = context.getExternalFilesDir(null)!!
 
     /** The plan names an encoder that does not exist, so `createByCodecName` fails before anything starts. */
     @Test
@@ -81,17 +82,9 @@ class KeepHdrRetryTest {
         assertSingleSdrOutput(outDir, result)
     }
 
-    private fun source(): Uri {
-        val src = File(dir, "orig2.mp4")
-        assertTrue("push orig2.mp4 to ${dir.path} first", src.exists())
-        return Uri.fromFile(src)
-    }
+    private fun source(): Uri = Uri.fromFile(pushedClip(context, "orig2.mp4"))
 
-    private fun freshDir(name: String): File =
-        File(dir, name).apply {
-            deleteRecursively()
-            assertTrue("could not create $path", mkdirs())
-        }
+    private fun freshDir(name: String): File = freshTestDir(context, name)
 
     // As Compressor builds it for this −90° source: dimensions swapped, rotation 0.
     private fun request(outDir: File) =
