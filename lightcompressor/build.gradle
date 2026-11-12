@@ -8,7 +8,11 @@ plugins {
     id 'io.gitlab.arturbosch.detekt'
 }
 
-// Double check version in gradle.properties and ./gradlew release -PreleaseType=<release-type major/minor/patch>
+// Releasing: gradle.properties holds the NEXT version as X.Y.Z-SNAPSHOT. Release it with explicit versions,
+//   ./gradlew :lightcompressor:release -PreleaseVersion=X.Y.Z -PpostReleaseVersion=X.Y.(Z+1)-SNAPSHOT
+// Do not use -PreleaseType=major/minor/patch: the plugin bumps the current version, so
+// 2.4.0-SNAPSHOT with "minor" releases 2.5.0, not 2.4.0. Preview with :lightcompressor:calculateReleaseVersion
+// (writes build/release/tmpVersion.properties). The tag is "{version}" with no "v"; library-release.yml matches [0-9]*.
 release {
     checkForPreReleaseVersions = false
     checkForUncommittedFiles = false
