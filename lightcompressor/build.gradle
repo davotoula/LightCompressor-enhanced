@@ -12,10 +12,15 @@ plugins {
 //   ./gradlew :lightcompressor:release -PreleaseVersion=X.Y.Z -PpostReleaseVersion=X.Y.(Z+1)-SNAPSHOT
 // Do not use -PreleaseType=major/minor/patch: the plugin bumps the current version, so
 // 2.4.0-SNAPSHOT with "minor" releases 2.5.0, not 2.4.0. Preview with :lightcompressor:calculateReleaseVersion
-// (writes build/release/tmpVersion.properties). The tag is "{version}" with no "v"; library-release.yml matches [0-9]*.
+// (writes build/release/tmpVersion.properties). The tag must be "{version}" with no "v": library-release.yml
+// matches [0-9]* and JitPack coordinates use the bare version (2.3.0, 2.4.0). The plugin's default is "v{version}",
+// which is what the settings below override.
 release {
     checkForPreReleaseVersions = false
     checkForUncommittedFiles = false
+    tagName = "{version}"
+    releaseCommitMessage = "Release commit: {version}"
+    postReleaseCommitMessage = "Post release commit: {version}"
 }
 
 def targetSdkVersion = libs.versions.targetSdk.get().toInteger()
