@@ -33,7 +33,7 @@ internal fun finishFastStart(
             false
         }
     if (converted) {
-        muxerFile.delete()
+        muxerFile.deleteOrWarn(TAG)
     } else {
         moveReplacing(muxerFile, destination)
     }
@@ -50,8 +50,13 @@ internal fun moveReplacing(
     }
     if (!source.renameTo(destination)) {
         source.copyTo(destination, overwrite = true)
-        source.delete()
+        source.deleteOrWarn(TAG)
     }
+}
+
+/** Deletes this file, logging under [tag] when it is still there afterwards (a missing file is fine). */
+internal fun File.deleteOrWarn(tag: String) {
+    if (!delete() && exists()) Log.w(tag, "Could not delete $path")
 }
 
 /**

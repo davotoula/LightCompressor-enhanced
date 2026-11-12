@@ -12,6 +12,7 @@ import androidx.annotation.WorkerThread
 import com.davotoula.lightcompressor.describe
 import com.davotoula.lightcompressor.utils.NegativeTime
 import com.davotoula.lightcompressor.utils.copySamples
+import com.davotoula.lightcompressor.utils.deleteOrWarn
 import com.davotoula.lightcompressor.utils.finishFastStart
 import com.davotoula.lightcompressor.utils.sampleBufferSize
 import java.io.File
@@ -105,8 +106,9 @@ object Mp4Sanitizer {
             throw e as? IOException ?: IOException("Sanitizing failed: ${e.describe()}", e)
         } finally {
             // In finally rather than the catch, so an Error (e.g. out of direct-buffer memory) also leaves no output.
-            muxerFile.delete()
-            if (!succeeded) output.delete()
+            // Both are usually gone already; a leftover is logged, since throwing here would hide the real failure.
+            muxerFile.deleteOrWarn(TAG)
+            if (!succeeded) output.deleteOrWarn(TAG)
         }
     }
 

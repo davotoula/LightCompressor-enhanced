@@ -99,6 +99,26 @@ class FastStartFinisherTest {
         assertArrayEquals(bytes, destination.readBytes())
     }
 
+    @Test
+    fun deleteOrWarn_logsOnlyWhenTheFileSurvives() {
+        // File.delete can't remove a non-empty directory, so this one survives.
+        val stuck =
+            kotlin.io.path
+                .createTempDirectory("stuck")
+                .toFile()
+                .apply { deleteOnExit() }
+        val child = File(stuck, "child").apply { writeText("x") }
+        val missing = missingFile()
+
+        stuck.deleteOrWarn("test")
+        missing.deleteOrWarn("test")
+
+        verify(exactly = 1) { Log.w("test", "Could not delete ${stuck.path}") }
+        verify(exactly = 1) { Log.w(any(), any<String>()) }
+        child.delete()
+        stuck.delete()
+    }
+
     private fun tempFile(bytes: ByteArray) =
         File.createTempFile("finisher", ".mp4").apply {
             deleteOnExit()
