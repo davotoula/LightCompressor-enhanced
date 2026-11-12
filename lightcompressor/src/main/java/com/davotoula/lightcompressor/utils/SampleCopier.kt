@@ -21,28 +21,42 @@ internal fun sampleBufferSize(
         } ?: 0,
     )
 
+/** What [copySamples] does with a sample whose time is negative. */
+internal enum class NegativeTime {
+    /** End the copy there, as Transcoder's audio passthrough always has. */
+    STOP,
+
+    /**
+     * Write it. Audio uses this: a negative time there is encoder priming (one AAC frame, ~21 ms, in ffmpeg
+     * output), and `MediaMuxer` keeps it behind an edit list.
+     */
+    COPY,
+
+    /**
+     * Throw. Video uses this: a negative time there is a stream-copy trim whose edit list starts mid-GOP,
+     * and `MediaMuxer` would re-base those frames to 0 and show the trimmed-out part.
+     */
+    REJECT,
+}
+
 /**
  * Copies every sample of [extractor]'s selected tracks into [muxer], unchanged, until the extractor runs out.
  *
- * A negative sample time means the source's edit list starts after its first samples: a stream-copy trim
- * starting mid-GOP. `MediaMuxer` would re-base such samples to 0 and show the trimmed-out frames. With
- * [rejectNegativeTimes] the copy throws there; otherwise it stops there, as Transcoder's audio passthrough
- * always has.
- *
- * [muxerTracks] maps an extractor track index to its muxer track. The buffer starts at [initialBufferSize]
- * and, from API 28 (`getSampleSize`), grows for a larger sample; below it the initial size has to be enough,
- * since `readSampleData` throws on a buffer that is too small.
+ * [muxerTracks] maps an extractor track index to its muxer track, and [negativeTime] says per extractor track
+ * what a negative sample time does. The buffer starts at [initialBufferSize] and, from API 28
+ * (`getSampleSize`), grows for a larger sample; below it the initial size has to be enough, since
+ * `readSampleData` throws on a buffer that is too small.
  *
  * @return the number of samples written, indexed like [muxerTracks].
  * @throws InterruptedIOException when the calling thread is interrupted.
- * @throws IOException at a negative sample time, with [rejectNegativeTimes].
+ * @throws IOException at a negative sample time on a [NegativeTime.REJECT] track.
  */
 internal fun copySamples(
     extractor: MediaExtractor,
     muxer: MediaMuxer,
     muxerTracks: IntArray,
     initialBufferSize: Int,
-    rejectNegativeTimes: Boolean = false,
+    negativeTime: (track: Int) -> NegativeTime = { NegativeTime.STOP },
 ): IntArray {
     val written = IntArray(muxerTracks.size)
     var buffer = ByteBuffer.allocateDirect(initialBufferSize)
@@ -60,7 +74,7 @@ internal fun copySamples(
         val track = extractor.sampleTrackIndex
         val sampleTime = extractor.sampleTime
         // readSampleData < 0 is the end of the stream; checked first, since the sample time is then -1 too.
-        if (sampleSize < 0 || !isCopyable(sampleTime, track, rejectNegativeTimes)) break
+        if (sampleSize < 0 || !isCopyable(sampleTime, track, negativeTime)) break
         bufferInfo.set(0, sampleSize, sampleTime, codecFlags(extractor.sampleFlags))
         muxer.writeSampleData(muxerTracks[track], buffer, bufferInfo)
         written[track]++
@@ -69,20 +83,21 @@ internal fun copySamples(
     return written
 }
 
-/** False to stop the copy at a negative [sampleTime]; throws there instead with [rejectNegativeTimes]. */
+/** Whether to write a sample at [sampleTime]; false stops the copy. Throws for [NegativeTime.REJECT]. */
 private fun isCopyable(
     sampleTime: Long,
     track: Int,
-    rejectNegativeTimes: Boolean,
-): Boolean {
-    if (sampleTime < 0 && rejectNegativeTimes) {
-        throw IOException(
-            "Track $track has a sample at $sampleTime us, before its edit list starts (a stream-copy trim); " +
-                "remuxing would show the trimmed-out frames",
-        )
-    }
-    return sampleTime >= 0
-}
+    negativeTime: (track: Int) -> NegativeTime,
+): Boolean =
+    sampleTime >= 0 ||
+        when (negativeTime(track)) {
+            NegativeTime.STOP -> false
+            NegativeTime.COPY -> true
+            NegativeTime.REJECT -> throw IOException(
+                "Track $track has a sample at $sampleTime us, before its edit list starts (a stream-copy " +
+                    "trim); remuxing would show the trimmed-out frames",
+            )
+        }
 
 /** Maps `MediaExtractor` sample flags to the `MediaCodec` buffer flags `MediaMuxer.writeSampleData` takes. */
 private fun codecFlags(extractorFlags: Int): Int {

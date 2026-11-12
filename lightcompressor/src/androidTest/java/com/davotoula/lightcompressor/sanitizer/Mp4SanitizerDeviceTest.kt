@@ -91,16 +91,13 @@ class Mp4SanitizerDeviceTest {
      * `trimmed_edit_list.mp4` (an androidTest asset) is a 4 s H.264 + AAC clip stream-copied from 1.5 s with ffmpeg
      * (`-ss 1.5 -i src.mp4 -c copy`, plus title and location tags), so its edit list starts mid-GOP and the
      * extractor reports the lead-in samples with negative times. Treating those as the end of the stream once
-     * produced an output with no tracks that still reported success; copying them makes MediaMuxer show the
-     * trimmed-out frames and puts audio 1.5 s out of sync. Sanitize refuses such a source.
+     * produced an output with no tracks that still reported success; copying the video ones makes MediaMuxer show
+     * the trimmed-out frames. Sanitize refuses such a source.
      */
     @Test
     fun video_trimmedStreamCopy_throwsAndLeavesNoOutput() {
         val outDir = freshDir("sanitize_edit_list")
-        val source = File(outDir, "trimmed_edit_list.mp4")
-        InstrumentationRegistry.getInstrumentation().context.assets.open(source.name).use { input ->
-            source.outputStream().use { input.copyTo(it) }
-        }
+        val source = asset("trimmed_edit_list.mp4", outDir)
         val output = File(outDir, "trimmed_clean.mp4")
 
         val error =
@@ -113,6 +110,71 @@ class Mp4SanitizerDeviceTest {
         assertFalse("output exists", output.exists())
         assertFalse("muxer temp file left behind", File(output.path + ".mux.tmp").exists())
     }
+
+    /**
+     * `bframes_aac_priming.mp4` (an androidTest asset) is a plain, untrimmed 3 s ffmpeg encode: H.264 with B-frames
+     * and AAC (`-f lavfi -i testsrc … -i sine … -t 3 -c:v libx264 -bf 3 -c:a aac`). Its first AAC frame is encoder
+     * priming that the edit list skips, so the extractor reports it at -21333 us. Rejecting every negative time
+     * refused this ordinary file; the priming must be kept, at the same time, and nothing else changed.
+     */
+    @Test
+    fun video_aacPriming_isKept() {
+        val outDir = freshDir("sanitize_priming")
+        val source = asset("bframes_aac_priming.mp4", outDir)
+        val output = File(outDir, "priming_clean.mp4")
+
+        val result = Mp4Sanitizer.sanitize(context, Uri.fromFile(source), output)
+
+        assertTrue("result says not fast-start", result.fastStart)
+        assertEquals("tracks", trackMimes(source), trackMimes(output))
+        val sourceTimes = firstSampleTimes(source)
+        Log.i(TAG, "priming first sample times: source=$sourceTimes output=${firstSampleTimes(output)}")
+        assertTrue("source has no priming sample: $sourceTimes", sourceTimes.any { it < 0 })
+        assertEquals("first sample time per track", sourceTimes, firstSampleTimes(output))
+        assertEquals("samples per track", sampleCounts(source), sampleCounts(output))
+        val sourceMs = durationMs(source)
+        val outputMs = durationMs(output)
+        assertTrue("duration $outputMs ms vs source $sourceMs ms", abs(outputMs - sourceMs) <= DURATION_TOLERANCE_MS)
+    }
+
+    /** Copies the androidTest asset [name] into [dir]. */
+    private fun asset(
+        name: String,
+        dir: File,
+    ): File =
+        File(dir, name).also { file ->
+            InstrumentationRegistry.getInstrumentation().context.assets.open(name).use { input ->
+                file.outputStream().use { input.copyTo(it) }
+            }
+        }
+
+    private fun firstSampleTimes(file: File): List<Long> = perTrack(file) { it.sampleTime }
+
+    private fun sampleCounts(file: File): List<Int> =
+        perTrack(file) { extractor ->
+            var count = 0
+            while (extractor.sampleTrackIndex >= 0) {
+                count++
+                extractor.advance()
+            }
+            count
+        }
+
+    /** [read] on each track in turn, with a fresh extractor so no seek skips samples before time 0. */
+    private fun <T> perTrack(
+        file: File,
+        read: (MediaExtractor) -> T,
+    ): List<T> =
+        trackMimes(file).indices.map { track ->
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(file.path)
+                extractor.selectTrack(track)
+                read(extractor)
+            } finally {
+                extractor.release()
+            }
+        }
 
     private fun source(): File = pushedClip(context, "orig2.mp4")
 

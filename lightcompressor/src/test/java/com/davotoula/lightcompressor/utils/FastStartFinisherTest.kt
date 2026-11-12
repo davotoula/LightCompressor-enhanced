@@ -76,6 +76,19 @@ class FastStartFinisherTest {
     }
 
     @Test
+    fun existingDestination_isReplacedByTheConversion() {
+        val muxerFile = tempFile(atom("ftyp", ByteArray(4)) + atom("mdat", ByteArray(8)) + atom("moov", stco(20)))
+        // Longer than the converted file, so a destination that was not truncated would keep a stale tail.
+        val destination = tempFile(ByteArray(256) { 1 })
+
+        val fastStart = finishFastStart(muxerFile, destination)
+
+        assertTrue(fastStart)
+        assertEquals(listOf("ftyp", "moov", "mdat"), topLevelAtomTypes(destination))
+        assertFalse("muxer file should be removed", muxerFile.exists())
+    }
+
+    @Test
     fun existingDestination_isReplaced() {
         val bytes = atom("ftyp", ByteArray(4)) + atom("moov", stco(40)) + atom("mdat", ByteArray(8))
         val muxerFile = tempFile(bytes)

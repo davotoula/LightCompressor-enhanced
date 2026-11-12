@@ -10,11 +10,13 @@ import android.net.Uri
 import android.util.Log
 import androidx.annotation.WorkerThread
 import com.davotoula.lightcompressor.describe
+import com.davotoula.lightcompressor.utils.NegativeTime
 import com.davotoula.lightcompressor.utils.copySamples
 import com.davotoula.lightcompressor.utils.finishFastStart
 import com.davotoula.lightcompressor.utils.sampleBufferSize
 import java.io.File
 import java.io.IOException
+import java.io.InterruptedIOException
 import com.davotoula.lightcompressor.utils.isFastStart as fileIsFastStart
 
 /** Outcome of [Mp4Sanitizer.sanitize]: [file] is [Mp4Sanitizer.sanitize]'s `output`. */
@@ -51,7 +53,9 @@ object Mp4Sanitizer {
      * data do not carry over; the rotation hint is read from the source and reapplied. Other
      * tracks (timed metadata such as a camera's `mett` track, text) are dropped with their
      * samples. The output is then fast-started so `moov` precedes `mdat`. Codec data is
-     * untouched: no decode, no re-encode.
+     * untouched: no decode, no re-encode. Audio encoder priming (samples before an edit list's
+     * start) is kept behind an edit list; video samples before it mean a stream-copy trim, which
+     * is refused.
      *
      * Residual: `MediaMuxer` writes its own creation time, and a `meta` box holding
      * `com.android.version` (the OS version); metadata carried inside the bitstream (H.264 SEI
@@ -62,7 +66,8 @@ object Mp4Sanitizer {
      *   [isMuxableIntoMp4]), is a stream-copy trim whose edit list starts mid-GOP (the remux
      *   would show the trimmed-out frames), or the remux fails; [java.io.InterruptedIOException]
      *   when the calling thread is interrupted. [output] does not exist after a throw. [output]
-     *   must not be the [input] file.
+     *   must not be the [input] file, and only one call at a time may write a given [output]
+     *   (it and `<output>.mux.tmp` are deleted on failure).
      */
     @JvmStatic
     @WorkerThread
@@ -82,12 +87,15 @@ object Mp4Sanitizer {
         extractor: MediaExtractor,
     ): SanitizeResult {
         // Checked first: cleaning up after a failure deletes output, which here would be the source.
-        if (isSameFile(input, output)) throw IOException("output is the input file ${output.path}")
+        requireOutputIsNotInput(input, output, extractor)
         val muxerFile = File(output.path + MUX_TEMP_SUFFIX)
         var succeeded = false
         try {
             remux(context, input, muxerFile, extractor)
             val fastStart = finishFastStart(muxerFile, output)
+            // An interrupt during the fast-start pass surfaces as a failed conversion (ClosedByInterruptException),
+            // which finishFastStart treats as "keep the plain remux"; report it as the interrupt it was.
+            if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Sanitize interrupted")
             if (!fastStart) {
                 Log.w(TAG, "${output.path} is not fast-start; keeping the plain remux")
             }
@@ -139,8 +147,18 @@ object Mp4Sanitizer {
                         muxer,
                         muxerTracks,
                         sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE),
-                        rejectNegativeTimes = true,
-                    )
+                    ) { track ->
+                        if (tracks
+                                .getValue(
+                                    track,
+                                ).mime()
+                                .startsWith("video/")
+                        ) {
+                            NegativeTime.REJECT
+                        } else {
+                            NegativeTime.COPY
+                        }
+                    }
                 // MediaMuxer silently leaves out a track with no samples: a failed sanitize, not a smaller file.
                 tracks.keys.firstOrNull { written[it] == 0 }?.let { track ->
                     throw IOException("Track $track (${tracks.getValue(track).mime()}) has no samples to copy")
@@ -179,12 +197,26 @@ object Mp4Sanitizer {
 
     private fun MediaFormat.mime(): String = getString(MediaFormat.KEY_MIME).orEmpty()
 
+    /** Throws (releasing [extractor], which won't be used) when [output] is the file [input] names. */
+    private fun requireOutputIsNotInput(
+        input: Uri,
+        output: File,
+        extractor: MediaExtractor,
+    ) {
+        if (isSameFile(input, output)) {
+            runCatching { extractor.release() }
+            throw IOException("output is the input file ${output.path}")
+        }
+    }
+
     private fun isSameFile(
         input: Uri,
         output: File,
     ): Boolean {
         val inputPath = input.path
-        return input.scheme == ContentResolver.SCHEME_FILE &&
+        // MediaExtractor reads a Uri without a scheme as a file path too.
+        val isFile = input.scheme == null || input.scheme == ContentResolver.SCHEME_FILE
+        return isFile &&
             inputPath != null &&
             File(inputPath).canonicalFile == output.canonicalFile
     }

@@ -168,22 +168,55 @@ class Mp4SanitizerTest {
     }
 
     @Test
-    fun sanitize_outputIsTheInputFile_throwsAndKeepsIt() {
+    fun sanitize_outputIsTheInputFile_throwsKeepsItAndReleasesTheExtractor() {
         val source = File.createTempFile("source", ".mp4").apply { deleteOnExit() }
-        val fileUri =
-            mockk<Uri> {
-                every { scheme } returns "file"
-                every { path } returns source.path
-            }
-        val extractor = mockk<MediaExtractor>()
+        val extractor = mockk<MediaExtractor> { every { release() } just runs }
 
         assertThrows(IOException::class.java) {
-            Mp4Sanitizer.sanitize(context, fileUri, source, extractor)
+            Mp4Sanitizer.sanitize(context, uriOf("file", source.path), source, extractor)
         }
 
         assertTrue("the source must survive", source.exists())
         verify(exactly = 0) { extractor.setDataSource(any<Context>(), any(), any()) }
+        verify { extractor.release() }
     }
+
+    @Test
+    fun sanitize_outputIsTheInputPathWithoutScheme_throwsAndKeepsIt() {
+        val source = File.createTempFile("source", ".mp4").apply { deleteOnExit() }
+        val extractor = mockk<MediaExtractor> { every { release() } just runs }
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, uriOf(null, source.path), source, extractor)
+        }
+
+        assertTrue("the source must survive", source.exists())
+    }
+
+    @Test
+    fun sanitize_error_propagatesAndLeavesNoOutput() {
+        // A stale output from an earlier run: an Error must not leave it looking like this run's result.
+        val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
+        val extractor = mockk<MediaExtractor>()
+        every { extractor.setDataSource(context, uri, null) } throws OutOfMemoryError("Direct buffer memory")
+        every { extractor.release() } just runs
+
+        assertThrows(OutOfMemoryError::class.java) {
+            Mp4Sanitizer.sanitize(context, uri, output, extractor)
+        }
+
+        assertFalse("output should not exist", output.exists())
+        verify { extractor.release() }
+    }
+
+    private fun uriOf(
+        scheme: String?,
+        path: String,
+    ): Uri =
+        mockk {
+            every { this@mockk.scheme } returns scheme
+            every { this@mockk.path } returns path
+        }
 
     private fun extractorWith(vararg mimes: String): MediaExtractor {
         val extractor = mockk<MediaExtractor>()
