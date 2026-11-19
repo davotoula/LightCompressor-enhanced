@@ -61,6 +61,14 @@ updates:
           - "com.android.tools.build:*"
           - "com.android.application"
           - "com.android.library"
+    # Robolectric's Android runtime jar is not a version to keep current: it
+    # is pinned to whatever the robolectric release maps the app tests'
+    # @Config(sdk = [34]) to, and every newer one is a newer Android (PR #56
+    # proposed the Android 17 jar, which broke offline Robolectric). It is the
+    # one place `ignore` is right — it moves only when robolectric does, by
+    # hand, with the version read from that release's DefaultSdkProvider.
+    ignore:
+      - dependency-name: "org.robolectric:android-all-instrumented"
 
   # The workflow action versions. Same day as the gradle entry so the week's
   # proposals arrive together.
