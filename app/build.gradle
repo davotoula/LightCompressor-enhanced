@@ -117,6 +117,12 @@ tasks.register("prepareRobolectricRuntime", Sync) {
 
 tasks.withType(Test).configureEach {
     dependsOn "prepareRobolectricRuntime"
+    // The jar is otherwise invisible to the build cache (the system property is only a path), so
+    // swapping it would replay a cached pass instead of running the tests. Robolectric finds the
+    // jar by file name, hence NAME_ONLY.
+    inputs.files(configurations.robolectricRuntime)
+        .withPropertyName("robolectricRuntime")
+        .withPathSensitivity(PathSensitivity.NAME_ONLY)
     systemProperty "robolectric.offline", "true"
     systemProperty "robolectric.dependency.dir", robolectricRuntimeDir.get().asFile.absolutePath
 }
