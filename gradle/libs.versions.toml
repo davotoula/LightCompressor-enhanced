@@ -42,7 +42,7 @@ mockk = "1.14.11"
 robolectric = "4.17"
 # Robolectric's Android runtime jar for the SDK the app tests pin (@Config(sdk = [34])). The
 # version must match what this Robolectric release maps SDK 34 to (DefaultSdkProvider).
-robolectric-android-all = "14-robolectric-10818077-i7"
+robolectric-android-all = "17-robolectric-16653203-i7"
 androidx-test-core = "1.7.0"
 
 # Minimum SDK
