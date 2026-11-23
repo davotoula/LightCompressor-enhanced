@@ -296,6 +296,19 @@ try {
 - **Fast start:** `moov` is moved ahead of `mdat`. `SanitizeResult.fastStart` is false only when that pass failed; the output is then a valid but non-fast-start file. `Mp4Sanitizer.isFastStart(file)` checks any file.
 - **Failures throw `IOException`:** when the source can't be read, has no audio or video track, has an audio or video track an MPEG-4 container can't hold (`Mp4Sanitizer.isMuxableIntoMp4(mime)`, e.g. Opus, MP3 or Dolby Vision), is a stream-copy trim whose edit list starts mid-GOP (a remux would bring back the trimmed-out frames; AAC encoder priming is not a trim and is kept), or the remux fails. An interrupted thread gets `InterruptedIOException`, so wrap the call in `runInterruptible` to make it cancellable. The output file never exists after a throw. It must not be the input file, and only one call at a time may write to a given output path.
 
+### Trimming
+
+*Available from 2.5.0.* Pass a `TrimRange` to keep only part of the source. It is trimmed, stripped and fast-started in one pass, still without re-encoding, so the cut falls on key frames.
+
+```kotlin
+val result = Mp4Sanitizer.sanitize(context, uri, clean, TrimRange(startMs = 2_000, endMs = 7_500))
+```
+
+- **Start:** the cut starts at the video key frame at or before `startMs`, so up to one GOP before it can show. That frame is written at time 0 and every track is shifted alike, so audio and video stay in sync; audio before it is dropped. Audio-only input starts at the audio sample at or before `startMs`.
+- **End:** `endMs` is inclusive. Up to 8 video frames past it are kept when a frame at or before it needs them to decode (B-frames). `Long.MAX_VALUE` keeps everything from `startMs`.
+- **The source's beginning:** a cut from there keeps AAC encoder priming behind an edit list, as `sanitize` does. A stream-copy trim whose edit list starts mid-GOP, which a plain `sanitize` refuses, can be trimmed: its hidden key frame is what the cut snaps back to.
+- **Tracks:** an audio track with no sample in the range is left out of the output. A source with more than one video track, or a `startMs` after the end of the video, throws `IOException`.
+
 ## HLS Preparation
 
 `HlsPreparer` transcodes a local video into multiple HLS VOD renditions (fMP4 segments + m3u8 playlists) for adaptive-bitrate playback.
