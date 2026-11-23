@@ -21,6 +21,35 @@ internal fun sampleBufferSize(
         } ?: 0,
     )
 
+/** Throws [InterruptedIOException] when the thread is interrupted, the only way to stop a long copy; keeps the flag. */
+internal fun throwIfInterrupted() {
+    if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Sample copy interrupted")
+}
+
+/**
+ * A reusable buffer for the extractor's current sample. From API 28 (`getSampleSize`) it grows for a larger
+ * sample; below it the initial size has to be enough, since `readSampleData` throws on a buffer that is too small.
+ */
+internal class SampleBuffer(
+    initialSize: Int,
+) {
+    private val canPeekSampleSize = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+
+    /** The last sample [read], from position 0. Replaced when it grows, so read it after each [read]. */
+    var data: ByteBuffer = ByteBuffer.allocateDirect(initialSize)
+        private set
+
+    /** Reads [extractor]'s current sample into [data]: its size, or < 0 at the end of the stream. */
+    fun read(extractor: MediaExtractor): Int {
+        if (canPeekSampleSize) {
+            val nextSampleSize = extractor.sampleSize
+            if (nextSampleSize > data.capacity()) data = ByteBuffer.allocateDirect(nextSampleSize.toInt())
+        }
+        data.clear()
+        return extractor.readSampleData(data, 0)
+    }
+}
+
 /** What [copySamples] does with a sample whose time is negative. */
 internal enum class NegativeTime {
     /** End the copy there, as Transcoder's audio passthrough always has. */
@@ -43,9 +72,7 @@ internal enum class NegativeTime {
  * Copies every sample of [extractor]'s selected tracks into [muxer], unchanged, until the extractor runs out.
  *
  * [muxerTracks] maps an extractor track index to its muxer track, and [negativeTime] says per extractor track
- * what a negative sample time does. The buffer starts at [initialBufferSize] and, from API 28
- * (`getSampleSize`), grows for a larger sample; below it the initial size has to be enough, since
- * `readSampleData` throws on a buffer that is too small.
+ * what a negative sample time does. The buffer starts at [initialBufferSize] and grows as [SampleBuffer] does.
  *
  * @return the number of samples written, indexed like [muxerTracks].
  * @throws InterruptedIOException when the calling thread is interrupted.
@@ -59,24 +86,17 @@ internal fun copySamples(
     negativeTime: (track: Int) -> NegativeTime = { NegativeTime.STOP },
 ): IntArray {
     val written = IntArray(muxerTracks.size)
-    var buffer = ByteBuffer.allocateDirect(initialBufferSize)
+    val sample = SampleBuffer(initialBufferSize)
     val bufferInfo = MediaCodec.BufferInfo()
-    val canPeekSampleSize = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
     while (true) {
-        // A thread interrupt is the only way to stop a long copy; the flag stays set for the caller.
-        if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Sample copy interrupted")
-        if (canPeekSampleSize) {
-            val nextSampleSize = extractor.sampleSize
-            if (nextSampleSize > buffer.capacity()) buffer = ByteBuffer.allocateDirect(nextSampleSize.toInt())
-        }
-        buffer.clear()
-        val sampleSize = extractor.readSampleData(buffer, 0)
+        throwIfInterrupted()
+        val sampleSize = sample.read(extractor)
         val track = extractor.sampleTrackIndex
         val sampleTime = extractor.sampleTime
         // readSampleData < 0 is the end of the stream; checked first, since the sample time is then -1 too.
         if (sampleSize < 0 || !isCopyable(sampleTime, track, negativeTime)) break
         bufferInfo.set(0, sampleSize, sampleTime, codecFlags(extractor.sampleFlags))
-        muxer.writeSampleData(muxerTracks[track], buffer, bufferInfo)
+        muxer.writeSampleData(muxerTracks[track], sample.data, bufferInfo)
         written[track]++
         extractor.advance()
     }
@@ -100,7 +120,7 @@ private fun isCopyable(
         }
 
 /** Maps `MediaExtractor` sample flags to the `MediaCodec` buffer flags `MediaMuxer.writeSampleData` takes. */
-private fun codecFlags(extractorFlags: Int): Int {
+internal fun codecFlags(extractorFlags: Int): Int {
     var codecFlags = 0
     if (extractorFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
         codecFlags = codecFlags or MediaCodec.BUFFER_FLAG_KEY_FRAME
