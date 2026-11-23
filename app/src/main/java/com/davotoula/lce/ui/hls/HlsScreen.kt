@@ -26,6 +26,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
@@ -165,7 +167,6 @@ fun HlsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HlsControlsRow(
     selectedCodec: Codec,
@@ -175,6 +176,8 @@ private fun HlsControlsRow(
     onPrepareHlsUpload: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // The disabled anchor can't open the menu during a run, but one already open stays up.
+    LaunchedEffect(isRunning) { if (isRunning) expanded = false }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -184,7 +187,7 @@ private fun HlsControlsRow(
         ) {
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { if (!isRunning) expanded = !expanded },
+                onExpandedChange = { expanded = it },
                 modifier = Modifier.weight(1f),
             ) {
                 OutlinedTextField(
@@ -195,7 +198,10 @@ private fun HlsControlsRow(
                     label = { Text(stringResource(R.string.hls_codec_label)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    modifier =
+                        Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = !isRunning)
+                            .fillMaxWidth(),
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
