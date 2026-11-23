@@ -209,6 +209,58 @@ class Mp4SanitizerTest {
         verify { extractor.release() }
     }
 
+    @Test
+    fun sanitize_trimFailure_releasesTheProbeAndLeavesNoOutput() {
+        val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
+        val probe =
+            mockk<MediaExtractor> {
+                every { setDataSource(context, uri, null) } just runs
+                every { release() } just runs
+            }
+
+        val error =
+            assertThrows(IOException::class.java) {
+                Mp4Sanitizer.sanitize(context, uri, output, extractorWith("video/avc", "video/hevc"), TrimRange(0, 1)) {
+                    probe
+                }
+            }
+
+        assertTrue(error.message, error.message!!.contains("one video track"))
+        assertFalse("output should not exist", output.exists())
+        verify { probe.release() }
+    }
+
+    @Test
+    fun sanitize_trimProbeCannotOpenTheSource_releasesItAndLeavesNoOutput() {
+        val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
+        val probe =
+            mockk<MediaExtractor> {
+                every { setDataSource(context, uri, null) } throws IOException("unreadable")
+                every { release() } just runs
+            }
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, uri, output, extractorWith("video/avc"), TrimRange(0, 1)) { probe }
+        }
+
+        assertFalse("output should not exist", output.exists())
+        verify { probe.release() }
+    }
+
+    @Test
+    fun sanitize_trimOutputIsTheInputFile_throwsBeforeMakingAProbe() {
+        val source = File.createTempFile("source", ".mp4").apply { deleteOnExit() }
+        val extractor = mockk<MediaExtractor> { every { release() } just runs }
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, uriOf("file", source.path), source, extractor, TrimRange(0, 1)) {
+                error("no probe should be made")
+            }
+        }
+
+        assertTrue("the source must survive", source.exists())
+    }
+
     private fun uriOf(
         scheme: String?,
         path: String,
