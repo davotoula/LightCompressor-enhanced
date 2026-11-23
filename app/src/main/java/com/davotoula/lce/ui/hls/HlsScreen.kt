@@ -186,7 +186,7 @@ private fun HlsControlsRow(
         ) {
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { if (!isRunning) expanded = !expanded },
+                onExpandedChange = { expanded = it },
                 modifier = Modifier.weight(1f),
             ) {
                 OutlinedTextField(
