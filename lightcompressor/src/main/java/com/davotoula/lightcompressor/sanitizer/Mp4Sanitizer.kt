@@ -86,9 +86,9 @@ object Mp4Sanitizer {
      *
      * - **Start:** the cut starts at the video key frame at or before [TrimRange.startMs], so a little before the
      *   start can show. That frame is written at time 0, and every track is shifted by the same amount, so audio
-     *   and video stay in sync. Audio before it is dropped, and so are video frames that display before it
-     *   (open-GOP leading pictures, which need the GOP before). Audio-only input starts at the audio sample at or
-     *   before the start.
+     *   and video stay in sync. Audio before it is dropped (but see priming, below), and so are video frames that
+     *   display before it (open-GOP leading pictures, which need the GOP before). Audio-only input starts at the
+     *   audio sample at or before the start.
      * - **End:** [TrimRange.endMs] is inclusive: samples at or before it are kept, and each track stops at its
      *   first sample after it. Up to 8 video frames past the end are kept when a frame at or before the end
      *   follows them in decode order, so the last B-frames still decode.

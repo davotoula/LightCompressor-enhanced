@@ -8,6 +8,7 @@ import com.davotoula.lightcompressor.utils.codecFlags
 import com.davotoula.lightcompressor.utils.throwIfInterrupted
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 /** The most video frames held past a trim's end: deeper than any B-frame reordering a camera writes. */
 internal const val MAX_HELD_FRAMES = 8
@@ -23,7 +24,7 @@ internal class TrimWindow(
     val startUs: Long,
     val endUs: Long,
     val videoTrack: Int,
-    val clockTrack: Int = videoTrack,
+    val clockTrack: Int,
 ) {
     /**
      * Where to seek the copying extractor, or null to read from the source's beginning. Not seeking keeps the
@@ -71,8 +72,10 @@ internal fun planTrim(
     val firstUs = syncSampleAtOrBefore(probe, clockTrack, trim.startUs)
     val baseUs = if (videoTrack != null) firstUs else maxOf(firstUs, 0)
     val window = TrimWindow(baseUs, trim.startUs, trim.endUs, videoTrack ?: -1, clockTrack)
-    val kept = tracks.filter { it == clockTrack || hasSampleInCut(probe, it, window) }
-    return TrimPlan(window, kept.toSet())
+    val kept = mutableSetOf(clockTrack)
+    // Each check selects the track on the probe, seeks and unselects it again.
+    for (track in tracks) if (track != clockTrack && hasSampleInCut(probe, track, window)) kept += track
+    return TrimPlan(window, kept)
 }
 
 /** The time of [track]'s sync sample at or before [timeUs]. */
@@ -148,9 +151,8 @@ private class TrimmedCopy(
         while (more) more = copyNext()
         // Copying the last GOP instead would make a clip of something the range doesn't cover.
         if (!reachedStart) {
-            throw IOException(
-                "Trim start ${window.startUs / US_PER_MS} ms is after the end of the source",
-            )
+            val startMs = TimeUnit.MICROSECONDS.toMillis(window.startUs)
+            throw IOException("Trim start $startMs ms is after the end of the source")
         }
         return written
     }

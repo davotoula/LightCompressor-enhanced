@@ -1,5 +1,7 @@
 package com.davotoula.lightcompressor.sanitizer
 
+import java.util.concurrent.TimeUnit
+
 /**
  * The part of a source [Mp4Sanitizer.sanitize] keeps when trimming: [startMs] to [endMs] of the source's
  * presentation clock (the times a player shows, as `MediaExtractor` reports them), both inclusive. An [endMs]
@@ -16,13 +18,8 @@ data class TrimRange(
         require(endMs > startMs) { "endMs ($endMs) must be after startMs ($startMs)" }
     }
 
-    internal val startUs: Long get() = startMs.toUs()
+    // TimeUnit saturates, so Long.MAX_VALUE as "to the end" doesn't overflow.
+    internal val startUs: Long get() = TimeUnit.MILLISECONDS.toMicros(startMs)
 
-    internal val endUs: Long get() = endMs.toUs()
-
-    // Saturates, so Long.MAX_VALUE as "to the end" doesn't overflow.
-    private fun Long.toUs(): Long = coerceAtMost(Long.MAX_VALUE / US_PER_MS) * US_PER_MS
+    internal val endUs: Long get() = TimeUnit.MILLISECONDS.toMicros(endMs)
 }
-
-// Top level, not in a private companion: a companion const compiles to a public static field of TrimRange.
-internal const val US_PER_MS = 1000L

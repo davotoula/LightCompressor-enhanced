@@ -23,7 +23,7 @@ internal fun sampleBufferSize(
 
 /** Throws [InterruptedIOException] when the thread is interrupted, the only way to stop a long copy; keeps the flag. */
 internal fun throwIfInterrupted() {
-    if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Sample copy interrupted")
+    if (Thread.currentThread().isInterrupted) throw InterruptedIOException("Interrupted reading samples")
 }
 
 /**
@@ -32,9 +32,9 @@ internal fun throwIfInterrupted() {
  */
 internal class SampleBuffer(
     initialSize: Int,
+    // A parameter so JVM tests, where SDK_INT is 0, can reach the growth path.
+    private val canPeekSampleSize: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P,
 ) {
-    private val canPeekSampleSize = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-
     /** The last sample [read], from position 0. Replaced when it grows, so read it after each [read]. */
     var data: ByteBuffer = ByteBuffer.allocateDirect(initialSize)
         private set

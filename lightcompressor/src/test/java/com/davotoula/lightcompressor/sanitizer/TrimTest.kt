@@ -18,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.IOException
 import java.io.InterruptedIOException
+import java.nio.ByteBuffer
 
 class TrimTest {
     /** A sample as the muxer got it: muxer track, presentation time, codec flags. */
@@ -28,6 +29,10 @@ class TrimTest {
     )
 
     private val written = mutableListOf<Written>()
+
+    // What each written sample carried: its source time (the fake's payload) and the size given to set().
+    private val payloads = mutableListOf<Long>()
+    private val sizes = mutableListOf<Int>()
     private val muxer = mockk<MediaMuxer>()
 
     @Before
@@ -35,12 +40,17 @@ class TrimTest {
         // BufferInfo is a stub on the JVM, and under mockkConstructor `self` is MockK's stand-in, not the instance:
         // keep what set() was given, which is what the write right after it carries.
         var lastSet = 0L to 0
+        var lastSize = 0
         mockkConstructor(MediaCodec.BufferInfo::class)
         every { anyConstructed<MediaCodec.BufferInfo>().set(any(), any(), any(), any()) } answers {
+            lastSize = secondArg()
             lastSet = thirdArg<Long>() to arg<Int>(3)
         }
         every { muxer.writeSampleData(any(), any(), any()) } answers {
             written += Written(firstArg(), lastSet.first, lastSet.second)
+            val data = secondArg<ByteBuffer>()
+            payloads += data.getLong(data.position())
+            sizes += lastSize
         }
     }
 
@@ -86,6 +96,20 @@ class TrimTest {
         copy(extractor, window(0, endUs = 150_000))
 
         assertEquals(listOf(0L, 100_000L, 33_000L, 66_000L, 200_000L, 133_000L), video().map { it.timeUs })
+    }
+
+    @Test
+    fun copyTrimmed_heldFramesCarryTheirOwnBytes() {
+        // As above, from a key frame at 1 s: each held frame is copied out of the shared buffer before the next read.
+        val extractor =
+            fakeExtractor(listOf(videoMs(1000, 1100, 1033, 1066, 1200, 1133, 1166)), selected = setOf(0))
+
+        copy(extractor, window(1_000_000, endUs = 1_150_000))
+
+        val sourceTimes = listOf(1_000_000L, 1_100_000L, 1_033_000L, 1_066_000L, 1_200_000L, 1_133_000L)
+        assertEquals(sourceTimes, payloads)
+        assertEquals(sourceTimes.map { it - 1_000_000 }, video().map { it.timeUs })
+        assertTrue("sizes $sizes", sizes.all { it == FAKE_SAMPLE_BYTES })
     }
 
     @Test
@@ -257,6 +281,50 @@ class TrimTest {
         val probe = fakeExtractor(listOf(gop(0, 1000, 2000), audioUs(1_500_000, 1_600_000)))
 
         assertEquals(setOf(0), planTrim(probe, setOf(0, 1), setOf(0), TrimRange(0, 1000)).tracks)
+    }
+
+    @Test
+    fun planTrim_emptyClockTrack_throws() {
+        val error =
+            assertThrows(IOException::class.java) {
+                planTrim(fakeExtractor(listOf(emptyList())), setOf(0), setOf(0), TrimRange(0, 1000))
+            }
+        assertTrue(error.message, error.message!!.contains("no samples"))
+    }
+
+    @Test
+    fun planTrim_keepsExactlyTheTracksTheCopyWritesTo() {
+        val everyTwentyMs = audioUs(*LongArray(150) { it * 20_000L })
+        val shapes =
+            listOf(
+                "audio ends before the base" to Triple(listOf(gop(0, 1000, 2000), audioUs(0, 400_000)), 0, 1500L),
+                "audio starts after the end" to Triple(listOf(gop(0, 1000, 2000), audioUs(2_500_000)), 0, 0L),
+                "priming, base 0" to Triple(listOf(gop(0, 1000), audioUs(-21_333, 0, 21_333)), 0, 0L),
+                "audio, base above 0" to Triple(listOf(gop(0, 1000, 2000), everyTwentyMs), 0, 1500L),
+                "audio-only, second track ends early" to
+                    Triple(listOf(everyTwentyMs, audioUs(0, 100_000)), -1, 500L),
+            )
+        for ((name, shape) in shapes) {
+            val (tracks, videoTrack, startMs) = shape
+            val trim = TrimRange(startMs, startMs + 400)
+            val plan =
+                planTrim(
+                    fakeExtractor(tracks),
+                    tracks.indices.toSet(),
+                    setOfNotNull(videoTrack.takeIf { it >= 0 }),
+                    trim,
+                )
+            val counts =
+                copyTrimmed(
+                    // Every track selected: a track the plan leaves out shows whether the copy writes none.
+                    fakeExtractor(tracks, selected = tracks.indices.toSet()),
+                    muxer,
+                    IntArray(tracks.size) { it },
+                    initialBufferSize = 16,
+                    plan.window,
+                )
+            assertEquals(name, plan.tracks, tracks.indices.filter { counts[it] > 0 }.toSet())
+        }
     }
 
     @Test

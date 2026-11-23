@@ -231,6 +231,23 @@ class Mp4SanitizerTest {
     }
 
     @Test
+    fun sanitize_trimProbeCannotOpenTheSource_releasesItAndLeavesNoOutput() {
+        val output = File.createTempFile("sanitized", ".mp4").apply { deleteOnExit() }
+        val probe =
+            mockk<MediaExtractor> {
+                every { setDataSource(context, uri, null) } throws IOException("unreadable")
+                every { release() } just runs
+            }
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, uri, output, extractorWith("video/avc"), TrimRange(0, 1)) { probe }
+        }
+
+        assertFalse("output should not exist", output.exists())
+        verify { probe.release() }
+    }
+
+    @Test
     fun sanitize_trimOutputIsTheInputFile_throwsBeforeMakingAProbe() {
         val source = File.createTempFile("source", ".mp4").apply { deleteOnExit() }
         val extractor = mockk<MediaExtractor> { every { release() } just runs }
