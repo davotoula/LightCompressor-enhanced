@@ -22,8 +22,7 @@ data class TrimRange(
 
     // Saturates, so Long.MAX_VALUE as "to the end" doesn't overflow.
     private fun Long.toUs(): Long = coerceAtMost(Long.MAX_VALUE / US_PER_MS) * US_PER_MS
-
-    private companion object {
-        const val US_PER_MS = 1000L
-    }
 }
+
+// Top level, not in a private companion: a companion const compiles to a public static field of TrimRange.
+private const val US_PER_MS = 1000L
