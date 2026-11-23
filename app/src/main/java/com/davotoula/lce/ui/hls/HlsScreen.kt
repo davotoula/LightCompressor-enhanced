@@ -167,7 +167,6 @@ fun HlsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HlsControlsRow(
     selectedCodec: Codec,
@@ -177,6 +176,8 @@ private fun HlsControlsRow(
     onPrepareHlsUpload: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // The disabled anchor can't open the menu during a run, but one already open stays up.
+    LaunchedEffect(isRunning) { if (isRunning) expanded = false }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
