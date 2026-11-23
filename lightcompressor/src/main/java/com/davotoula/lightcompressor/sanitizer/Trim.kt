@@ -13,15 +13,17 @@ import java.nio.ByteBuffer
 internal const val MAX_HELD_FRAMES = 8
 
 /**
- * Where a trim cuts. [baseUs] is the source time written as 0: the video key frame at or before the start
+ * Where a trim cuts. [baseUs] is the source time written as 0: the video key frame at or before [startUs]
  * (negative only in a source whose edit list starts mid-GOP), or for audio-only the first audio sample, never
- * below 0. Every track is shifted by the same [baseUs], so audio and video stay in sync. [videoTrack] is -1 for
- * audio-only.
+ * below 0. Every track is shifted by the same [baseUs], so audio and video stay in sync. [clockTrack] is the
+ * track [baseUs] comes from: [videoTrack], or for audio-only (where [videoTrack] is -1) the first audio track.
  */
 internal class TrimWindow(
     val baseUs: Long,
+    val startUs: Long,
     val endUs: Long,
     val videoTrack: Int,
+    val clockTrack: Int = videoTrack,
 ) {
     /**
      * Where to seek the copying extractor, or null to read from the source's beginning. Not seeking keeps the
@@ -49,12 +51,13 @@ internal class TrimPlan(
 /**
  * Plans a trim of [tracks] (extractor indices, [videoTracks] among them) to [trim], reading [probe], an
  * extractor of the same source with no track selected. Probing with its own extractor leaves the copying one
- * unread, so it can still start at the source's beginning. Reads a few samples per track: a GOP at most.
+ * unread, so it can still start at the source's beginning. Reads one sample of the clock's track (the video,
+ * else the first audio) and a few of each other track.
  *
  * A track with no sample in the cut is left out of the plan, since `MediaMuxer` would otherwise write an empty
- * track (or fail to stop); the clock's track (the video, else the first audio) always has one.
+ * track (or fail to stop); the clock's track always has one.
  *
- * @throws IOException when there is more than one video track, or [trim] starts after the clock's track ends.
+ * @throws IOException when there is more than one video track, or the clock's track has no samples.
  */
 internal fun planTrim(
     probe: MediaExtractor,
@@ -63,29 +66,25 @@ internal fun planTrim(
     trim: TrimRange,
 ): TrimPlan {
     if (videoTracks.size > 1) throw IOException("A trim needs one video track; the source has ${videoTracks.size}")
-    val videoTrack = videoTracks.firstOrNull() ?: -1
-    val clockTrack = videoTracks.firstOrNull() ?: tracks.first()
-    val firstUs = probeFirstSample(probe, clockTrack, trim)
-    val window = TrimWindow(if (videoTrack >= 0) firstUs else maxOf(firstUs, 0), trim.endUs, videoTrack)
+    val videoTrack = videoTracks.firstOrNull()
+    val clockTrack = videoTrack ?: tracks.first()
+    val firstUs = syncSampleAtOrBefore(probe, clockTrack, trim.startUs)
+    val baseUs = if (videoTrack != null) firstUs else maxOf(firstUs, 0)
+    val window = TrimWindow(baseUs, trim.startUs, trim.endUs, videoTrack ?: -1, clockTrack)
     val kept = tracks.filter { it == clockTrack || hasSampleInCut(probe, it, window) }
     return TrimPlan(window, kept.toSet())
 }
 
-/** The time of [track]'s sync sample at or before [trim]'s start. Throws when no sample is at or after the start. */
-private fun probeFirstSample(
+/** The time of [track]'s sync sample at or before [timeUs]. */
+private fun syncSampleAtOrBefore(
     probe: MediaExtractor,
     track: Int,
-    trim: TrimRange,
+    timeUs: Long,
 ): Long {
     probe.selectTrack(track)
-    probe.seekTo(trim.startUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+    probe.seekTo(timeUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
     if (probe.sampleTrackIndex < 0) throw IOException("Track $track has no samples")
     val firstUs = probe.sampleTime
-    // A start past the end would otherwise keep the last GOP: a clip of something the range doesn't cover.
-    while (probe.sampleTime < trim.startUs) {
-        throwIfInterrupted()
-        if (!probe.advance()) throw IOException("Trim start ${trim.startMs} ms is after the end of track $track")
-    }
     probe.unselectTrack(track)
     return firstUs
 }
@@ -108,15 +107,17 @@ private fun hasSampleInCut(
 }
 
 /**
- * Copies [extractor]'s selected tracks into [muxer] within [window], shifted so [TrimWindow.baseUs] is 0. The
- * extractor must be at [TrimWindow.seekUs] already (or unread, when that is null). Samples are copied unchanged,
- * as [com.davotoula.lightcompressor.utils.copySamples] does, with its interrupt check and buffer growth.
+ * Copies [extractor]'s selected tracks into [muxer] within [window], shifted so [TrimWindow.baseUs] is 0, seeking
+ * it to [TrimWindow.seekUs] first; with no seek it must be unread. Samples are copied unchanged, as
+ * [com.davotoula.lightcompressor.utils.copySamples] does, with its interrupt check and buffer growth.
  *
  * Past the end, up to [MAX_HELD_FRAMES] video non-key frames are held and written only if a frame at or before
  * the end follows them: a B-frame decodes after the frame it points forward to. A track stops at its first sample
  * past the end that isn't held: for video a key frame, or the frame after a full hold.
  *
  * @return the number of samples written, indexed like [muxerTracks].
+ * @throws IOException when the clock's track has no sample at or after [TrimWindow.startUs]: the start is after
+ *   its end. Checked here rather than when planning, since the copy reads that GOP anyway.
  */
 internal fun copyTrimmed(
     extractor: MediaExtractor,
@@ -138,9 +139,19 @@ private class TrimmedCopy(
     private val info = MediaCodec.BufferInfo()
     private val held = ArrayList<HeldSample>()
 
+    // Whether the clock's track has a sample at or after the start; it has none when the start is after its end.
+    private var reachedStart = false
+
     fun run(): IntArray {
+        window.seekUs?.let { extractor.seekTo(it, MediaExtractor.SEEK_TO_PREVIOUS_SYNC) }
         var more = true
         while (more) more = copyNext()
+        // Copying the last GOP instead would make a clip of something the range doesn't cover.
+        if (!reachedStart) {
+            throw IOException(
+                "Trim start ${window.startUs / US_PER_MS} ms is after the end of the source",
+            )
+        }
         return written
     }
 
@@ -149,6 +160,7 @@ private class TrimmedCopy(
         throwIfInterrupted()
         val track = extractor.sampleTrackIndex
         val timeUs = extractor.sampleTime
+        if (track == window.clockTrack && timeUs >= window.startUs) reachedStart = true
         return when {
             track < 0 -> false
             window.isBeforeStart(track, timeUs) -> {
@@ -171,21 +183,13 @@ private class TrimmedCopy(
         val flags = extractor.sampleFlags
         val holdable = track == window.videoTrack && flags and MediaExtractor.SAMPLE_FLAG_SYNC == 0
         val size = if (holdable && held.size < MAX_HELD_FRAMES) sample.read(extractor) else -1
-        if (size >= 0) {
-            val bytes = ByteArray(size)
-            sample.data
-                .duplicate()
-                .apply {
-                    position(0)
-                    limit(size)
-                }.get(bytes)
-            held += HeldSample(bytes, timeUs, codecFlags(flags))
-            extractor.advance()
-        } else {
-            // No frame before the end came back for the held run: it is not needed.
-            if (track == window.videoTrack) held.clear()
+        if (size < 0) {
+            // The track ends here, and with it any held run that no frame before the end came back for.
             extractor.unselectTrack(track)
+            return
         }
+        held += HeldSample(ByteArray(size).also { sample.data.duplicate().get(it) }, timeUs, codecFlags(flags))
+        extractor.advance()
     }
 
     /** Writes the current sample, after the held frames it follows; false at the end of the stream. */

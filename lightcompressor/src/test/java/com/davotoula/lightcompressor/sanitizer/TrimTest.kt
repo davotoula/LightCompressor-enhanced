@@ -53,15 +53,14 @@ class TrimTest {
 
     @Test
     fun copyTrimmed_rebasesToTheKeyFrameAndDropsAudioBeforeIt() {
-        // Seeked to the key frame at 1 s; the audio seek lands on the sample just before it.
+        // The copy seeks to the key frame at 1 s; the audio lands on the sample just before it.
         val extractor =
             fakeExtractor(
                 listOf(videoMs(1000, 1033, 1066), audioUs(980_000, 1_001_000, 1_022_000)),
                 selected = setOf(0, 1),
             )
-        extractor.seekTo(1_000_000, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
 
-        val counts = copy(extractor, TrimWindow(baseUs = 1_000_000, endUs = Long.MAX_VALUE, videoTrack = 0))
+        val counts = copy(extractor, window(1_000_000))
 
         assertEquals(listOf(Written(VIDEO, 0, KEY), Written(VIDEO, 33_000), Written(VIDEO, 66_000)), video())
         assertEquals(listOf(Written(AUDIO, 1_000, KEY), Written(AUDIO, 22_000, KEY)), audio())
@@ -73,7 +72,7 @@ class TrimTest {
         // Open GOP: the two leading pictures after the key frame display before it and need the GOP before.
         val extractor = fakeExtractor(listOf(videoMs(1000, 933, 966, 1033)), selected = setOf(0))
 
-        copy(extractor, TrimWindow(1_000_000, Long.MAX_VALUE, videoTrack = 0))
+        copy(extractor, window(1_000_000))
 
         assertEquals(listOf(0L, 33_000L), video().map { it.timeUs })
     }
@@ -84,7 +83,7 @@ class TrimTest {
         // B166 is held too, but nothing at or before the end follows it, so it is dropped.
         val extractor = fakeExtractor(listOf(videoMs(0, 100, 33, 66, 200, 133, 166)), selected = setOf(0))
 
-        copy(extractor, TrimWindow(0, endUs = 150_000, videoTrack = 0))
+        copy(extractor, window(0, endUs = 150_000))
 
         assertEquals(listOf(0L, 100_000L, 33_000L, 66_000L, 200_000L, 133_000L), video().map { it.timeUs })
     }
@@ -93,7 +92,7 @@ class TrimTest {
     fun copyTrimmed_endIsInclusive() {
         val extractor = fakeExtractor(listOf(audioUs(0, 21_000, 42_000, 63_000)), selected = setOf(0))
 
-        copy(extractor, TrimWindow(0, endUs = 42_000, videoTrack = -1))
+        copy(extractor, window(0, endUs = 42_000, videoTrack = -1))
 
         assertEquals(listOf(0L, 21_000L, 42_000L), written.map { it.timeUs })
     }
@@ -104,7 +103,7 @@ class TrimTest {
         val extractor =
             fakeExtractor(listOf(videoMs(0, 100, 200, 300, 133, keys = setOf(0, 300))), selected = setOf(0))
 
-        copy(extractor, TrimWindow(0, endUs = 150_000, videoTrack = 0))
+        copy(extractor, window(0, endUs = 150_000))
 
         assertEquals(listOf(0L, 100_000L), video().map { it.timeUs })
         verify { extractor.unselectTrack(0) }
@@ -112,11 +111,11 @@ class TrimTest {
 
     @Test
     fun copyTrimmed_fullHold_stopsTheTrack() {
-        // Nine non-key frames past the end: the ninth doesn't fit, so the frame at 140 after them isn't written.
-        val pastEnd = LongArray(9) { 200L + it * 10 }
+        // One non-key frame more past the end than the hold takes: the frame at 140 after them isn't written.
+        val pastEnd = LongArray(MAX_HELD_FRAMES + 1) { 200L + it * 10 }
         val extractor = fakeExtractor(listOf(videoMs(0, *pastEnd, 140)), selected = setOf(0))
 
-        copy(extractor, TrimWindow(0, endUs = 150_000, videoTrack = 0))
+        copy(extractor, window(0, endUs = 150_000))
 
         assertEquals(listOf(0L), video().map { it.timeUs })
     }
@@ -126,7 +125,7 @@ class TrimTest {
         val extractor =
             fakeExtractor(listOf(videoMs(0, 33, 66, 100), audioUs(0, 50_000, 100_000)), selected = setOf(0, 1))
 
-        copy(extractor, TrimWindow(0, endUs = 70_000, videoTrack = 0))
+        copy(extractor, window(0, endUs = 70_000))
 
         assertEquals(listOf(0L, 50_000L), audio().map { it.timeUs })
         assertEquals(listOf(0L, 33_000L, 66_000L), video().map { it.timeUs })
@@ -138,7 +137,7 @@ class TrimTest {
         val extractor =
             fakeExtractor(listOf(videoMs(0, 33), audioUs(-21_333, 0, 21_333)), selected = setOf(0, 1))
 
-        copy(extractor, TrimWindow(0, Long.MAX_VALUE, videoTrack = 0))
+        copy(extractor, window(0))
 
         assertEquals(listOf(-21_333L, 0L, 21_333L), audio().map { it.timeUs })
         assertEquals(listOf(0L, 33_000L), video().map { it.timeUs })
@@ -155,10 +154,33 @@ class TrimTest {
                 selected = setOf(0, 1),
             )
 
-        copy(extractor, TrimWindow(-33_000, Long.MAX_VALUE, videoTrack = 0))
+        copy(extractor, window(-33_000))
 
         assertEquals(listOf(0L, 33_000L), video().map { it.timeUs })
         assertEquals(listOf(-10_000L, 12_000L, 33_000L, 54_000L), audio().map { it.timeUs })
+    }
+
+    @Test
+    fun copyTrimmed_startAfterTheEnd_throws() {
+        // The seek to the start lands on the last key frame, at 1 s, and nothing reaches the start at 5 s.
+        val extractor = fakeExtractor(listOf(gop(0, 1000)), selected = setOf(0))
+
+        val error =
+            assertThrows(IOException::class.java) {
+                copy(extractor, window(1_000_000, startUs = 5_000_000))
+            }
+
+        assertTrue(error.message, error.message!!.contains("5000 ms"))
+    }
+
+    @Test
+    fun copyTrimmed_startBetweenFramesBeforeTheEnd_isNotAfterTheEnd() {
+        // No frame in 1.01..1.02 s, but the source goes on: a short clip from the key frame, not a failure.
+        val extractor = fakeExtractor(listOf(videoMs(1000, 1033, 1066)), selected = setOf(0))
+
+        copy(extractor, window(1_000_000, startUs = 1_010_000, endUs = 1_020_000))
+
+        assertEquals(listOf(0L), video().map { it.timeUs })
     }
 
     @Test
@@ -167,7 +189,7 @@ class TrimTest {
         Thread.currentThread().interrupt()
         try {
             assertThrows(InterruptedIOException::class.java) {
-                copy(extractor, TrimWindow(0, Long.MAX_VALUE, videoTrack = 0))
+                copy(extractor, window(0))
             }
             assertTrue("interrupt flag should stay set", Thread.currentThread().isInterrupted)
         } finally {
@@ -238,17 +260,6 @@ class TrimTest {
     }
 
     @Test
-    fun planTrim_startAfterTheEnd_throws() {
-        val probe = fakeExtractor(listOf(gop(0, 1000)))
-
-        val error =
-            assertThrows(IOException::class.java) {
-                planTrim(probe, setOf(0), setOf(0), TrimRange(5000, 6000))
-            }
-        assertTrue(error.message, error.message!!.contains("5000 ms"))
-    }
-
-    @Test
     fun planTrim_twoVideoTracks_throws() {
         val probe = fakeExtractor(listOf(gop(0), gop(0)))
 
@@ -272,6 +283,14 @@ class TrimTest {
         extractor: MediaExtractor,
         window: TrimWindow,
     ): IntArray = copyTrimmed(extractor, muxer, intArrayOf(VIDEO, AUDIO), initialBufferSize = 16, window)
+
+    /** A window from [baseUs] (also the start, unless given) with the video, or for audio-only track 0, as clock. */
+    private fun window(
+        baseUs: Long,
+        startUs: Long = maxOf(baseUs, 0),
+        endUs: Long = Long.MAX_VALUE,
+        videoTrack: Int = 0,
+    ) = TrimWindow(baseUs, startUs, endUs, videoTrack, clockTrack = maxOf(videoTrack, 0))
 
     private fun video() = written.filter { it.track == VIDEO }
 

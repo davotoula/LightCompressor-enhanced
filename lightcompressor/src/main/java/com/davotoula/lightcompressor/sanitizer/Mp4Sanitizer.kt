@@ -111,7 +111,7 @@ object Mp4Sanitizer {
         input: Uri,
         output: File,
         trim: TrimRange,
-    ): SanitizeResult = sanitize(context, input, output, MediaExtractor(), trim, ::MediaExtractor)
+    ): SanitizeResult = sanitize(context, input, output, MediaExtractor(), trim)
 
     /**
      * [sanitize] with the extractors injected, so tests can stand in for the stub `MediaExtractor`. [newProbe]
@@ -177,9 +177,6 @@ object Mp4Sanitizer {
             val sourceTracks = mediaTracks(extractor)
             val trimPlan = plan(sourceTracks)
             val tracks = trimPlan?.let { sourceTracks.filterKeys(it.tracks::contains) } ?: sourceTracks
-            sourceTracks.keys.minus(tracks.keys).forEach { track ->
-                Log.i(TAG, "Leaving out track $track (${sourceTracks.getValue(track).mime()}): no samples in the trim")
-            }
             val rotation = readRotation(context, input)
             val muxer = MediaMuxer(muxerFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             try {
@@ -238,13 +235,13 @@ object Mp4Sanitizer {
         trim: TrimWindow?,
     ): IntArray {
         val bufferSize = sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE)
-        if (trim == null) {
-            return copySamples(extractor, muxer, muxerTracks, bufferSize) { track ->
+        return if (trim == null) {
+            copySamples(extractor, muxer, muxerTracks, bufferSize) { track ->
                 if (tracks.getValue(track).isVideo()) NegativeTime.REJECT else NegativeTime.COPY
             }
+        } else {
+            copyTrimmed(extractor, muxer, muxerTracks, bufferSize, trim)
         }
-        trim.seekUs?.let { extractor.seekTo(it, MediaExtractor.SEEK_TO_PREVIOUS_SYNC) }
-        return copyTrimmed(extractor, muxer, muxerTracks, bufferSize, trim)
     }
 
     private fun MediaFormat.mime(): String = getString(MediaFormat.KEY_MIME).orEmpty()
@@ -258,13 +255,19 @@ object Mp4Sanitizer {
         probe: MediaExtractor,
         tracks: Map<Int, MediaFormat>,
         trim: TrimRange,
-    ): TrimPlan =
-        try {
-            probe.setDataSource(context, input, null)
-            planTrim(probe, tracks.keys, tracks.filterValues { it.isVideo() }.keys, trim)
-        } finally {
-            runCatching { probe.release() }
+    ): TrimPlan {
+        val plan =
+            try {
+                probe.setDataSource(context, input, null)
+                planTrim(probe, tracks.keys, tracks.filterValues { it.isVideo() }.keys, trim)
+            } finally {
+                runCatching { probe.release() }
+            }
+        (tracks.keys - plan.tracks).forEach { track ->
+            Log.i(TAG, "Leaving out track $track (${tracks.getValue(track).mime()}): no samples in the trim")
         }
+        return plan
+    }
 
     /** Throws (releasing [extractor], which won't be used) when [output] is the file [input] names. */
     private fun requireOutputIsNotInput(

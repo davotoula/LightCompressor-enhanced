@@ -25,4 +25,4 @@ data class TrimRange(
 }
 
 // Top level, not in a private companion: a companion const compiles to a public static field of TrimRange.
-private const val US_PER_MS = 1000L
+internal const val US_PER_MS = 1000L
