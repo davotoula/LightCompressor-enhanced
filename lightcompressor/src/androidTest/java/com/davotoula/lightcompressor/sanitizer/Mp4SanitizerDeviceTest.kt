@@ -137,6 +137,192 @@ class Mp4SanitizerDeviceTest {
         assertTrue("duration $outputMs ms vs source $sourceMs ms", abs(outputMs - sourceMs) <= DURATION_TOLERANCE_MS)
     }
 
+    /**
+     * A trim from 1.5 s to 3.5 s of `orig2.mp4` (HEVC, a key frame every second) starts at the key frame at 1 s,
+     * written at 0, with the audio in step, and is stripped and fast-started like a plain sanitize.
+     */
+    @Test
+    fun trim_midClip_startsAtTheKeyFrameInSyncAndIsStripped() {
+        val source = source()
+        val sourceHash = sha256(source)
+        val output = File(freshDir("trim_video"), "orig2_trim.mp4")
+        val trim = TrimRange(1500, 3500)
+        val baseUs = keyFrameAtOrBefore(source, trim.startMs * 1000)
+
+        val result = Mp4Sanitizer.sanitize(context, Uri.fromFile(source), output, trim)
+
+        assertTrue("result says not fast-start", result.fastStart)
+        assertTrue("output is not fast-start", Mp4Sanitizer.isFastStart(output))
+        assertFalse("output has udta", "udta" in boxTree(output))
+        assertEquals("meta keys", listOf("com.android.version"), metaKeys(output))
+        assertEquals("tracks", trackMimes(source).filter { !it.startsWith("application/") }, trackMimes(output))
+        assertEquals("rotation", rotation(source), rotation(output))
+        val firsts = firstSamples(output)
+        Log.i(TAG, "trim base=$baseUs us, first samples (time, flags) per track: $firsts")
+        val (videoFirst, audioFirst) = firstsByKind(output, firsts)
+        assertEquals("first video sample time", 0L, videoFirst.first)
+        assertTrue("first video sample is not a key frame", videoFirst.second and MediaExtractor.SAMPLE_FLAG_SYNC != 0)
+        assertTrue("first audio sample at ${audioFirst.first} us", audioFirst.first in 0 until AUDIO_FRAME_US)
+        val expectedMs = trim.endMs - baseUs / 1000
+        val outputMs = durationMs(output)
+        Log.i(TAG, "trim duration $outputMs ms, expected about $expectedMs ms")
+        assertTrue("duration $outputMs ms vs $expectedMs ms", abs(outputMs - expectedMs) <= TRIM_TOLERANCE_MS)
+        assertEquals("source clip changed", sourceHash, sha256(source))
+    }
+
+    /**
+     * `bframes_aac_priming.mp4` (see [video_aacPriming_isKept]) trimmed from its start: the AAC priming stays at its
+     * negative time, and every frame that displays up to the end is there, B-frames included.
+     */
+    @Test
+    fun trim_fromTheStart_keepsThePrimingAndTheLastBFrames() {
+        val outDir = freshDir("trim_priming")
+        val source = asset("bframes_aac_priming.mp4", outDir)
+        val output = File(outDir, "priming_trim.mp4")
+        val trim = TrimRange(0, 1500)
+
+        Mp4Sanitizer.sanitize(context, Uri.fromFile(source), output, trim)
+
+        val (_, audioFirst) = firstsByKind(output, firstSamples(output))
+        val (_, sourceAudioFirst) = firstsByKind(source, firstSamples(source))
+        assertTrue("source has no priming: $sourceAudioFirst", sourceAudioFirst.first < 0)
+        assertEquals("audio priming time", sourceAudioFirst.first, audioFirst.first)
+        val wanted = videoTimes(source).filter { it <= trim.endMs * 1000 }.toSet()
+        val kept = videoTimes(output).toSet()
+        Log.i(TAG, "frames up to the end: ${wanted.size}, kept: ${kept.size}, extra: ${kept - wanted}")
+        assertTrue("frames missing: ${wanted - kept}", kept.containsAll(wanted))
+    }
+
+    /**
+     * `trimmed_edit_list.mp4` (see [video_trimmedStreamCopy_throwsAndLeavesNoOutput]), which a plain sanitize
+     * refuses, trims from 0: its key frame at a negative time is what the cut snaps back to, written at 0.
+     */
+    @Test
+    fun trim_streamCopyTrimmedSource_snapsBackToItsKeyFrame() {
+        val outDir = freshDir("trim_edit_list")
+        val source = asset("trimmed_edit_list.mp4", outDir)
+        val output = File(outDir, "trimmed_trim.mp4")
+
+        Mp4Sanitizer.sanitize(context, Uri.fromFile(source), output, TrimRange(0, 2000))
+
+        val (videoFirst, audioFirst) = firstsByKind(output, firstSamples(output))
+        Log.i(TAG, "edit-list trim: video first $videoFirst, audio first $audioFirst")
+        assertEquals("first video sample time", 0L, videoFirst.first)
+        assertTrue("first video sample is not a key frame", videoFirst.second and MediaExtractor.SAMPLE_FLAG_SYNC != 0)
+        assertTrue("negative video times", videoTimes(output).all { it >= 0 })
+    }
+
+    /** A range after the audio ends leaves the audio track out instead of writing it empty. */
+    @Test
+    fun trim_rangeWithoutAudio_leavesTheAudioTrackOut() {
+        val outDir = freshDir("trim_no_audio")
+        val shortAudio = File(outDir, "orig2_short_audio.mp4")
+        copyWithAudioUntil(source(), shortAudio, audioUntilUs = 1_000_000)
+        val output = File(outDir, "short_audio_trim.mp4")
+
+        Mp4Sanitizer.sanitize(context, Uri.fromFile(shortAudio), output, TrimRange(2500, 4000))
+
+        assertEquals("handler types", listOf("vide"), handlerTypes(output))
+    }
+
+    @Test
+    fun trim_startAfterTheEnd_throwsAndLeavesNoOutput() {
+        val output = File(freshDir("trim_past_end"), "orig2_past_end.mp4")
+
+        assertThrows(IOException::class.java) {
+            Mp4Sanitizer.sanitize(context, Uri.fromFile(source()), output, TrimRange(60_000, 61_000))
+        }
+
+        assertFalse("output exists", output.exists())
+        assertFalse("muxer temp file left behind", File(output.path + ".mux.tmp").exists())
+    }
+
+    /** The time of the video key frame at or before [timeUs], as the platform seeks to it. */
+    private fun keyFrameAtOrBefore(
+        file: File,
+        timeUs: Long,
+    ): Long {
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(file.path)
+            extractor.selectTrack(CompressorUtils.findTrack(extractor, isVideo = true))
+            extractor.seekTo(timeUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+            return extractor.sampleTime
+        } finally {
+            extractor.release()
+        }
+    }
+
+    /** Each track's first sample as (time, extractor flags), read from the beginning. */
+    private fun firstSamples(file: File): List<Pair<Long, Int>> = perTrack(file) { it.sampleTime to it.sampleFlags }
+
+    /** The video and the audio entries of [firsts] (from [firstSamples] of [file]). */
+    private fun firstsByKind(
+        file: File,
+        firsts: List<Pair<Long, Int>>,
+    ): Pair<Pair<Long, Int>, Pair<Long, Int>> {
+        val mimes = trackMimes(file)
+        return firsts[mimes.indexOfFirst { it.startsWith("video/") }] to
+            firsts[mimes.indexOfFirst { it.startsWith("audio/") }]
+    }
+
+    /** Every video sample time, in decode order. */
+    private fun videoTimes(file: File): List<Long> {
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(file.path)
+            extractor.selectTrack(CompressorUtils.findTrack(extractor, isVideo = true))
+            return buildList {
+                while (extractor.sampleTrackIndex >= 0) {
+                    add(extractor.sampleTime)
+                    extractor.advance()
+                }
+            }
+        } finally {
+            extractor.release()
+        }
+    }
+
+    /** Copies [source]'s video and only the audio up to [audioUntilUs] into [output], with the platform muxer. */
+    private fun copyWithAudioUntil(
+        source: File,
+        output: File,
+        audioUntilUs: Long,
+    ) {
+        val extractor = MediaExtractor()
+        val muxer = MediaMuxer(output.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        try {
+            extractor.setDataSource(source.path)
+            val video = CompressorUtils.findTrack(extractor, isVideo = true)
+            val audio = CompressorUtils.findTrack(extractor, isVideo = false)
+            val muxerTracks =
+                mapOf(
+                    video to muxer.addTrack(extractor.getTrackFormat(video)),
+                    audio to muxer.addTrack(extractor.getTrackFormat(audio)),
+                )
+            extractor.selectTrack(video)
+            extractor.selectTrack(audio)
+            muxer.start()
+            val buffer = ByteBuffer.allocateDirect(MUX_BUFFER_SIZE)
+            val info = MediaCodec.BufferInfo()
+            while (true) {
+                val size = extractor.readSampleData(buffer, 0)
+                if (size < 0) break
+                val track = extractor.sampleTrackIndex
+                if (track == video || extractor.sampleTime <= audioUntilUs) {
+                    val key = extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0
+                    info.set(0, size, extractor.sampleTime, if (key) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                    muxer.writeSampleData(muxerTracks.getValue(track), buffer, info)
+                }
+                extractor.advance()
+            }
+            muxer.stop()
+        } finally {
+            muxer.release()
+            extractor.release()
+        }
+    }
+
     /** Copies the androidTest asset [name] into [dir]. */
     private fun asset(
         name: String,
@@ -367,6 +553,13 @@ class Mp4SanitizerDeviceTest {
     private companion object {
         const val TAG = "Mp4SanitizerDeviceTest"
         const val DURATION_TOLERANCE_MS = 50
+
+        // A trim's end can run a few frames over (B-frame references kept past it); its start is a key frame.
+        const val TRIM_TOLERANCE_MS = 150
+
+        // One AAC frame at 48 kHz, rounded up.
+        const val AUDIO_FRAME_US = 22_000L
+        const val MUX_BUFFER_SIZE = 8 shl 20
         const val BUFFER_SIZE = 1 shl 20
         const val HEADER_SIZE = 8L
         const val LARGE_HEADER_SIZE = 16L
