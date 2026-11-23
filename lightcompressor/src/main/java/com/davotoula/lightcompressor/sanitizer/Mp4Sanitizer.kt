@@ -69,6 +69,7 @@ object Mp4Sanitizer {
      *   when the calling thread is interrupted. [output] does not exist after a throw. [output]
      *   must not be the [input] file, and only one call at a time may write a given [output]
      *   (it and `<output>.mux.tmp` are deleted on failure).
+     * @see sanitize the overload that also trims.
      */
     @JvmStatic
     @WorkerThread
@@ -79,20 +80,60 @@ object Mp4Sanitizer {
         output: File,
     ): SanitizeResult = sanitize(context, input, output, MediaExtractor())
 
-    /** [sanitize] with the extractor injected, so tests can stand in for the stub `MediaExtractor`. */
+    /**
+     * [sanitize], keeping only [trim] of the source: trimmed, stripped and fast-started in one pass, still without
+     * decoding or re-encoding, so the cut falls on key frames.
+     *
+     * - **Start:** the cut starts at the video key frame at or before [TrimRange.startMs], so a little before the
+     *   start can show. That frame is written at time 0, and every track is shifted by the same amount, so audio
+     *   and video stay in sync. Audio before it is dropped, and so are video frames that display before it
+     *   (open-GOP leading pictures, which need the GOP before). Audio-only input starts at the audio sample at or
+     *   before the start.
+     * - **End:** [TrimRange.endMs] is inclusive: samples at or before it are kept, and each track stops at its
+     *   first sample after it. Up to 8 video frames past the end are kept when a frame at or before the end
+     *   follows them in decode order, so the last B-frames still decode.
+     * - **The source's beginning:** when the cut starts there, AAC encoder priming is kept behind an edit list,
+     *   as [sanitize] keeps it. A video key frame at a negative time (a source whose edit list starts mid-GOP,
+     *   which [sanitize] refuses) is kept too: it is what the cut snaps back to, and it is written at 0 like any
+     *   other. The audio shifts with it, so priming after that key frame plays, under the frames the source hid.
+     * - **Tracks:** an audio track with no sample in the range is left out of the output rather than written
+     *   empty. Only one video track is supported.
+     *
+     * @throws IOException as [sanitize] does, and when [TrimRange.startMs] is after the end of the video (or, for
+     *   audio-only input, the audio), or the source has more than one video track. [output] does not exist after
+     *   a throw.
+     */
+    @JvmStatic
+    @WorkerThread
+    @Throws(IOException::class)
+    fun sanitize(
+        context: Context,
+        input: Uri,
+        output: File,
+        trim: TrimRange,
+    ): SanitizeResult = sanitize(context, input, output, MediaExtractor(), trim, ::MediaExtractor)
+
+    /**
+     * [sanitize] with the extractors injected, so tests can stand in for the stub `MediaExtractor`. [newProbe]
+     * makes the extractor a trim is planned with, and is only called with a [trim].
+     */
     @Suppress("TooGenericExceptionCaught")
     internal fun sanitize(
         context: Context,
         input: Uri,
         output: File,
         extractor: MediaExtractor,
+        trim: TrimRange? = null,
+        newProbe: () -> MediaExtractor = ::MediaExtractor,
     ): SanitizeResult {
         // Checked first: cleaning up after a failure deletes output, which here would be the source.
         requireOutputIsNotInput(input, output, extractor)
         val muxerFile = File(output.path + MUX_TEMP_SUFFIX)
         var succeeded = false
         try {
-            remux(context, input, muxerFile, extractor)
+            remux(context, input, muxerFile, extractor) { tracks ->
+                trim?.let { probeTrim(context, input, newProbe(), tracks, it) }
+            }
             val fastStart = finishFastStart(muxerFile, output)
             // An interrupt during the fast-start pass surfaces as a failed conversion (ClosedByInterruptException),
             // which finishFastStart treats as "keep the plain remux"; report it as the interrupt it was.
@@ -123,15 +164,22 @@ object Mp4Sanitizer {
     @JvmStatic
     fun isMuxableIntoMp4(mime: String): Boolean = mime in MP4_MIMES
 
+    /** [plan] plans the trim of the source's media tracks, or returns null to copy them whole. */
     private fun remux(
         context: Context,
         input: Uri,
         muxerFile: File,
         extractor: MediaExtractor,
+        plan: (tracks: Map<Int, MediaFormat>) -> TrimPlan?,
     ) {
         try {
             extractor.setDataSource(context, input, null)
-            val tracks = mediaTracks(extractor)
+            val sourceTracks = mediaTracks(extractor)
+            val trimPlan = plan(sourceTracks)
+            val tracks = trimPlan?.let { sourceTracks.filterKeys(it.tracks::contains) } ?: sourceTracks
+            sourceTracks.keys.minus(tracks.keys).forEach { track ->
+                Log.i(TAG, "Leaving out track $track (${sourceTracks.getValue(track).mime()}): no samples in the trim")
+            }
             val rotation = readRotation(context, input)
             val muxer = MediaMuxer(muxerFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             try {
@@ -143,25 +191,9 @@ object Mp4Sanitizer {
                 }
                 if (rotation != 0) muxer.setOrientationHint(rotation)
                 muxer.start()
-                val written =
-                    copySamples(
-                        extractor,
-                        muxer,
-                        muxerTracks,
-                        sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE),
-                    ) { track ->
-                        if (tracks
-                                .getValue(
-                                    track,
-                                ).mime()
-                                .startsWith("video/")
-                        ) {
-                            NegativeTime.REJECT
-                        } else {
-                            NegativeTime.COPY
-                        }
-                    }
-                // MediaMuxer silently leaves out a track with no samples: a failed sanitize, not a smaller file.
+                val written = copy(extractor, muxer, muxerTracks, tracks, trimPlan?.window)
+                // MediaMuxer silently leaves out a track with no samples: a failed sanitize, not a smaller file. A
+                // trim has already left out the tracks it has no samples for, so this is a failure there too.
                 tracks.keys.firstOrNull { written[it] == 0 }?.let { track ->
                     throw IOException("Track $track (${tracks.getValue(track).mime()}) has no samples to copy")
                 }
@@ -197,7 +229,42 @@ object Mp4Sanitizer {
         return tracks
     }
 
+    /** Copies the selected [tracks] whole, or within [trim]; the samples written per extractor track. */
+    private fun copy(
+        extractor: MediaExtractor,
+        muxer: MediaMuxer,
+        muxerTracks: IntArray,
+        tracks: Map<Int, MediaFormat>,
+        trim: TrimWindow?,
+    ): IntArray {
+        val bufferSize = sampleBufferSize(tracks.values, MIN_SAMPLE_BUFFER_SIZE)
+        if (trim == null) {
+            return copySamples(extractor, muxer, muxerTracks, bufferSize) { track ->
+                if (tracks.getValue(track).isVideo()) NegativeTime.REJECT else NegativeTime.COPY
+            }
+        }
+        trim.seekUs?.let { extractor.seekTo(it, MediaExtractor.SEEK_TO_PREVIOUS_SYNC) }
+        return copyTrimmed(extractor, muxer, muxerTracks, bufferSize, trim)
+    }
+
     private fun MediaFormat.mime(): String = getString(MediaFormat.KEY_MIME).orEmpty()
+
+    private fun MediaFormat.isVideo(): Boolean = mime().startsWith("video/")
+
+    /** Plans [trim] of [tracks] with [probe], a second extractor of [input], released afterwards. */
+    private fun probeTrim(
+        context: Context,
+        input: Uri,
+        probe: MediaExtractor,
+        tracks: Map<Int, MediaFormat>,
+        trim: TrimRange,
+    ): TrimPlan =
+        try {
+            probe.setDataSource(context, input, null)
+            planTrim(probe, tracks.keys, tracks.filterValues { it.isVideo() }.keys, trim)
+        } finally {
+            runCatching { probe.release() }
+        }
 
     /** Throws (releasing [extractor], which won't be used) when [output] is the file [input] names. */
     private fun requireOutputIsNotInput(
